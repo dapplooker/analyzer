@@ -58,7 +58,7 @@ export default class DeleteDatabaseModal extends Component {
       >
         <div className="mb4">
           <p className="text-paragraph">
-            {t`All saved questions, metrics, and segments that rely on this database will be lost.`}{" "}
+            {t`All saved chart, metrics, and segments that rely on this database will be lost.`}{" "}
             <strong>{t`This cannot be undone.`}</strong>
           </p>
           <p className="text-paragraph">

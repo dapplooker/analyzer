@@ -228,7 +228,7 @@ export const getRoutes = store => (
           {/* NEW QUESTION FLOW */}
           <Route
             path="new"
-            title={t`New Question`}
+            title={t`New Chart`}
             component={NewQueryOptions}
           />
           <Route path="notebook" component={QueryBuilder} />

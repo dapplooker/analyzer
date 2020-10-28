@@ -52,7 +52,7 @@ export default class AddToDashSelectDashModal extends Component {
       return (
         <ModalContent
           id="AddToDashSelectDashModal"
-          title={t`Add this question to a dashboard`}
+          title={t`Add this chart to a dashboard`}
           onClose={this.props.onClose}
         >
           <DashboardPicker onChange={this.addToDashboard} />

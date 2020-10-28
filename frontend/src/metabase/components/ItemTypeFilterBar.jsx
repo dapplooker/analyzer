@@ -20,7 +20,7 @@ export const FILTERS = [
     icon: "dashboard",
   },
   {
-    name: t`Questions`,
+    name: t`Charts`,
     filter: "card",
     icon: "bar",
   },

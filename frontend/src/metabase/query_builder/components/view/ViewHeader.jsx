@@ -154,7 +154,7 @@ export class ViewTitleHeader extends React.Component {
             <div className="flex align-baseline flex-wrap">
               <ViewHeading className="mt1 mr2 mb1">
                 {isNative ? (
-                  t`New question`
+                  t`New chart`
                 ) : (
                   <QuestionDescription question={question} />
                 )}

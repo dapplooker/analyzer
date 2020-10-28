@@ -88,7 +88,7 @@ export default class PulseEdit extends Component {
     return this.props.pulse.channels.map((c, index) =>
       c.channel_type === "email" ? (
         <span key={index}>
-          {jt`This pulse will no longer be emailed to ${(
+          {jt`This report will no longer be emailed to ${(
             <strong>
               {(n => ngettext(msgid`${n} address`, `${n} addresses`, n))(
                 c.recipients.length,
@@ -97,20 +97,11 @@ export default class PulseEdit extends Component {
           )} ${<strong>{c.schedule_type}</strong>}`}
           .
         </span>
-      ) : c.channel_type === "slack" ? (
-        <span key={index}>
-          {jt`Slack channel ${(
-            <strong>{c.details && c.details.channel}</strong>
-          )} will no longer get this pulse ${(
-            <strong>{c.schedule_type}</strong>
-          )}`}
-          .
-        </span>
       ) : (
         <span key={index}>
           {jt`Channel ${(
             <strong>{c.channel_type}</strong>
-          )} will no longer receive this pulse ${(
+          )} will no longer receive this report ${(
             <strong>{c.schedule_type}</strong>
           )}`}
           .
@@ -126,11 +117,11 @@ export default class PulseEdit extends Component {
     return (
       <div className="PulseEdit">
         <div className="PulseEdit-header flex align-center border-bottom py3">
-          <h1>{pulse && pulse.id != null ? t`Edit pulse` : t`New pulse`}</h1>
+          <h1>{pulse && pulse.id != null ? t`Edit report` : t`New report`}</h1>
           <ModalWithTrigger
             ref="pulseInfo"
             className="Modal WhatsAPulseModal"
-            triggerElement={t`What's a Pulse?`}
+            triggerElement={t`What's a Report?`}
             triggerClasses="text-brand text-bold flex-align-right"
           >
             <ModalContent onClose={() => this.refs.pulseInfo.close()}>
@@ -181,7 +172,7 @@ export default class PulseEdit extends Component {
               key="save"
               actionFn={this.handleSave}
               className={cx("Button Button--primary", { disabled: !isValid })}
-              normalText={pulse.id != null ? t`Save changes` : t`Create pulse`}
+              normalText={pulse.id != null ? t`Save changes` : t`Create report`}
               activeText={t`Saving…`}
               failedText={t`Save failed`}
               successText={t`Saved`}

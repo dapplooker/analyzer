@@ -231,8 +231,8 @@ class Overworld extends React.Component {
                 </Box>
                 <h3 className="text-medium">
                   {user.is_superuser
-                    ? t`Save dashboards, questions, and collections in "${ROOT_COLLECTION.name}"`
-                    : t`Access dashboards, questions, and collections in "${ROOT_COLLECTION.name}"`}
+                    ? t`Save dashboards, charts, and collections in "${ROOT_COLLECTION.name}"`
+                    : t`Access dashboards, charts, and collections in "${ROOT_COLLECTION.name}"`}
                 </h3>
               </Box>
             )}

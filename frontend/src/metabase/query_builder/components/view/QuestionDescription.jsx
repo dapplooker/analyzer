@@ -47,7 +47,7 @@ const QuestionDescription = ({ question }) => {
   if (question.database()) {
     return <QuestionDataSource question={question} />;
   } else {
-    return <span>{t`New question`}</span>;
+    return <span>{t`New chart`}</span>;
   }
 };
 

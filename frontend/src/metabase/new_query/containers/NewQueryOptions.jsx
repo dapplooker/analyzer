@@ -108,7 +108,7 @@ export default class NewQueryOptions extends Component {
               <NewQueryOption
                 image="app/img/sql_illustration"
                 title={t`Native query`}
-                description={t`For more complicated questions, you can write your own SQL or native query.`}
+                description={t`For more complicated chart, you can write your own SQL or native query.`}
                 to={Urls.newQuestion({ type: "native" })}
                 width={180}
                 data-metabase-event={`New Question; Native Query Start`}

@@ -339,6 +339,22 @@ export default class Navbar extends Component {
           </Box>
         </Flex>
         <Flex ml="auto" align="center" pl={[1, 2]} className="relative z2">
+        {hasDataAccess && (
+            <Link
+              mr={[1, 2]}
+              to={Urls.dappqueryHome()}
+              p={1}
+              hover={{
+                backgroundColor: darken(color("brand")),
+              }}
+              className="flex align-center rounded transition-background"
+              data-metabase-event={`NavBar;New Question`}
+            >
+              {/* <Icon name="insight" size={18} /> */}
+              <h4 className="hide sm-show ml1 text-nowrap">{t`Back to Home`}</h4>
+            </Link>
+          )}
+
           {hasDataAccess && (
             <Link
               mr={[1, 2]}
@@ -351,7 +367,7 @@ export default class Navbar extends Component {
               data-metabase-event={`NavBar;New Question`}
             >
               <Icon name="insight" size={18} />
-              <h4 className="hide sm-show ml1 text-nowrap">{t`Ask a question`}</h4>
+              <h4 className="hide sm-show ml1 text-nowrap">{t`Create a Chart`}</h4>
             </Link>
           )}
           {hasDataAccess && (
@@ -382,7 +398,7 @@ export default class Navbar extends Component {
                 event: `NavBar;New Dashboard Click;`,
               },
               {
-                title: t`New pulse`,
+                title: t`New Report`,
                 icon: `pulse`,
                 link: Urls.newPulse(),
                 event: `NavBar;New Pulse Click;`,

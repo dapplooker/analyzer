@@ -1,24 +1,27 @@
 {
-  "name": "Metabase",
-  "description": "Metabase report server",
+  "name": "Dappquery",
+  "description": "Dappquery report server",
   "keywords": [
     "business intelligence",
     "analytics",
     "dashboard",
     "charting",
-    "metabase"
+    "Dappquery"
   ],
-  "website": "https://metabase.com/",
+  "website": "https://Dappquery.com/",
   "repository": "https://github.com/metabase/metabase",
   "logo": "https://avatars3.githubusercontent.com/u/10520629?v=3&s=200",
   "success_url": "/setup",
-  "env": {
-  },
+  "env": {},
   "addons": [
     "heroku-postgresql"
   ],
   "buildpacks": [
-    { "url": "https://github.com/heroku/heroku-buildpack-nodejs" },
-    { "url": "https://github.com/heroku/heroku-buildpack-clojure" }
+    {
+      "url": "https://github.com/heroku/heroku-buildpack-nodejs"
+    },
+    {
+      "url": "https://github.com/heroku/heroku-buildpack-clojure"
+    }
   ]
 }

@@ -81,7 +81,7 @@ class UpdateFieldValues extends Component {
       <Section>
         <SectionHeader
           title={t`Cached field values`}
-          description={t`Metabase can scan the values in this table to enable checkbox filters in dashboards and questions.`}
+          description={t`Metabase can scan the values in this table to enable checkbox filters in dashboards and charts.`}
         />
         <ActionButton
           className="Button mr2"

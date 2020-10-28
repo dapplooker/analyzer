@@ -160,7 +160,7 @@ export default class PulseEditCards extends Component {
       <div className="py1">
         <h2>{t`Pick your data`}</h2>
         <p className="mt1 h4 text-bold text-medium">
-          {t`Choose questions you'd like to send in this pulse`}.
+          {t`Choose chart you'd like to send in this report`}.
         </p>
         <ol className="my3">
           {pulseCards.map((card, index) => (

@@ -20,12 +20,12 @@ import { channelIsValid, createChannel } from "metabase/lib/pulse";
 
 export const CHANNEL_ICONS = {
   email: "mail",
-  slack: "slack",
+  // slack: "slack",
 };
 
 const CHANNEL_NOUN_PLURAL = {
   email: t`Emails`,
-  slack: t`Slack messages`,
+  // slack: t`Slack messages`,
 };
 
 export default class PulseEditChannels extends Component {
@@ -294,9 +294,11 @@ export default class PulseEditChannels extends Component {
   render() {
     const { formInput } = this.props;
     // Default to show the default channels until full formInput is loaded
-    const channels = formInput.channels || {
+    const channels =
+    //  formInput.channels || 
+    {
       email: { name: t`Email`, type: "email" },
-      slack: { name: t`Slack`, type: "slack" },
+      // slack: { name: t`Slack`, type: "slack" },
     };
     return (
       <ul className="bordered rounded bg-white">

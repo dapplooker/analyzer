@@ -62,7 +62,7 @@ export default class MetricPane extends Component {
       return card;
     } else {
       throw new Error(
-        t`Could not find the table metadata prior to creating a new question`,
+        t`Could not find the table metadata prior to creating a new chart`,
       );
     }
   }

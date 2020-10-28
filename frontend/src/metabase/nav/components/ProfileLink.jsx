@@ -39,20 +39,19 @@ export default class ProfileLink extends Component {
     const admin = this.props.user.is_superuser;
     const adminContext = this.props.context === "admin";
     return [
-      {
-        title: t`Account settings`,
-        icon: null,
-        link: Urls.accountSettings(),
-        event: `Navbar;Profile Dropdown;Edit Profile`,
-      },
+      // {
+      //   title: t`Account settings`,
+      //   icon: null,
+      //   link: Urls.accountSettings(),
+      //   event: `Navbar;Profile Dropdown;Edit Profile`,
+      // },
       ...(admin && [
         {
           title: adminContext ? t`Exit admin` : t`Admin`,
           icon: null,
           link: adminContext ? "/" : "/admin",
-          event: `Navbar;Profile Dropdown;${
-            adminContext ? "Exit Admin" : "Enter Admin"
-          }`,
+          event: `Navbar;Profile Dropdown;${adminContext ? "Exit Admin" : "Enter Admin"
+            }`,
         },
       ]),
       {
@@ -61,25 +60,25 @@ export default class ProfileLink extends Component {
         link: "/activity",
         event: `Navbar;Profile Dropdown;Activity ${tag}`,
       },
-      {
-        title: t`Help`,
-        icon: null,
-        link: MetabaseSettings.docsUrl(),
-        externalLink: true,
-        event: `Navbar;Profile Dropdown;About ${tag}`,
-      },
-      {
-        title: t`About Metabase`,
-        icon: null,
-        action: () => this.openModal("about"),
-        event: `Navbar;Profile Dropdown;About ${tag}`,
-      },
-      {
-        title: t`Sign out`,
-        icon: null,
-        link: "auth/logout",
-        event: `Navbar;Profile Dropdown;Logout`,
-      },
+      // {
+      //   title: t`Help`,
+      //   icon: null,
+      //   link: MetabaseSettings.docsUrl(),
+      //   externalLink: true,
+      //   event: `Navbar;Profile Dropdown;About ${tag}`,
+      // },
+      // {
+      //   title: t`About Metabase`,
+      //   icon: null,
+      //   action: () => this.openModal("about"),
+      //   event: `Navbar;Profile Dropdown;About ${tag}`,
+      // },
+      // {
+      //   title: t`Sign out`,
+      //   icon: null,
+      //   link: "auth/logout",
+      //   event: `Navbar;Profile Dropdown;Logout`,
+      // },
     ];
   };
 
