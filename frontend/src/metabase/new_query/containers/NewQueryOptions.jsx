@@ -83,7 +83,7 @@ export default class NewQueryOptions extends Component {
             <GridItem w={ITEM_WIDTHS}>
               <NewQueryOption
                 image="app/img/simple_mode_illustration"
-                title={t`Simple question`}
+                title={t`Simple chart`}
                 description={t`Pick some data, view it, and easily filter, summarize, and visualize it.`}
                 width={180}
                 to={Urls.newQuestion()}
@@ -95,7 +95,7 @@ export default class NewQueryOptions extends Component {
             <GridItem w={ITEM_WIDTHS}>
               <NewQueryOption
                 image="app/img/notebook_mode_illustration"
-                title={t`Custom question`}
+                title={t`Custom chart`}
                 description={t`Use the advanced notebook editor to join data, create custom columns, do math, and more.`}
                 width={180}
                 to={Urls.newQuestion({ mode: "notebook" })}

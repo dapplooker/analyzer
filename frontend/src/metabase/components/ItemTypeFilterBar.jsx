@@ -25,7 +25,7 @@ export const FILTERS = [
     icon: "bar",
   },
   {
-    name: t`Pulses`,
+    name: t`Reports`,
     filter: "pulse",
     icon: "pulse",
   },

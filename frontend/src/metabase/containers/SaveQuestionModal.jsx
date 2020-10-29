@@ -89,8 +89,8 @@ export default class SaveQuestionModal extends Component {
     };
 
     const title = this.props.multiStep
-      ? t`First, save your question`
-      : t`Save question`;
+      ? t`First, save your chart`
+      : t`Save chart`;
 
     const showSaveType = !card.id && !!originalCard;
 
@@ -144,7 +144,7 @@ export default class SaveQuestionModal extends Component {
                     />
                     <FormField
                       name="collection_id"
-                      title={t`Which collection should this go in?`}
+                      title={t`Which analytics folder should this go in?`}
                       type="collection"
                     />
                   </div>

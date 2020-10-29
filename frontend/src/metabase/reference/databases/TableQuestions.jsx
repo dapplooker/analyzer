@@ -30,9 +30,9 @@ import * as metadataActions from "metabase/redux/metadata";
 
 const emptyStateData = table => {
   return {
-    message: t`Questions about this table will appear here as they're added`,
+    message: t`Analytics about this table will appear here as they're added`,
     icon: "all",
-    action: t`Ask a question`,
+    action: t`Create a chart`,
     link: getQuestionUrl({
       dbId: table.db_id,
       tableId: table.id,

@@ -157,6 +157,11 @@ export const getRoutes = store => (
       <Route path="dashboard/:uuid" component={PublicDashboard} />
     </Route>
 
+    <Route path='/dappquery' component={() => { 
+     window.location.href = 'https://dappquery.com/'; 
+     return null;
+}}/>
+
     {/* APP */}
     <Route
       onEnter={async (nextState, replace, done) => {
@@ -168,8 +173,12 @@ export const getRoutes = store => (
       <Route path="/auth" component={AuthApp}>
         <IndexRedirect to="/auth/login" />
         <Route component={IsNotAuthenticated}>
-          <Route path="login" title={t`Login`} component={LoginApp} />
-          <Route path="login/:provider" title={t`Login`} component={LoginApp} />
+        <Route path='login' component={() => { 
+        window.location.href = 'https://dappquery.com/login?ref=analyzer'; 
+        return null;
+        }}/>
+          {/* <Route path="login" title={t`Login`} component={LoginApp} /> */}
+          {/* <Route path="login/:provider" title={t`Login`} component={LoginApp} /> */}
         </Route>
         <Route path="logout" component={LogoutApp} />
         <Route path="forgot_password" component={ForgotPasswordApp} />
@@ -312,7 +321,7 @@ export const getRoutes = store => (
       </Route>
 
       {/* PULSE */}
-      <Route path="/pulse" title={t`Pulses`}>
+      <Route path="/pulse" title={t`Reports`}>
         {/* NOTE: legacy route, not linked to in app */}
         <IndexRedirect to="/search" query={{ type: "pulse" }} />
         <Route path="create" component={PulseEditApp} />

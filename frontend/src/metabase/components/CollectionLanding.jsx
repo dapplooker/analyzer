@@ -74,7 +74,7 @@ const DashboardEmptyState = () => (
 const PulseEmptyState = () => (
   <EmptyStateWrapper>
     <EmptyState
-      message={t`Pulses let you send out the latest data to your team on a schedule via email or slack.`}
+      message={t`Report let you send out the latest data to your team on a schedule via email or slack.`}
       illustrationElement={<Icon name="pulse" size={32} />}
     />
   </EmptyStateWrapper>

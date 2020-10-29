@@ -10,7 +10,7 @@ export const exportFormats = ["csv", "xlsx", "json"];
 
 export const newQuestionFlow = () => "/question/new";
 
-export const dappqueryHome = () => "https://dappquery.com";
+export const dappqueryHome = () => "/dappquery";
 
 export const newDashboard = collectionId =>
   `collection/${collectionId}/new_dashboard`;

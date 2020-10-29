@@ -17,7 +17,7 @@ class ArchiveQuestionModal extends Component {
     return (
       <ArchiveModal
         title={t`Archive this question?`}
-        message={t`This question will be removed from any dashboards or pulses using it.`}
+        message={t`This question will be removed from any dashboards or reports using it.`}
         onArchive={onArchive}
         onClose={onClose}
       />

@@ -226,7 +226,7 @@ export class AlertEducationalScreen extends Component {
             <p
               className="ml2 text-left"
               style={textStyle}
-            >{jt`When a raw data question ${(
+            >{jt`When a raw data chart ${(
               <strong>{t`returns any results`}</strong>
             )}`}</p>
           </div>

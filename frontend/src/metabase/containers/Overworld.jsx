@@ -231,8 +231,8 @@ class Overworld extends React.Component {
                 </Box>
                 <h3 className="text-medium">
                   {user.is_superuser
-                    ? t`Save dashboards, charts, and collections in "${ROOT_COLLECTION.name}"`
-                    : t`Access dashboards, charts, and collections in "${ROOT_COLLECTION.name}"`}
+                    ? t`Save dashboards, charts and reports in "${ROOT_COLLECTION.name}"`
+                    : t`Access dashboards, charts and reports in "${ROOT_COLLECTION.name}"`}
                 </h3>
               </Box>
             )}
@@ -245,7 +245,7 @@ class Overworld extends React.Component {
               <Flex color={color("brand")} p={2} my={1} align="center">
                 <Box ml="auto" mr="auto">
                   <Flex align="center">
-                    <h4>{t`Browse all items`}</h4>
+                    <h4>{t`Browse all analytics`}</h4>
                     <Icon name="chevronright" size={14} ml={1} />
                   </Flex>
                 </Box>
@@ -376,7 +376,7 @@ export class AdminPinMessage extends React.Component {
     }
 
     const link = (
-      <Link className="link" to={Urls.collection()}>{t`Our analytics`}</Link>
+      <Link className="link" to={Urls.collection()}>{t`Public analytics`}</Link>
     );
 
     return (

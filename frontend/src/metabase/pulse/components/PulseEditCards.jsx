@@ -110,7 +110,7 @@ export default class PulseEditCards extends Component {
         notices.push({
           type: "warning",
           head: t`Heads up`,
-          body: t`Raw data questions can only be included as email attachments`,
+          body: t`Raw data chart can only be included as email attachments`,
         });
       }
     }
@@ -118,7 +118,7 @@ export default class PulseEditCards extends Component {
       notices.push({
         type: "warning",
         head: t`Looks like this pulse is getting big`,
-        body: t`We recommend keeping pulses small and focused to help keep them digestible and useful to the whole team.`,
+        body: t`We recommend keeping Reports small and focused to help keep them digestible and useful to the whole team.`,
       });
     }
     return notices;

@@ -9,7 +9,7 @@ export default class PulseEditCollection extends React.Component {
     const { pulse, setPulse } = this.props;
     return (
       <Box>
-        <h2>{t`Which collection should this report live in?`}</h2>
+        <h2>{t`Which analytics folder should this report live in?`}</h2>
 
         <Box my={2} width={400}>
           <CollectionSelect

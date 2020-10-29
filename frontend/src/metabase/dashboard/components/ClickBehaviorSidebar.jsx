@@ -725,7 +725,7 @@ function QuestionDashboardPicker({ dashcard, clickBehavior, updateSettings }) {
                     isDash ? (
                       t`Pick a dashboard...`
                     ) : (
-                      t`Pick a question...`
+                      t`Pick a chart...`
                     )
                   ) : (
                     <Entity.Name id={clickBehavior.targetId} />
@@ -757,7 +757,7 @@ function QuestionDashboardPicker({ dashcard, clickBehavior, updateSettings }) {
               title={
                 isDash
                   ? t`Pick a dashboard to link to`
-                  : t`Pick a question to link to`
+                  : t`Pick a chart to link to`
               }
               onClose={clickBehavior.targetId != null ? onClose : null}
             >

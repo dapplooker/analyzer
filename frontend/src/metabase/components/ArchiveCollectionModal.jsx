@@ -44,7 +44,7 @@ class ArchiveCollectionModal extends React.Component {
     return (
       <ArchiveModal
         title={t`Archive this collection?`}
-        message={t`The dashboards, collections, and pulses in this collection will also be archived.`}
+        message={t`The dashboards, collections, and Reports in this collection will also be archived.`}
         onClose={this.close}
         onArchive={this.archive}
       />

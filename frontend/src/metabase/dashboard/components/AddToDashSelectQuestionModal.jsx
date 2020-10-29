@@ -28,7 +28,7 @@ export default class AddToDashSelectQuestionModal extends React.Component {
   render() {
     return (
       <ModalContent
-        title={t`Pick a question to add`}
+        title={t`Pick a chart to add`}
         onClose={this.props.onClose}
       >
         <QuestionPicker onChange={this.handleAdd} />

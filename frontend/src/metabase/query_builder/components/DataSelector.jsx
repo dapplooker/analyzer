@@ -898,7 +898,7 @@ const TablePicker = ({
         />
         {isSavedQuestionList && (
           <div className="bg-light p2 text-centered border-top">
-            {t`Is a question missing?`}
+            {t`Is a chart missing?`}
             <a
               href={MetabaseSettings.docsUrl(
                 "users-guide/custom-questions",

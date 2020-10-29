@@ -152,7 +152,7 @@ export default class Activity extends Component {
         if (item.table) {
           description.summary = (
             <span>
-              {t`saved a question about `}
+              {t`saved a chart about `}
               <Link
                 to={Urls.tableRowsQuery(item.database_id, item.table_id)}
                 data-metabase-event={
@@ -165,11 +165,11 @@ export default class Activity extends Component {
             </span>
           );
         } else {
-          description.summary = t`saved a question`;
+          description.summary = t`saved a chart`;
         }
         break;
       case "card-delete":
-        description.summary = t`deleted a question`;
+        description.summary = t`deleted a chart`;
         break;
       case "dashboard-create":
         description.summary = t`created a dashboard`;
@@ -181,7 +181,7 @@ export default class Activity extends Component {
         if (item.model_exists) {
           description.summary = (
             <span>
-              {t`added a question to the dashboard - `}
+              {t`added a chart to the dashboard - `}
               <Link
                 to={Urls.dashboard(item.model_id)}
                 data-metabase-event={
@@ -196,7 +196,7 @@ export default class Activity extends Component {
         } else {
           description.summary = (
             <span>
-              {t`added a question to the dashboard - `}
+              {t`added a chart to the dashboard - `}
               <span className="text-dark">{item.details.name}</span>
             </span>
           );
@@ -206,7 +206,7 @@ export default class Activity extends Component {
         if (item.model_exists) {
           description.summary = (
             <span>
-              {t`removed a question from the dashboard - `}
+              {t`removed a chart from the dashboard - `}
               <Link
                 to={Urls.dashboard(item.model_id)}
                 data-metabase-event={
@@ -221,7 +221,7 @@ export default class Activity extends Component {
         } else {
           description.summary = (
             <span>
-              {t`removed a question from the dashboard - `}
+              {t`removed a chart from the dashboard - `}
               <span className="text-dark">{item.details.name}</span>
             </span>
           );
@@ -532,7 +532,7 @@ export default class Activity extends Component {
                     {t`Hmmm, looks like nothing has happened yet.`}
                   </div>
                   <div className="text-normal text-light">
-                    {t`Save a question and get this baby going!`}
+                    {t`Save a chart and get this baby going!`}
                   </div>
                 </div>
               ) : (
