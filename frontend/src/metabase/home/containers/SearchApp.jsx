@@ -172,7 +172,7 @@ const SearchResultSection = ({ title, items }) => (
                   className="text-small text-bold"
                   style={{ lineHeight: 1 }}
                 >
-                  {item.collection_name || t`Public Analytics`}
+                  {item.collection_name || t`Public collections`}
                 </span>
               </Flex>
             </div>

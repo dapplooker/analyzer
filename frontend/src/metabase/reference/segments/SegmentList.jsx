@@ -21,7 +21,7 @@ import * as metadataActions from "metabase/redux/metadata";
 
 const emptyStateData = {
   title: t`Segments are interesting subsets of tables`,
-  adminMessage: t`Defining common segments for your team makes it even easier to ask questions`,
+  adminMessage: t`Defining common segments for your team makes it even easier to ask charts`,
   message: t`Segments will appear here once your admins have created some`,
   image: "app/assets/img/segments-list",
   adminAction: t`Learn how to create segments`,

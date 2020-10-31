@@ -351,7 +351,7 @@ export default class Navbar extends Component {
               data-metabase-event={`NavBar;New Question`}
             >
               {/* <Icon name="insight" size={18} /> */}
-              <h4 className="hide sm-show ml1 text-nowrap">{t`Back to Home`}</h4>
+              <h4 className="hide sm-show ml1 text-nowrap">{t`Home`}</h4>
             </Link>
           )}
 

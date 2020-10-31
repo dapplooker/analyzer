@@ -297,7 +297,7 @@ const forms = {
         type: CacheFieldValuesScheduleWidget,
         title: t`Scanning for Filter Values`,
         description:
-          t`Metabase can scan the values present in each field in this database to enable checkbox filters in dashboards and questions. This can be a somewhat resource-intensive process, particularly if you have a very large database.` +
+          t`Metabase can scan the values present in each field in this database to enable checkbox filters in dashboards and charts. This can be a somewhat resource-intensive process, particularly if you have a very large database.` +
           " " +
           t`When should Metabase automatically scan and cache field values?`,
         hidden: !engine || !details["let-user-control-scheduling"],

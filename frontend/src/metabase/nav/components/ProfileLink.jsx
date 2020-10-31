@@ -50,7 +50,8 @@ export default class ProfileLink extends Component {
           title: adminContext ? t`Exit admin` : t`Admin`,
           icon: null,
           link: adminContext ? "/" : "/admin",
-          event: `Navbar;Profile Dropdown;${adminContext ? "Exit Admin" : "Enter Admin"
+          event: `Navbar;Profile Dropdown;${
+            adminContext ? "Exit Admin" : "Enter Admin"
             }`,
         },
       ]),

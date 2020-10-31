@@ -144,7 +144,7 @@ export default class SaveQuestionModal extends Component {
                     />
                     <FormField
                       name="collection_id"
-                      title={t`Which analytics folder should this go in?`}
+                      title={t`Which collection should this go in?`}
                       type="collection"
                     />
                   </div>

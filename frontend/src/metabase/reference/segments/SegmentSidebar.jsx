@@ -40,7 +40,7 @@ const SegmentSidebar = ({ segment, user, style, className }) => (
           key={`/reference/segments/${segment.id}/questions`}
           href={`/reference/segments/${segment.id}/questions`}
           icon="all"
-          name={t`Questions about this segment`}
+          name={t`Charts about this segment`}
         />
         {MetabaseSettings.get("enable-xrays") && (
           <SidebarItem

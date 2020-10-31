@@ -245,7 +245,7 @@ class Overworld extends React.Component {
               <Flex color={color("brand")} p={2} my={1} align="center">
                 <Box ml="auto" mr="auto">
                   <Flex align="center">
-                    <h4>{t`Browse all analytics`}</h4>
+                    <h4>{t`Browse all collections`}</h4>
                     <Icon name="chevronright" size={14} ml={1} />
                   </Flex>
                 </Box>
@@ -376,7 +376,7 @@ export class AdminPinMessage extends React.Component {
     }
 
     const link = (
-      <Link className="link" to={Urls.collection()}>{t`Public analytics`}</Link>
+      <Link className="link" to={Urls.collection()}>{t`Public collections`}</Link>
     );
 
     return (

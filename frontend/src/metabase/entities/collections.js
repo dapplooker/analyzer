@@ -45,7 +45,7 @@ const Collections = createEntity({
   },
 
   objectSelectors: {
-    getName: collection => collection && collection.id && collection.id === 'root' ? ROOT_COLLECTION.name : collection.name,
+    getName: collection => collection && collection.name,
     getUrl: collection => Urls.collection(collection.id),
     getIcon: collection => "all",
   },
