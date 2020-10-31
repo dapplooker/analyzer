@@ -72,7 +72,7 @@ MetricSchema.define({
 
 // backend returns model = "card" instead of "question"
 export const entityTypeForModel = model =>
-  model === "card" ? "chart" : `${model}s`;
+  model === "card" ? "questions" : `${model}s`;
 
 export const entityTypeForObject = object =>
   object && entityTypeForModel(object.model);
