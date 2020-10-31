@@ -272,7 +272,7 @@ const SECTIONS = updateSectionsWithPlugins({
       },
       {
         key: "-public-sharing-questions",
-        display_name: t`Shared Questions`,
+        display_name: t`Shared chart`,
         widget: PublicLinksQuestionListing,
         getHidden: settings => !settings["enable-public-sharing"],
       },
@@ -327,7 +327,7 @@ const SECTIONS = updateSectionsWithPlugins({
       },
       {
         key: "-embedded-questions",
-        display_name: t`Embedded Questions`,
+        display_name: t`Embedded Charts`,
         widget: EmbeddedQuestionListing,
         getHidden: settings => !settings["enable-embedding"],
       },

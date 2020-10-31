@@ -45,7 +45,7 @@ const Collections = createEntity({
   },
 
   objectSelectors: {
-    getName: collection => collection && collection.id && collection.id === 'root' ? ROOT_COLLECTION.name : collection.name,
+    getName: collection => collection && collection.name,
     getUrl: collection => Urls.collection(collection.id),
     getIcon: collection => "all",
   },
@@ -147,7 +147,7 @@ export const getCollectionType = (collectionId: string, state: {}) =>
 
 export const ROOT_COLLECTION = {
   id: "root",
-  name: t`Public analytics`,
+  name: t`Public collections`,
   location: "",
   path: [],
 };
@@ -155,7 +155,7 @@ export const ROOT_COLLECTION = {
 // the user's personal collection
 export const PERSONAL_COLLECTION = {
   id: undefined, // to be filled in by getExpandedCollectionsById
-  name: t`My private analytics`,
+  name: t`My private collections`,
   location: "/",
   path: ["root"],
   can_write: true,
@@ -164,7 +164,7 @@ export const PERSONAL_COLLECTION = {
 // fake collection for admins that contains all other user's collections
 export const PERSONAL_COLLECTIONS = {
   id: "personal", // placeholder id
-  name: t`All private analytics`,
+  name: t`All private collections`,
   location: "/",
   path: ["root"],
   can_write: false,

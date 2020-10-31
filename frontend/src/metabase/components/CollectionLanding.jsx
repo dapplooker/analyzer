@@ -83,7 +83,7 @@ const PulseEmptyState = () => (
 const QuestionEmptyState = () => (
   <EmptyStateWrapper>
     <EmptyState
-      message={t`Questions are a saved look at your data.`}
+      message={t`Charts are a saved look at your data.`}
       illustrationElement={<Icon name="beaker" size={32} />}
     />
   </EmptyStateWrapper>

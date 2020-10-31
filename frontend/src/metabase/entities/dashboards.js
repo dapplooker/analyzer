@@ -152,10 +152,10 @@ const Dashboards = createEntity({
       },
       {
         name: "collection_id",
-        title: t`Which analytics folder should this go in?`,
+        title: t`Which collection should this go in?`,
         type: "collection",
         validate: collectionId =>
-          collectionId === undefined ? "Analytics folder is required" : null,
+          collectionId === undefined ? "Collection is required" : null,
       },
     ],
   },

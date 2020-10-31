@@ -301,6 +301,6 @@ export const field_visibility_types = [
   {
     id: "sensitive",
     name: t`Do not include`,
-    description: t`This field won't be visible or selectable in questions created with the GUI interfaces. It will still be accessible in SQL/native queries.`,
+    description: t`This field won't be visible or selectable in charts created with the GUI interfaces. It will still be accessible in SQL/native queries.`,
   },
 ];

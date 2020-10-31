@@ -64,7 +64,7 @@ class CollectionList extends React.Component {
                 {({ highlighted, hovered }) => (
                   <CollectionItem
                     collection={{
-                      name: t`My private analytics`,
+                      name: t`My personal collections`,
                       id: currentUser.personal_collection_id,
                     }}
                     iconName="star"
@@ -93,9 +93,10 @@ class CollectionList extends React.Component {
               />
             </GridItem>
           )}
-          {currentCollection && currentCollection.can_write && (
+          {/* {currentCollection && currentCollection.can_write && ( */}
+            {currentUser.is_superuser && (
             <GridItem w={w}>
-              {/* <Link
+              <Link
                 to={Urls.newCollection(currentCollection.id)}
                 color={color("text-medium")}
                 hover={{ color: color("brand") }}
@@ -106,7 +107,7 @@ class CollectionList extends React.Component {
                   <Icon name="add" mr={1} bordered />
                   <h4>{t`New collection`}</h4>
                 </Flex>
-              </Link> */}
+              </Link>
             </GridItem>
           )}
         </Grid>

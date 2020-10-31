@@ -74,7 +74,7 @@ export default class MetricQuestions extends Component {
     return (
       <div style={style} className="full">
         <ReferenceHeader
-          name={t`Questions about ${this.props.metric.name}`}
+          name={t`Charts about ${this.props.metric.name}`}
           type="questions"
           headerIcon="ruler"
         />

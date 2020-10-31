@@ -321,7 +321,7 @@ export function withAnalytics(categoryOrFn, actionOrFn, labelOrFn, valueOrFn) {
           const value = get(valueOrFn, { category, action, label });
           MetabaseAnalytics.trackEvent(category, action, label, value);
         } catch (error) {
-          console.warn("withAnalytics threw an error:", error);
+          console.warn("with Collection threw an error:", error);
         }
         return thunkCreator(...args)(dispatch, getState);
       };
