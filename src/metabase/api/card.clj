@@ -523,7 +523,6 @@
           (reverse (range starting-position (+ (count sorted-cards) starting-position)))
           (reverse sorted-cards)))))
 
-
 (defn- move-cards-to-collection! [new-collection-id-or-nil card-ids]
   ;; if moving to a collection, make sure we have write perms for it
   (when new-collection-id-or-nil
@@ -640,7 +639,9 @@
      :parameters  (json/parse-string parameters keyword)
      :constraints nil
      :context     (dataset-api/export-format->context export-format)
-     :middleware  {:skip-results-metadata? true})))
+     :middleware  {:skip-results-metadata? true
+                   :format-rows?           false
+                   :js-int-to-string?      false})))
 
 
 ;;; ----------------------------------------------- Sharing is Caring ------------------------------------------------

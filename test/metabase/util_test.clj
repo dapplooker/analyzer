@@ -79,6 +79,19 @@
     ;; nil .getAuthority needs to be handled or NullPointerException
     "http:/"                                                                                 false))
 
+(deftest state?-test
+  (are+ [s expected] (= expected
+                        (u/state? s))
+    "louisiana"      true
+    "north carolina" true
+    "WASHINGTON"     true
+    "CA"             true
+    "NY"             true
+    "random"         false
+    nil              false
+    3                false
+    (Object.)        false))
+
 (deftest qualified-name-test
   (are+ [k expected] (= expected
                         (u/qualified-name k))
@@ -154,13 +167,21 @@
     {}                                         [:c]              {}))
 
 (deftest base64-string?-test
-  (are+ [s expected] (= expected
+  (are+ [s expected]    (= expected
                         (u/base64-string? s))
-    "ABc"           true
-    "ABc/+asdasd==" true
-    100             false
-    "<<>>"          false
-    "{\"a\": 10}"   false))
+    "ABc="         true
+    "ABc/+asdasd=" true
+    100            false
+    "<<>>"         false
+    "{\"a\": 10}"  false
+    ;; must be at least 2 characters...
+    "/"            false
+    ;; and end with padding if needed
+    "QQ"           false
+    "QQ="          false
+    "QQ=="         true
+    ;; padding has to go at the end
+    "==QQ"         false))
 
 (deftest select-keys-test
   (testing "select-non-nil-keys"
