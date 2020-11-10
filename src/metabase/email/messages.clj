@@ -127,11 +127,12 @@
                                :today        (t/format "MMM'&nbsp;'dd,'&nbsp;'yyyy" (t/zoned-date-time))
                                :logoHeader   true}
                               (random-quote-context)))]
-    (email/send-message!
-      :subject      (str (trs "You''re invited to join {0}''s {1}" company (app-name-trs)))
-      :recipients   [(:email invited)]
-      :message-type :html
-      :message      message-body)))
+    ;; (email/send-message!
+    ;;   :subject      (str (trs "You''re invited to join {0}''s {1}" company (app-name-trs)))
+    ;;   :recipients   [(:email invited)]
+    ;;   :message-type :html
+    ;;   :message      message-body)
+    ))
 
 (defn- all-admin-recipients
   "Return a sequence of email addresses for all Admin users.
@@ -180,11 +181,12 @@
                                :sso              google-auth?
                                :passwordResetUrl password-reset-url
                                :logoHeader       true}))]
-    (email/send-message!
-      :subject      (trs "[{0}] Password Reset Request" (app-name-trs))
-      :recipients   [email]
-      :message-type :html
-      :message      message-body)))
+    ;; (email/send-message!
+    ;;   :subject      (trs "[{0}] Password Reset Request" (app-name-trs))
+    ;;   :recipients   [email]
+    ;;   :message-type :html
+    ;;   :message      message-body)
+    ))
 
 ;; TODO - I didn't write these function and I don't know what it's for / what it's supposed to be doing. If this is
 ;; determined add appropriate documentation

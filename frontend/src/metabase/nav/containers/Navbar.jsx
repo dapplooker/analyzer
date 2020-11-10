@@ -350,7 +350,7 @@ export default class Navbar extends Component {
               className="flex align-center rounded transition-background"
               data-metabase-event={`NavBar;New Question`}
             >
-              {/* <Icon name="insight" size={18} /> */}
+              <Icon name="arrow_left" size={18} />
               <h4 className="hide sm-show ml1 text-nowrap">{t`My Project`}</h4>
             </Link>
           )}
