@@ -98,6 +98,11 @@
     (recur driver hsql-form (/ amount 1000.0) :second)
     (hsql/call :date_add hsql-form (hsql/raw (format "INTERVAL %s %s" amount (name unit))))))
 
+;; now() returns current timestamp in seconds resolution; now(6) returns it in nanosecond resolution
+(defmethod sql.qp/current-datetime-honeysql-form :mysql
+  [_]
+  (hsql/call :now 6))
+
 (defmethod driver/humanize-connection-error-message :mysql
   [_ message]
   (condp re-matches message
@@ -183,8 +188,10 @@
 ;; Since MySQL doesn't have date_trunc() we fake it by formatting a date to an appropriate string and then converting
 ;; back to a date. See http://dev.mysql.com/doc/refman/5.6/en/date-and-time-functions.html#function_date-format for an
 ;; explanation of format specifiers
+;; this will generate a SQL statement casting the TIME to a DATETIME so date_format doesn't fail:
+;; date_format(CAST(mytime AS DATETIME), '%Y-%m-%d %H') AS mytime
 (defn- trunc-with-format [format-str expr]
-  (str-to-date format-str (date-format format-str expr)))
+  (str-to-date format-str (date-format format-str (hx/cast :DATETIME expr))))
 
 (defmethod sql.qp/date [:mysql :default]         [_ _ expr] expr)
 (defmethod sql.qp/date [:mysql :minute]          [_ _ expr] (trunc-with-format "%Y-%m-%d %H:%i" expr))

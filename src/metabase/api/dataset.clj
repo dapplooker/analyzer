@@ -20,7 +20,7 @@
              [constraints :as qp.constraints]
              [permissions :as qp.perms]]
             [metabase.util
-             [i18n :refer [trs]]
+             [i18n :refer [trs tru]]
              [schema :as su]]
             [schema.core :as s]))
 
@@ -39,10 +39,14 @@
 
 (api/defendpoint ^:streaming POST "/"
   "Execute a query and retrieve the results in the usual format."
-  [:as {{:keys [database], :as query} :body}]
-  {database s/Int}
+  [:as {{:keys [database], query-type :type, :as query} :body}]
+  {database (s/maybe s/Int)}
+  ;; database is required unless this is an `internal` query.
   ;; don't permissions check the 'database' if it's the virtual database. That database doesn't actually exist :-)
-  (when-not (= database mbql.s/saved-questions-virtual-database-id)
+  (when (and (not= query-type "internal")
+             (not= database mbql.s/saved-questions-virtual-database-id))
+    (when-not database
+      (throw (Exception. (str (tru "`database` is required for all queries whose type is not `internal`.")))))
     (api/read-check Database database))
   ;; add sensible constraints for results limits on our query
   (let [source-card-id (query->source-card-id query)
@@ -87,10 +91,11 @@
     (let [query (-> (assoc query :async? true)
                     (dissoc :constraints)
                     (update :middleware #(-> %
-                                             (dissoc :add-default-userland-constraints?)
+                                             (dissoc :add-default-userland-constraints? :js-int-to-string?)
                                              (assoc :skip-results-metadata? true
                                                     :format-rows? false))))
-          info  {:executed-by api/*current-user-id*, :context (export-format->context export-format)}]
+          info  {:executed-by api/*current-user-id*
+                 :context     (export-format->context export-format)}]
       (qp.streaming/streaming-response [context export-format]
         (qp/process-query-and-save-execution! query info context)))))
 

@@ -7,6 +7,7 @@ import {
   popover,
   modal,
   typeAndBlurUsingLabel,
+  withSampleDataset,
 } from "__support__/cypress";
 
 describe("scenarios > question > notebook", () => {
@@ -254,7 +255,7 @@ describe("scenarios > question > notebook", () => {
       cy.findByText("Visualize").should("exist");
     });
 
-    it.skip("should show correct column title with foreign keys (metabase#11452)", () => {
+    it("should show correct column title with foreign keys (metabase#11452)", () => {
       // (Orders join Reviews on Product ID)
       openOrdersTable();
       cy.get(".Icon-notebook").click();
@@ -280,9 +281,111 @@ describe("scenarios > question > notebook", () => {
           .parent()
           .next()
           // NOTE from Flamber's warning:
-          // this name COULD be "normalized" to "Review" instead of "Reviews" - that's why we use Regex match here
+          // this name COULD be "normalized" to "Review - Product" instead of "Reviews - Products" - that's why we use Regex match here
           .invoke("text")
-          .should("match", /review/i);
+          .should("match", /reviews? - products?/i);
+      });
+    });
+
+    it.skip("should join saved questions that themselves contain joins (metabase#12928)", () => {
+      withSampleDataset(({ ORDERS, PRODUCTS, PEOPLE, REVIEWS }) => {
+        // Save Question 1
+        cy.request("POST", "/api/card", {
+          name: "12928_Q1",
+          dataset_query: {
+            database: 1,
+            query: {
+              "source-table": 2,
+              aggregation: [["count"]],
+              breakout: [
+                ["joined-field", "Products", ["field-id", PRODUCTS.CATEGORY]],
+                ["joined-field", "People - User", ["field-id", PEOPLE.SOURCE]],
+              ],
+              joins: [
+                {
+                  alias: "Products",
+                  condition: [
+                    "=",
+                    ["field-id", ORDERS.PRODUCT_ID],
+                    ["joined-field", "Products", ["field-id", PRODUCTS.ID]],
+                  ],
+                  fields: "all",
+                  "source-table": 1,
+                },
+                {
+                  alias: "People - User",
+                  condition: [
+                    "=",
+                    ["field-id", ORDERS.USER_ID],
+                    ["joined-field", "People - User", ["field-id", PEOPLE.ID]],
+                  ],
+                  fields: "all",
+                  "source-table": 3,
+                },
+              ],
+            },
+            type: "query",
+          },
+          display: "table",
+          visualization_settings: {},
+        });
+
+        // Save Question 2
+        cy.request("POST", "/api/card", {
+          name: "12928_Q2",
+          dataset_query: {
+            database: 1,
+            query: {
+              "source-table": 4,
+              aggregation: [["avg", ["field-id", REVIEWS.RATING]]],
+              breakout: [
+                ["joined-field", "Products", ["field-id", PRODUCTS.CATEGORY]],
+              ],
+              joins: [
+                {
+                  alias: "Products",
+                  condition: [
+                    "=",
+                    ["field-id", REVIEWS.PRODUCT_ID],
+                    ["joined-field", "Products", ["field-id", PRODUCTS.ID]],
+                  ],
+                  fields: "all",
+                  "source-table": 1,
+                },
+              ],
+            },
+            type: "query",
+          },
+          display: "table",
+          visualization_settings: {},
+        });
+
+        // Join two previously saved questions
+        cy.visit("/");
+        cy.findByText("Ask a question").click();
+        cy.findByText("Custom question").click();
+        cy.findByText("Saved Questions").click();
+        cy.findByText("12928_Q1").click();
+        cy.get(".Icon-join_left_outer").click();
+        popover().within(() => {
+          cy.findByText("Sample Dataset").click();
+          cy.findByText("Saved Questions").click();
+        });
+        cy.findByText("12928_Q2").click();
+        cy.contains(/Products? → Category/).click();
+        popover()
+          .contains(/Products? → Category/)
+          .click();
+        cy.findByText("Visualize").click();
+
+        cy.log(
+          "**Reported failing in v1.35.4.1 and `master` on July, 16 2020**",
+        );
+        cy.findByText("12928_Q1 + 12928_Q2");
+        // TODO: Add a positive assertion once this issue is fixed
+        cy.findByText("There was a problem with your question").should(
+          "not.exist",
+        );
       });
     });
   });
@@ -328,6 +431,69 @@ describe("scenarios > question > notebook", () => {
 
       cy.findByText("Category").should("exist");
       cy.findByText("Category is Gadget").should("exist");
+    });
+  });
+
+  // TODO: add positive assertions to all 4 tests when we figure out implementation details
+  describe.skip("arithmetic (metabase#13175)", () => {
+    beforeEach(() => {
+      cy.visit("/question/new?database=1&table=2&mode=notebook");
+    });
+
+    it("should work on custom column with `case`", () => {
+      cy.get(".Icon-add_data").click();
+      cy.get("[contenteditable='true']")
+        .click()
+        .clear()
+        .type("case([Subtotal] + Tax > 100, 'Big', 'Small')", { delay: 50 });
+      cy.findByPlaceholderText("Something nice and descriptive")
+        .click()
+        .type("Example", { delay: 100 });
+
+      cy.findAllByRole("button")
+        .contains("Done")
+        .should("not.be.disabled");
+    });
+
+    it("should work on custom filter", () => {
+      cy.findByText("Filter").click();
+      cy.findByText("Custom Expression").click();
+
+      cy.get("[contenteditable='true']")
+        .click()
+        .clear()
+        .type("[Subtotal] - Tax > 20", { delay: 50 });
+
+      cy.findAllByRole("button")
+        .contains("Done")
+        .should("not.be.disabled")
+        .click();
+
+      cy.contains(/^redundant input/i).should("not.exist");
+    });
+
+    const CASES = {
+      CountIf: "CountIf(([Subtotal] + [Tax]) > 10)",
+      SumIf: "SumIf([Subtotal], ([Subtotal] + [Tax] > 20))",
+    };
+
+    Object.entries(CASES).forEach(([filter, formula]) => {
+      it(`should work on custom aggregation with ${filter}`, () => {
+        cy.findByText("Summarize").click();
+        cy.findByText("Custom Expression").click();
+
+        cy.get("[contenteditable='true']")
+          .click()
+          .clear()
+          .type(formula, { delay: 50 });
+
+        cy.findByPlaceholderText("Name (required)")
+          .click()
+          .type("Ex", { delay: 100 });
+
+        cy.contains(/^expected closing parenthesis/i).should("not.exist");
+        cy.contains(/^redundant input/i).should("not.exist");
+      });
     });
   });
 });

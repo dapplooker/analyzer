@@ -94,7 +94,7 @@ class CollectionList extends React.Component {
             </GridItem>
           )}
           {/* {currentCollection && currentCollection.can_write && ( */}
-            {currentUser.is_superuser && (
+            {currentCollection &&currentUser.is_superuser && (
             <GridItem w={w}>
               <Link
                 to={Urls.newCollection(currentCollection.id)}

@@ -157,8 +157,8 @@ export const getRoutes = store => (
       <Route path="dashboard/:uuid" component={PublicDashboard} />
     </Route>
 
-    <Route path='/dappquery' component={() => { 
-     window.location.href = 'https://dappquery.com/'; 
+    <Route path='/dappquery' component={() => {
+     window.location.href = 'https://dappquery.com/dashboard';
      return null;
 }}/>
 
@@ -173,10 +173,10 @@ export const getRoutes = store => (
       <Route path="/auth" component={AuthApp}>
         <IndexRedirect to="/auth/login" />
         <Route component={IsNotAuthenticated}>
-        <Route path='login' component={() => { 
-        window.location.href = 'https://dappquery.com/login?ref=analyzer'; 
-        return null;
-        }}/>
+         <Route path='login' component={() => {
+            window.location.href = 'https://dappquery.com/login?ref=analyzer';
+            return null;
+          }}/>
           {/* <Route path="login" title={t`Login`} component={LoginApp} /> */}
           {/* <Route path="login/:provider" title={t`Login`} component={LoginApp} /> */}
         </Route>

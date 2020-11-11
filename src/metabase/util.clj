@@ -24,14 +24,6 @@
            javax.xml.bind.DatatypeConverter
            [org.apache.commons.validator.routines RegexValidator UrlValidator]))
 
-;; This is the very first log message that will get printed.
-;;
-;; It's here because this is one of the very first namespaces that gets loaded, and the first that has access to the
-;; logger It shows up a solid 10-15 seconds before the "Starting Metabase in STANDALONE mode" message because so many
-;; other namespaces need to get loaded
-(when-not *compile-files*
-  (log/info (trs "Loading Metabase...")))
-
 (defn format-bytes
   "Nicely format `num-bytes` as kilobytes/megabytes/etc.
 
@@ -93,6 +85,23 @@
   (boolean (when (string? s)
              (re-matches #"[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?"
                          (str/lower-case s)))))
+
+(defn state?
+  "Is `s` a state string?"
+  ^Boolean [^String s]
+  (boolean
+    (when (string? s)
+      (contains? #{"alabama" "alaska" "arizona" "arkansas" "california" "colorado" "connecticut" "delaware"
+                   "florida" "georgia" "hawaii" "idaho" "illinois" "indiana" "iowa" "kansas" "kentucky" "louisiana"
+                   "maine" "maryland" "massachusetts" "michigan" "minnesota" "mississippi" "missouri" "montana"
+                   "nebraska" "nevada" "new hampshire" "new jersey" "new mexico" "new york" "north carolina"
+                   "north dakota" "ohio" "oklahoma" "oregon" "pennsylvania" "rhode island" "south carolina"
+                   "south dakota" "tennessee" "texas" "utah" "vermont" "virginia" "washington" "west virginia"
+                   "wisconsin" "wyoming"
+                   "ak" "al" "ar" "az" "ca" "co" "ct" "de" "fl" "ga" "hi" "ia" "id" "il" "in" "ks" "ky" "la"
+                   "ma" "md" "me" "mi" "mn" "mo" "ms" "mt" "nc" "nd" "ne" "nh" "nj" "nm" "nv" "ny" "oh" "ok"
+                   "or" "pa" "ri" "sc" "sd" "tn" "tx" "ut" "va" "vt" "wa" "wi" "wv" "wy"}
+                 (str/lower-case s)))))
 
 (defn url?
   "Is `s` a valid HTTP/HTTPS URL string?"
@@ -543,7 +552,7 @@
   "Is `s` a Base-64 encoded string?"
   ^Boolean [s]
   (boolean (when (string? s)
-             (re-find #"^[0-9A-Za-z/+]+=*$" s))))
+             (re-matches #"^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$" s))))
 
 (defn decode-base64
   "Decodes a Base64 string to a UTF-8 string"
