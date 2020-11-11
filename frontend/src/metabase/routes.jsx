@@ -181,8 +181,14 @@ export const getRoutes = store => (
           {/* <Route path="login/:provider" title={t`Login`} component={LoginApp} /> */}
         </Route>
         <Route path="logout" component={LogoutApp} />
-        <Route path="forgot_password" component={ForgotPasswordApp} />
-        <Route path="reset_password/:token" component={PasswordResetApp} />
+        <Route path="forgot_password" component={() => {
+            window.location.href = 'https://dappquery.com/login?ref=analyzer';
+            return null;
+          }} />
+        <Route path="reset_password/:token" component={() => {
+            window.location.href = 'https://dappquery.com/login?ref=analyzer';
+            return null;
+          }} />
         <Route path="google_no_mb_account" component={GoogleNoAccount} />
       </Route>
 
