@@ -168,7 +168,7 @@
   [{pulse-id :id, pulse-name :name, :as pulse} results {:keys [recipients] :as channel}]
   (log/debug (u/format-color 'cyan (trs "Sending Pulse ({0}: {1}) with {2} Cards via email"
                                         pulse-id (pr-str pulse-name) (count results))))
-  (let [email-subject    (trs "Pulse: {0}" pulse-name)
+  (let [email-subject    (trs "Dappquery: {0}" pulse-name)
         email-recipients (filterv u/email? (map :email recipients))
         timezone         (-> results first :card defaulted-timezone)]
     {:subject      email-subject
@@ -181,7 +181,7 @@
   (log/debug (u/format-color 'cyan (trs "Sending Pulse ({0}: {1}) with {2} Cards via Slack"
                                         pulse-id (pr-str pulse-name) (count results))))
   {:channel-id  channel-id
-   :message     (str "Pulse: " pulse-name)
+   :message     (str "Dappquery: " pulse-name)
    :attachments (create-slack-attachment-data results)})
 
 (defmethod notification [:alert :email]
