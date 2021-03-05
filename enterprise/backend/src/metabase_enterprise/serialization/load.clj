@@ -4,42 +4,36 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [clojure.tools.logging :as log]
-            [metabase
-             [config :as config]
-             [util :as u]]
-            [metabase-enterprise.serialization
-             [names :refer [fully-qualified-name->context]]
-             [upsert :refer [maybe-upsert-many!]]]
-            [metabase.mbql
-             [normalize :as mbql.normalize]
-             [util :as mbql.util]]
-            [metabase.models
-             [card :refer [Card]]
-             [collection :refer [Collection]]
-             [dashboard :refer [Dashboard]]
-             [dashboard-card :refer [DashboardCard]]
-             [dashboard-card-series :refer [DashboardCardSeries]]
-             [database :as database :refer [Database]]
-             [dependency :refer [Dependency]]
-             [dimension :refer [Dimension]]
-             [field :refer [Field]]
-             [field-values :refer [FieldValues]]
-             [metric :refer [Metric]]
-             [pulse :refer [Pulse]]
-             [pulse-card :refer [PulseCard]]
-             [pulse-channel :refer [PulseChannel]]
-             [segment :refer [Segment]]
-             [setting :as setting]
-             [table :refer [Table]]
-             [user :refer [User]]]
+            [metabase-enterprise.serialization.names :refer [fully-qualified-name->context]]
+            [metabase-enterprise.serialization.upsert :refer [maybe-upsert-many!]]
+            [metabase.config :as config]
+            [metabase.mbql.normalize :as mbql.normalize]
+            [metabase.mbql.util :as mbql.util]
+            [metabase.models.card :refer [Card]]
+            [metabase.models.collection :refer [Collection]]
+            [metabase.models.dashboard :refer [Dashboard]]
+            [metabase.models.dashboard-card :refer [DashboardCard]]
+            [metabase.models.dashboard-card-series :refer [DashboardCardSeries]]
+            [metabase.models.database :as database :refer [Database]]
+            [metabase.models.dependency :refer [Dependency]]
+            [metabase.models.dimension :refer [Dimension]]
+            [metabase.models.field :refer [Field]]
+            [metabase.models.field-values :refer [FieldValues]]
+            [metabase.models.metric :refer [Metric]]
+            [metabase.models.pulse :refer [Pulse]]
+            [metabase.models.pulse-card :refer [PulseCard]]
+            [metabase.models.pulse-channel :refer [PulseChannel]]
+            [metabase.models.segment :refer [Segment]]
+            [metabase.models.setting :as setting]
+            [metabase.models.table :refer [Table]]
+            [metabase.models.user :refer [User]]
             [metabase.query-processor.util :as qp.util]
-            [metabase.util
-             [date-2 :as u.date]
-             [i18n :refer [trs]]]
+            [metabase.util :as u]
+            [metabase.util.date-2 :as u.date]
+            [metabase.util.i18n :refer [trs]]
             [toucan.db :as db]
-            [yaml
-             [core :as yaml]
-             [reader :as y.reader]])
+            [yaml.core :as yaml]
+            [yaml.reader :as y.reader])
   (:import java.time.temporal.Temporal))
 
 (extend-type Temporal y.reader/YAMLReader
@@ -66,8 +60,12 @@
 (defn- mbql-fully-qualified-names->ids
   [entity]
   (mbql.util/replace (mbql.normalize/normalize-tokens entity)
+    ;; handle legacy `:field-id` forms encoded prior to 0.39.0
     [:field-id (fully-qualified-name :guard string?)]
-    [:field-id (:field (fully-qualified-name->context fully-qualified-name))]
+    (mbql-fully-qualified-names->ids [:field fully-qualified-name nil])
+
+    [:field (fully-qualified-name :guard string?) opts]
+    [:field (:field (fully-qualified-name->context fully-qualified-name)) opts]
 
     [:metric (fully-qualified-name :guard string?)]
     [:metric (:metric (fully-qualified-name->context fully-qualified-name))]
@@ -330,10 +328,10 @@
              :created_at         (java.util.Date.)}
 
             (nil? model)
-            (log-or-die (:on-error model) (trs "Error loading dependencies: reference to an unknown entitiy {0}" model_id))
+            (log-or-die (:on-error model) (trs "Error loading dependencies: reference to an unknown entity {0}" model_id))
 
             (nil? dependent-on)
-            (log-or-die (:on-error model) (trs "Error loading dependencies: reference to an unknown entitiy {0}" dependent_on_id))))))))
+            (log-or-die (:on-error model) (trs "Error loading dependencies: reference to an unknown entity {0}" dependent_on_id))))))))
 
 (defn compatible?
   "Is dump at path `path` compatible with the currently running version of Metabase?"

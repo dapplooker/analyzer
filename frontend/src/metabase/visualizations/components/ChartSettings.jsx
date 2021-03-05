@@ -34,7 +34,7 @@ const withTransientSettingState = ComposedComponent =>
       };
     }
 
-    componentWillReceiveProps(nextProps) {
+    UNSAFE_componentWillReceiveProps(nextProps) {
       if (this.props.settings !== nextProps.settings) {
         this.setState({ settings: nextProps.settings });
       }
@@ -244,7 +244,10 @@ class ChartSettings extends Component {
       />
     ));
 
-    const onReset = !_.isEqual(settings, {}) ? this.handleResetSettings : null;
+    const onReset =
+      !_.isEqual(settings, {}) && (settings || {}).virtual_card == null // resetting virtual cards wipes the text and broke the UI (metabase#14644)
+        ? this.handleResetSettings
+        : null;
 
     // custom render prop layout:
     if (children) {

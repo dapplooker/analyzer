@@ -79,7 +79,7 @@ Some questions come up over and over again. Check here first:
 
 # Security Disclosure
 
-Security is very important to us. If you discover any issue regarding security, please disclose the information responsibly by sending an email to security@metabase.com and not by creating a GitHub issue.
+See [SECURITY.md](./SECURITY.md) for details.
 
 # Contributing
 
@@ -106,4 +106,4 @@ This repository contains the source code for both the Open Source edition of Met
 
 See [LICENSE.txt](./LICENSE.txt) for details.
 
-Unless otherwise noted, all files © 2020 Metabase, Inc.
+Unless otherwise noted, all files © 2021 Metabase, Inc.

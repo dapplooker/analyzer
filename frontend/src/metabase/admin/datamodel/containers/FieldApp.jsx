@@ -29,7 +29,7 @@ import SelectSeparator from "../components/SelectSeparator";
 
 import {
   FieldVisibilityPicker,
-  SpecialTypeAndTargetPicker,
+  SemanticTypeAndTargetPicker,
 } from "../components/database/ColumnItem";
 import FieldRemapping from "../components/FieldRemapping";
 import UpdateCachedFieldValues from "../components/UpdateCachedFieldValues";
@@ -114,8 +114,7 @@ export default class FieldApp extends React.Component {
     params: any,
   };
 
-  // $FlowFixMe
-  async componentWillMount() {
+  async UNSAFE_componentWillMount() {
     const {
       databaseId,
       tableId,
@@ -307,7 +306,7 @@ const FieldGeneralPane = ({
 
     <Section>
       <SectionHeader title={t`Field Type`} />
-      <SpecialTypeAndTargetPicker
+      <SemanticTypeAndTargetPicker
         className="flex align-center"
         field={field}
         updateField={onUpdateFieldProperties}
@@ -369,7 +368,7 @@ const FieldSettingsPane = ({ field, onUpdateFieldSettings }) => (
       value={(field && field.settings) || {}}
       onChange={onUpdateFieldSettings}
       column={field}
-      blacklist={
+      denylist={
         new Set(
           ["column_title"].concat(isCurrency(field) ? ["number_style"] : []),
         )

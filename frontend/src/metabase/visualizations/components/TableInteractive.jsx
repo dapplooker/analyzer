@@ -144,11 +144,13 @@ export default class TableInteractive extends Component {
       <div className="cellData">{children}</div>
     ),
     renderTableCellWrapper: children => (
-      <div className="cellData">{children}</div>
+      <div className={cx({ cellData: children != null && children !== "" })}>
+        {children}
+      </div>
     ),
   };
 
-  componentWillMount() {
+  UNSAFE_componentWillMount() {
     // for measuring cells:
     this._div = document.createElement("div");
     this._div.className = "TableInteractive";
@@ -167,7 +169,7 @@ export default class TableInteractive extends Component {
     }
   }
 
-  componentWillReceiveProps(newProps: Props) {
+  UNSAFE_componentWillReceiveProps(newProps: Props) {
     if (
       this.props.data &&
       newProps.data &&

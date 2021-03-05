@@ -1,21 +1,18 @@
 (ns metabase-enterprise.sandbox.api.table
   (:require [compojure.core :refer [GET]]
             [metabase-enterprise.sandbox.models.group-table-access-policy :refer [GroupTableAccessPolicy]]
-            [metabase.api
-             [common :as api]
-             [table :as table-api]]
+            [metabase.api.common :as api]
+            [metabase.api.table :as table-api]
             [metabase.mbql.util :as mbql.u]
-            [metabase.models
-             [card :refer [Card]]
-             [permissions :as perms]
-             [permissions-group-membership :refer [PermissionsGroupMembership]]
-             [table :as table :refer [Table]]]
+            [metabase.models.card :refer [Card]]
+            [metabase.models.permissions :as perms]
+            [metabase.models.permissions-group-membership :refer [PermissionsGroupMembership]]
+            [metabase.models.table :as table :refer [Table]]
             [metabase.util :as u]
             [metabase.util.schema :as su]
             [schema.core :as s]
-            [toucan
-             [db :as db]
-             [models :as models]]))
+            [toucan.db :as db]
+            [toucan.models :as models]))
 
 (s/defn ^:private find-gtap-question :- (s/maybe (type Card))
   "Find the associated GTAP question (if there is one) for the given `table-or-table-id` and
@@ -43,7 +40,7 @@
 
 (s/defn ^:private query->fields-ids :- (s/maybe [s/Int])
   [{{{:keys [fields]} :query} :dataset_query}]
-  (mbql.u/match fields [:field-id id] id))
+  (mbql.u/match fields [:field (id :guard integer?) _] id))
 
 (defn- maybe-filter-fields [table query-metadata-response]
   ;; If we have segmented permissions and the associated GTAP limits the fields returned, we need make sure the

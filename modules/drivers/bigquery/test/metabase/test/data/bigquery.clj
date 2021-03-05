@@ -3,20 +3,16 @@
             [flatland.ordered.map :as ordered-map]
             [java-time :as t]
             [medley.core :as m]
-            [metabase
-             [config :as config]
-             [driver :as driver]
-             [util :as u]]
-            [metabase.driver
-             [bigquery :as bigquery]
-             [google :as google]]
+            [metabase.config :as config]
+            [metabase.driver :as driver]
+            [metabase.driver.bigquery :as bigquery]
+            [metabase.driver.google :as google]
             [metabase.test.data :as data]
-            [metabase.test.data
-             [interface :as tx]
-             [sql :as sql.tx]]
-            [metabase.util
-             [date-2 :as u.date]
-             [schema :as su]]
+            [metabase.test.data.interface :as tx]
+            [metabase.test.data.sql :as sql.tx]
+            [metabase.util :as u]
+            [metabase.util.date-2 :as u.date]
+            [metabase.util.schema :as su]
             [schema.core :as s])
   (:import com.google.api.client.util.DateTime
            [com.google.api.services.bigquery.model Dataset DatasetReference QueryRequest QueryResponse Table
@@ -40,7 +36,7 @@
 (defn- normalize-name ^String [db-or-table identifier]
   (let [s (str/replace (name identifier) "-" "_")]
     (case db-or-table
-      :db    (str "v2_" s)
+      :db    (str "v3_" s)
       :table s)))
 
 (def ^:private details
@@ -61,7 +57,7 @@
   (partial deref (delay (#'bigquery/database->client {:details @details}))))
 
 (defmethod tx/dbdef->connection-details :bigquery [_ _ {:keys [database-name]}]
-  (assoc @details :dataset-id (normalize-name :db database-name)))
+  (assoc @details :dataset-id (normalize-name :db database-name) :include-user-id-and-hash true))
 
 
 ;;; -------------------------------------------------- Loading Data --------------------------------------------------

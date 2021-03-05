@@ -14,6 +14,7 @@ import { setErrorPage } from "metabase/redux/app";
 
 import {
   getIsEditing,
+  getIsSharing,
   getDashboardBeforeEditing,
   getIsEditingParameter,
   getIsDirty,
@@ -41,6 +42,7 @@ const mapStateToProps = (state, props) => {
 
     isAdmin: getUserIsAdmin(state, props),
     isEditing: getIsEditing(state, props),
+    isSharing: getIsSharing(state, props),
     dashboardBeforeEditing: getDashboardBeforeEditing(state, props),
     isEditingParameter: getIsEditingParameter(state, props),
     isDirty: getIsDirty(state, props),
@@ -83,7 +85,7 @@ export default class DashboardApp extends Component {
     addCardOnLoad: null,
   };
 
-  componentWillMount() {
+  UNSAFE_componentWillMount() {
     const options = parseHashOptions(window.location.hash);
     if (options.add) {
       this.setState({ addCardOnLoad: parseInt(options.add) });

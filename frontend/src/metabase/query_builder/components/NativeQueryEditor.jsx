@@ -165,7 +165,7 @@ export default class NativeQueryEditor extends Component {
     isOpen: false,
   };
 
-  componentWillMount() {
+  UNSAFE_componentWillMount() {
     const { question, setIsNativeEditorOpen } = this.props;
     setIsNativeEditorOpen(!question || !question.isSaved());
   }
@@ -453,6 +453,10 @@ export default class NativeQueryEditor extends Component {
         .setDatabaseId(databaseId)
         .setDefaultCollection()
         .update(this.props.setDatasetQuery);
+      if (this._editor && !this.props.readOnly) {
+        // HACK: the cursor doesn't blink without this intended small delay
+        setTimeout(() => this._editor.focus(), 50);
+      }
     }
   };
 
@@ -549,7 +553,7 @@ export default class NativeQueryEditor extends Component {
       }
     } else {
       dataSelectors = (
-        <span className="p2 text-medium">{t`This question is written in ${query.nativeQueryLanguage()}.`}</span>
+        <span className="ml2 p2 text-medium">{t`This question is written in ${query.nativeQueryLanguage()}.`}</span>
       );
     }
 

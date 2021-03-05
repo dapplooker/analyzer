@@ -3,26 +3,24 @@
   (:require [clojure.string :as str]
             [medley.core :as m]
             [metabase-enterprise.serialization.names :refer [fully-qualified-name]]
-            [metabase.mbql
-             [normalize :as mbql.normalize]
-             [schema :as mbql.s]
-             [util :as mbql.util]]
-            [metabase.models
-             [card :refer [Card]]
-             [dashboard :refer [Dashboard]]
-             [dashboard-card :refer [DashboardCard]]
-             [dashboard-card-series :refer [DashboardCardSeries]]
-             [database :as database :refer [Database]]
-             [dependency :refer [Dependency]]
-             [dimension :refer [Dimension]]
-             [field :as field :refer [Field]]
-             [metric :refer [Metric]]
-             [pulse :refer [Pulse]]
-             [pulse-card :refer [PulseCard]]
-             [pulse-channel :refer [PulseChannel]]
-             [segment :refer [Segment]]
-             [table :refer [Table]]
-             [user :refer [User]]]
+            [metabase.mbql.normalize :as mbql.normalize]
+            [metabase.mbql.schema :as mbql.s]
+            [metabase.mbql.util :as mbql.util]
+            [metabase.models.card :refer [Card]]
+            [metabase.models.dashboard :refer [Dashboard]]
+            [metabase.models.dashboard-card :refer [DashboardCard]]
+            [metabase.models.dashboard-card-series :refer [DashboardCardSeries]]
+            [metabase.models.database :as database :refer [Database]]
+            [metabase.models.dependency :refer [Dependency]]
+            [metabase.models.dimension :refer [Dimension]]
+            [metabase.models.field :as field :refer [Field]]
+            [metabase.models.metric :refer [Metric]]
+            [metabase.models.pulse :refer [Pulse]]
+            [metabase.models.pulse-card :refer [PulseCard]]
+            [metabase.models.pulse-channel :refer [PulseChannel]]
+            [metabase.models.segment :refer [Segment]]
+            [metabase.models.table :refer [Table]]
+            [metabase.models.user :refer [User]]
             [metabase.util :as u]
             [toucan.db :as db]))
 
@@ -42,19 +40,14 @@
       mbql.normalize/normalize-tokens
       (mbql.util/replace
         ;; `integer?` guard is here to make the operation idempotent
-        [:field-id (id :guard integer?)]
-        [:field-id (fully-qualified-name Field id)]
+        [:field (id :guard integer?) opts]
+        [:field (fully-qualified-name Field id) opts]
 
         [:metric (id :guard integer?)]
         [:metric (fully-qualified-name Metric id)]
 
         [:segment (id :guard integer?)]
-        [:segment (fully-qualified-name Segment id)]
-
-        ;; Legacy form with raw IDs
-        [:fk-> (from :guard integer?) (to :guard integer?)]
-        [:fk-> [:field-id (fully-qualified-name Field from)]
-         [:field-id (fully-qualified-name Field to)]])))
+        [:segment (fully-qualified-name Segment id)])))
 
 (defn- ids->fully-qualified-names
   [entity]
@@ -85,7 +78,7 @@
   [entity]
   (cond-> (dissoc entity :id :creator_id :created_at :updated_at :db_id :location
                   :dashboard_id :fields_hash :personal_owner_id :made_public_by_id :collection_id
-                  :pulse_id)
+                  :pulse_id :result_metadata)
     (some #(instance? % entity) (map type [Metric Field Segment])) (dissoc :table_id)))
 
 (defmulti ^:private serialize-one

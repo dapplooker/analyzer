@@ -25,16 +25,16 @@ function filterDashboard(suggests = true) {
 }
 
 describe("support > permissions (metabase#8472)", () => {
-  before(() => {
+  beforeEach(() => {
     restore();
     signIn("admin");
 
     // Setup a dashboard with a text filter
     cy.visit("/dashboard/1");
     // click pencil icon to edit
-    cy.get(".Icon-pencil").click();
+    cy.icon("pencil").click();
 
-    cy.get(".Icon-filter").click();
+    cy.icon("filter").click();
     popover()
       .contains("Other Categories")
       .click();
@@ -48,7 +48,6 @@ describe("support > permissions (metabase#8472)", () => {
   });
 
   it("should allow an admin user to select the filter", () => {
-    signIn("admin");
     filterDashboard();
   });
 

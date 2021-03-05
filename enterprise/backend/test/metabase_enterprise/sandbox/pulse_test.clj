@@ -3,22 +3,21 @@
             [clojure.java.io :as io]
             [clojure.test :refer :all]
             [medley.core :as m]
-            [metabase
-             [models :refer [Card Pulse PulseCard PulseChannel PulseChannelRecipient]]
-             [pulse :as pulse]
-             [query-processor :as qp]
-             [test :as mt]
-             [util :as u]]
             [metabase-enterprise.sandbox.test-util :as mt.tu]
             [metabase.email.messages :as messages]
+            [metabase.models :refer [Card Pulse PulseCard PulseChannel PulseChannelRecipient]]
             [metabase.models.pulse :as models.pulse]
-            [metabase.pulse.test-util :as pulse.tu]))
+            [metabase.pulse :as pulse]
+            [metabase.pulse.test-util :as pulse.tu]
+            [metabase.query-processor :as qp]
+            [metabase.test :as mt]
+            [metabase.util :as u]))
 
 (deftest sandboxed-pulse-test
   (testing "Pulses should get sent with the row-level restrictions of the User that created them."
     (letfn [(send-pulse-created-by-user! [user-kw]
               (mt.tu/with-gtaps {:gtaps      {:venues {:query      (mt/mbql-query venues)
-                                                       :remappings {:cat ["variable" [:field-id (mt/id :venues :category_id)]]}}}
+                                                       :remappings {:cat ["variable" [:field (mt/id :venues :category_id) nil]]}}}
                                  :attributes {"cat" 50}}
                 (mt/with-temp Card [card {:dataset_query (mt/mbql-query venues {:aggregation [[:count]]})}]
                   ;; `with-gtaps` binds the current test user; we don't want that falsely affecting results
@@ -81,7 +80,7 @@
 
 (deftest user-attributes-test
   (testing "Pulses should be sandboxed correctly by User login_attributes"
-    (mt.tu/with-gtaps {:gtaps      {:venues {:remappings {:price [:dimension [:field-id (mt/id :venues :price)]]}}}
+    (mt.tu/with-gtaps {:gtaps      {:venues {:remappings {:price [:dimension [:field (mt/id :venues :price) nil]]}}}
                        :attributes {"price" "1"}}
       (let [query (mt/mbql-query venues)]
         (mt/with-test-user :rasta
@@ -101,25 +100,24 @@
 
 (deftest pulse-preview-test
   (testing "Pulse preview endpoints should be sandboxed"
-    (mt.tu/with-gtaps {:gtaps      {:venues {:remappings {:price [:dimension [:field-id (mt/id :venues :price)]]}}}
+    (mt.tu/with-gtaps {:gtaps      {:venues {:remappings {:price [:dimension [:field (mt/id :venues :price) nil]]}}}
                        :attributes {"price" "1"}}
       (let [query (mt/mbql-query venues)]
         (mt/with-test-user :rasta
           (mt/with-temp Card [card {:dataset_query query}]
             (testing "GET /api/pulse/preview_card/:id"
               (is (= 22
-                     (html->row-count ((mt/user->client :rasta) :get 200 (format "pulse/preview_card/%d" (u/get-id card)))))))
-
+                     (html->row-count (mt/user-http-request :rasta :get 200 (format "pulse/preview_card/%d" (u/get-id card)))))))
             (testing "POST /api/pulse/test"
               (mt/with-fake-inbox
-                ((mt/user->client :rasta) :post 200 "pulse/test" {:name     "venues"
-                                                                  :cards    [{:id          (u/get-id card)
-                                                                              :include_csv true
-                                                                              :include_xls false}]
-                                                                  :channels [{:channel_type :email
-                                                                              :enabled      :true
-                                                                              :recipients   [{:id    (mt/user->id :rasta)
-                                                                                              :email "rasta@metabase.com"}]}]})
+                (mt/user-http-request :rasta :post 200 "pulse/test" {:name     "venues"
+                                                                     :cards    [{:id          (u/get-id card)
+                                                                                 :include_csv true
+                                                                                 :include_xls false}]
+                                                                     :channels [{:channel_type :email
+                                                                                 :enabled      :true
+                                                                                 :recipients   [{:id    (mt/user->id :rasta)
+                                                                                                 :email "rasta@metabase.com"}]}]})
                 (let [[{html :content} {attachment :content}] (get-in @mt/inbox ["rasta@metabase.com" 0 :body])]
                   (testing "email"
                     (is (= 22
@@ -131,7 +129,7 @@
 
 (deftest csv-downloads-test
   (testing "CSV/XLSX downloads should be sandboxed"
-    (mt.tu/with-gtaps {:gtaps      {:venues {:remappings {:price [:dimension [:field-id (mt/id :venues :price)]]}}}
+    (mt.tu/with-gtaps {:gtaps      {:venues {:remappings {:price [:dimension [:field (mt/id :venues :price) nil]]}}}
                        :attributes {"price" "1"}}
       (let [query (mt/mbql-query venues)]
         (mt/with-test-user :rasta

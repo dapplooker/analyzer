@@ -5,6 +5,7 @@ import {
   signInAsNormalUser,
   createBasicAlert,
   popover,
+  openPeopleTable,
 } from "__support__/cypress";
 // Ported from alert.e2e.spec.js
 // *** We should also check that alerts can be set up through slack
@@ -26,21 +27,24 @@ export function setGoal(number) {
 }
 
 describe("scenarios > alert", () => {
-  before(restore);
-  beforeEach(signInAsAdmin);
-
   describe("with nothing set", () => {
+    beforeEach(() => {
+      restore();
+      signInAsAdmin();
+    });
+
     it("should prompt you to add email/slack credentials", () => {
       cy.visit("/question/1");
-      cy.get(".Icon-bell").click();
+      cy.icon("bell").click();
       cy.findByText(
         "To send alerts, you'll need to set up email or Slack integration.",
       );
     });
+
     it("should say to non-admins that admin must add email credentials", () => {
       signInAsNormalUser();
       cy.visit("/question/1");
-      cy.get(".Icon-bell").click();
+      cy.icon("bell").click();
       cy.findByText(
         "To send alerts, an admin needs to set up email integration.",
       );
@@ -60,7 +64,7 @@ describe("scenarios > alert", () => {
     it("should show for the first alert, but not the second", () => {
       // Create first alert
       cy.visit("/question/1");
-      cy.get(".Icon-bell").click();
+      cy.icon("bell").click();
 
       cy.findByText("The wide world of alerts");
       cy.contains("When a raw data question returns any results");
@@ -70,7 +74,7 @@ describe("scenarios > alert", () => {
 
       // Create second alert
       cy.visit("/question/1");
-      cy.get(".Icon-bell").click();
+      cy.icon("bell").click();
 
       cy.findByText("The wide world of alerts").should("not.exist");
     });
@@ -88,7 +92,7 @@ describe("scenarios > alert", () => {
     describe("'rows present' alert", () => {
       it("should be supported for raw data questions ", () => {
         cy.visit(`/question/${raw_q_id}`);
-        cy.get(".Icon-table");
+        cy.icon("table");
 
         createBasicAlert({ firstAlert: true });
 
@@ -99,7 +103,7 @@ describe("scenarios > alert", () => {
 
       it("should be supported for timeseries questions without a goal", () => {
         cy.visit(`/question/${timeseries_q_id}`);
-        cy.get(".Icon-line");
+        cy.icon("line");
 
         createBasicAlert({ firstAlert: true });
 
@@ -124,7 +128,7 @@ describe("scenarios > alert", () => {
         cy.findByText("Save question").should("not.exist");
 
         // Create alert
-        cy.get(".Icon-bell").click();
+        cy.icon("bell").click();
         cy.findByText("Edit").click();
         cy.findByText("Goes above the goal line").click();
         cy.findByText("The first time").click();
@@ -151,9 +155,9 @@ describe("scenarios > alert", () => {
 
     it.skip("should fall back to raw data alert and show a warning", () => {
       // Create a time-multiseries q
-      cy.visit("/question/new?database=1&table=3"); // "People" table
+      openPeopleTable();
       cy.findByText("Summarize").click();
-      cy.get(".Icon-notebook").click();
+      cy.icon("notebook").click();
       cy.findByText("Summarize").click();
       cy.findByText("Count of rows").click();
       cy.findByText("Pick a column to group by").click();
@@ -184,7 +188,7 @@ describe("scenarios > alert", () => {
       cy.findByText("Not now").click();
 
       // Create Alert
-      cy.get(".Icon-bell").click();
+      cy.icon("bell").click();
       cy.findByText("Set up an alert").click();
       // *** This below warning is not showing when we try to make an alert (Issue #???)
       cy.contains(

@@ -19,14 +19,14 @@
    "run-ee"                            ["with-profile" "+run,+ee" "run"]
    "run-with-repl"                     ["with-profile" "+run-with-repl" "repl"]
    "run-with-repl-ee"                  ["with-profile" "+run-with-repl,+ee" "repl"]
-   "ring"                              ["with-profile" "+ring" "ring"]
-   "ring-ee"                           ["with-profile" "+ring,+ee" "ring"]
+   ;; "ring"                              ["with-profile" "+ring" "ring"]
+   ;; "ring-ee"                           ["with-profile" "+ring,+ee" "ring"]
    "test"                              ["with-profile" "+test" "test"]
    "test-ee"                           ["with-profile" "+test,+ee" "test"]
    "bikeshed"                          ["with-profile" "+bikeshed" "bikeshed"
                                         "--max-line-length" "205"
                                         ;; see https://github.com/dakrone/lein-bikeshed/issues/41
-                                        "--exclude-profiles" "compare-h2-dbs,dev"]
+                                        "--exclude-profiles" "dev"]
    "check-namespace-decls"             ["with-profile" "+check-namespace-decls" "check-namespace-decls"]
    "eastwood"                          ["with-profile" "+eastwood" "eastwood"]
    "check-reflection-warnings"         ["with-profile" "+reflection-warnings" "check"]
@@ -36,8 +36,6 @@
    "lint"                              ["do" ["eastwood"] ["bikeshed"] ["check-namespace-decls"] ["docstring-checker"] ["cloverage"]]
    "repl"                              ["with-profile" "+repl" "repl"]
    "repl-ee"                           ["with-profile" "+repl,+ee" "repl"]
-   "strip-and-compress"                ["with-profile" "+strip-and-compress,-user,-dev" "run"]
-   "compare-h2-dbs"                    ["with-profile" "+compare-h2-dbs" "run"]
    "uberjar"                           ["uberjar"]
    "uberjar-ee"                        ["with-profile" "+ee" "uberjar"]}
 
@@ -49,9 +47,10 @@
   [[org.clojure/clojure "1.10.1"]
    [org.clojure/core.async "0.4.500"
     :exclusions [org.clojure/tools.reader]]
+   [joda-time/joda-time "2.10.8"]
    [org.clojure/core.logic "1.0.0"]
    [org.clojure/core.match "0.3.0"]                                   ; optimized pattern matching library for Clojure
-   [org.clojure/core.memoize "1.0.236"]                               ; needed by core.match; has useful FIFO, LRU, etc. caching mechanisms
+   [org.clojure/core.memoize "1.0.236"]                               ; needed by core.match and search; has useful FIFO, LRU, etc. caching mechanisms
    [org.clojure/data.csv "0.1.4"]                                     ; CSV parsing / generation
    [org.clojure/java.classpath "1.0.0"]                               ; examine the Java classpath from Clojure programs
    [org.clojure/java.jdbc "0.7.11"]                                   ; basic JDBC access from Clojure
@@ -103,7 +102,7 @@
    [dk.ative/docjure "1.13.0"]                                        ; Excel export
    [environ "1.2.0"]                                                  ; easy environment management
    [hiccup "1.0.5"]                                                   ; HTML templating
-   [honeysql "0.9.5" :exclusions [org.clojure/clojurescript]]         ; Transform Clojure data structures to SQL
+   [honeysql "1.0.461" :exclusions [org.clojure/clojurescript]]       ; Transform Clojure data structures to SQL
    [instaparse "1.4.10"]                                              ; Make your own parser
    [io.forward/yaml "1.0.9"                                           ; Clojure wrapper for YAML library SnakeYAML (which we already use for liquidbase)
     :exclusions [org.clojure/clojure
@@ -117,7 +116,7 @@
    [metabase/saml20-clj "2.0.0"]                                      ; EE SAML integration
    [metabase/throttle "1.0.2"]                                        ; Tools for throttling access to API endpoints and other code pathways
    [net.redhogs.cronparser/cron-parser-core "3.4"                     ; describe Cron schedule in human-readable language
-    :exclusions [org.slf4j/slf4j-api]]
+    :exclusions [org.slf4j/slf4j-api joda-time]]                      ; exclude joda time 2.3 which has outdated timezone information
    [net.sf.cssbox/cssbox "4.12" :exclusions [org.slf4j/slf4j-api]]    ; HTML / CSS rendering
    [org.apache.commons/commons-lang3 "3.10"]                          ; helper methods for working with java.lang stuff
    [org.apache.logging.log4j/log4j-api "2.13.3"]                      ; apache logging framework
@@ -134,7 +133,7 @@
    [org.liquibase/liquibase-core "3.6.3"                              ; migration management (Java lib)
     :exclusions [ch.qos.logback/logback-classic]]
    [org.mariadb.jdbc/mariadb-java-client "2.6.2"]                     ; MySQL/MariaDB driver
-   [org.postgresql/postgresql "42.2.8"]                               ; Postgres driver
+   [org.postgresql/postgresql "42.2.18"]                              ; Postgres driver
    [org.slf4j/slf4j-api "1.7.30"]                                     ; abstraction for logging frameworks -- allows end user to plug in desired logging framework at deployment time
    [org.tcrawley/dynapath "1.1.0"]                                    ; Dynamically add Jars (e.g. Oracle or Vertica) to classpath
    [org.threeten/threeten-extra "1.5.0"]                               ; extra Java 8 java.time classes like DayOfMonth and Quarter
@@ -148,7 +147,7 @@
    [ring/ring-jetty-adapter "1.8.1"]                                  ; Ring adapter using Jetty webserver (used to run a Ring server for unit tests)
    [ring/ring-json "0.5.0"]                                           ; Ring middleware for reading/writing JSON automatically
    [stencil "0.5.0"]                                                  ; Mustache templates for Clojure
-   [toucan "1.15.1" :exclusions [org.clojure/java.jdbc                ; Model layer, hydration, and DB utilities
+   [toucan "1.15.3" :exclusions [org.clojure/java.jdbc                ; Model layer, hydration, and DB utilities
                                  org.clojure/tools.logging
                                  org.clojure/tools.namespace
                                  honeysql]]
@@ -168,7 +167,6 @@
 
   :jvm-opts
   ["-XX:+IgnoreUnrecognizedVMOptions"                                 ; ignore things not recognized for our Java version instead of refusing to start
-   "-Xverify:none"                                                    ; disable bytecode verification when running in dev so it starts slightly faster
    "-Djava.awt.headless=true"]                                        ; prevent Java icon from randomly popping up in dock when running `lein ring server`
 
   :target-path "target/%s"
@@ -224,7 +222,8 @@
     ["-Dlogfile.path=target/log"]
 
     :repl-options
-    {:init-ns user}} ; starting in the user namespace is a lot faster than metabase.core since it has less deps
+    {:init-ns user ; starting in the user namespace is a lot faster than metabase.core since it has less deps
+     :timeout 180000}}
 
    ;; output test results in JUnit XML format
    :junit
@@ -246,7 +245,7 @@
      :format-result metabase.junit/format-result}}
 
    :ci
-   {:jvm-opts ["-Xmx2500m"]}
+   {:jvm-opts ["-Xmx2000m"]}
 
    :install
    {}
@@ -272,26 +271,27 @@
      :repl-options
      {:init    (do (require 'metabase.core)
                    (metabase.core/-main))
-      :timeout 60000}}]
+      :timeout 180000}}]
 
+   ;; DISABLED FOR NOW SINCE IT'S BROKEN -- SEE #12181
    ;; start the dev HTTP server with 'lein ring server'
-   :ring
-   [:exclude-tests
-    :include-all-drivers
-    {:dependencies
-     ;; used internally by lein ring to track namespace changes. Newer version contains fix by yours truly with 1000x
-     ;; faster launch time
-     [[ns-tracker "0.4.0"]]
+   ;; :ring
+   ;; [:exclude-tests
+   ;;  :include-all-drivers
+   ;;  {:dependencies
+   ;;   ;; used internally by lein ring to track namespace changes. Newer version contains fix by yours truly with 1000x
+   ;;   ;; faster launch time
+   ;;   [[ns-tracker "0.4.0"]]
 
-     :plugins
-     [[lein-ring "0.12.5" :exclusions [org.clojure/clojure]]]
+   ;;   :plugins
+   ;;   [[lein-ring "0.12.5" :exclusions [org.clojure/clojure]]]
 
-     :ring
-     {:handler      metabase.handler/app
-      :init         metabase.core/init!
-      :async?       true
-      :destroy      metabase.core/destroy
-      :reload-paths ["src"]}}]
+   ;;   :ring
+   ;;   {:handler      metabase.server.handler/app
+   ;;    :init         metabase.core/init!
+   ;;    :async?       true
+   ;;    :destroy      metabase.core/destroy
+   ;;    :reload-paths ["src"]}}]
 
    :with-include-drivers-middleware
    {:plugins
@@ -367,7 +367,7 @@
                            #_:unused-locals]
       :exclude-linters    [    ; Turn this off temporarily until we finish removing self-deprecated functions & macros
                            :deprecations
-                           ;; this has a fit in libs that use Potemin `import-vars` such as `java-time`
+                           ;; this has a fit in libs that use Potemkin `import-vars` such as `java-time`
                            :implicit-dependencies
                            ;; too many false positives for now
                            :unused-ret-vals]}}]
@@ -392,7 +392,7 @@
    :check-namespace-decls
    [:linters-common
     {:plugins               [[lein-check-namespace-decls "1.0.2"]]
-     :check-namespace-decls {:prefix-rewriting true}}]
+     :check-namespace-decls {:prefix-rewriting false}}]
 
    :cloverage
    [:test-common
@@ -412,15 +412,6 @@
    {:auto-clean true
     :aot        :all}
 
-   ;; lein strip-and-compress my-plugin.jar [path/to/metabase.jar]
-   ;; strips classes from my-plugin.jar that already exist in other JAR and recompresses with higher compression ratio.
-   ;; Second arg (other JAR) is optional; defaults to target/uberjar/metabase.jar
-   :strip-and-compress
-   {:aliases      ^:replace {"run" ["run"]}
-    :source-paths ^:replace ["lein-commands/strip-and-compress"]
-    :test-paths   ^:replace []
-    :main         ^:skip-aot metabase.strip-and-compress-module}
-
    ;; Profile Metabase start time with `lein profile`
    :profile
    {:jvm-opts ["-XX:+CITime"                                          ; print time spent in JIT compiler
@@ -431,9 +422,4 @@
    {:main org.h2.tools.Shell}
 
    :generate-automagic-dashboards-pot
-   {:main metabase.automagic-dashboards.rules}
-
-   :compare-h2-dbs
-   {:aliases      ^:replace  {"run" ["run"]}
-    :main         ^:skip-aot metabase.cmd.compare-h2-dbs
-    :source-paths ["test"]}})
+   {:main metabase.automagic-dashboards.rules}})

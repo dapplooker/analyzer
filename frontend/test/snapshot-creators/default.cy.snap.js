@@ -2,6 +2,7 @@ import {
   snapshot,
   restore,
   USERS,
+  USER_GROUPS,
   withSampleDataset,
   signInAsAdmin,
 } from "__support__/cypress";
@@ -13,8 +14,13 @@ describe("snapshots", () => {
       setup();
       updateSettings();
       addUsersAndGroups();
+      createCollections();
       withSampleDataset(SAMPLE_DATASET => {
         createQuestionAndDashboard(SAMPLE_DATASET);
+        cy.writeFile(
+          "frontend/test/__support__/cypress_sample_dataset.json",
+          SAMPLE_DATASET,
+        );
       });
       snapshot("default");
       restore("blank");
@@ -62,9 +68,7 @@ describe("snapshots", () => {
     });
   }
 
-  const ALL_USERS_GROUP = 1;
-  const COLLECTION_GROUP = 4;
-  const DATA_GROUP = 5;
+  const { ALL_USERS_GROUP, COLLECTION_GROUP, DATA_GROUP } = USER_GROUPS;
 
   function addUsersAndGroups() {
     // groups
@@ -92,23 +96,36 @@ describe("snapshots", () => {
     // Make a call to `/api/user` because some things (personal collections) get created there
     cy.request("GET", "/api/user");
 
-    // permissions
-    cy.request("PUT", "/api/permissions/graph", {
-      revision: 0,
-      groups: {
-        [ALL_USERS_GROUP]: { "1": { schemas: "none", native: "none" } },
-        [DATA_GROUP]: { "1": { schemas: "all", native: "write" } },
-        [COLLECTION_GROUP]: { "1": { schemas: "none", native: "none" } },
-      },
+    cy.updatePermissionsGraph({
+      [ALL_USERS_GROUP]: { "1": { schemas: "none", native: "none" } },
+      [DATA_GROUP]: { "1": { schemas: "all", native: "write" } },
+      [COLLECTION_GROUP]: { "1": { schemas: "none", native: "none" } },
     });
-    cy.request("PUT", "/api/collection/graph", {
-      revision: 0,
-      groups: {
-        [ALL_USERS_GROUP]: { root: "none" },
-        [DATA_GROUP]: { root: "none" },
-        [COLLECTION_GROUP]: { root: "write" },
-      },
+
+    cy.updateCollectionGraph({
+      [ALL_USERS_GROUP]: { root: "none" },
+      [DATA_GROUP]: { root: "none" },
+      [COLLECTION_GROUP]: { root: "write" },
     });
+  }
+
+  function createCollections() {
+    function postCollection(name, parent_id, callback) {
+      cy.request("POST", "/api/collection", {
+        name,
+        color: "#509ee3",
+        description: `Collection ${name}`,
+        parent_id,
+      }).then(({ body }) => callback && callback(body));
+    }
+    postCollection("First collection", undefined, firstCollection =>
+      postCollection(
+        "Second collection",
+        firstCollection.id,
+        secondCollection =>
+          postCollection("Third collection", secondCollection.id),
+      ),
+    );
   }
 
   function createQuestionAndDashboard({ ORDERS, ORDERS_ID }) {
@@ -143,9 +160,7 @@ describe("snapshots", () => {
         query: {
           "source-table": ORDERS_ID,
           aggregation: [["count"]],
-          breakout: [
-            ["datetime-field", ["field-id", ORDERS.CREATED_AT], "year"],
-          ],
+          breakout: [["field", ORDERS.CREATED_AT, { "temporal-unit": "year" }]],
         },
         database: 1,
       },

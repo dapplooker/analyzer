@@ -1,11 +1,9 @@
 (ns ^:deprecated expectations
-  (:require [clojure
-             [data :as data]
-             [test :as t]]
+  (:require [clojure.data :as data]
+            [clojure.test :as t]
             [environ.core :as env]
-            [metabase
-             [config :as config]
-             [util :as u]]
+            [metabase.config :as config]
+            [metabase.util :as u]
             [methodical.core :as m]))
 
 (alter-meta! *ns* assoc :deprecated true)
@@ -137,10 +135,14 @@
     ;; expecting it.
     (when-not (env/env :drivers)
       (t/testing "Don't write any new tests using expect!"
-        (let [ee? (u/ignore-exceptions (require 'metabase-enterprise.core) true)]
-          ;; TODO - update the numbers for EE
-          (t/is (<= total-expect-forms (if ee? 1177 882)))
-          (t/is (<= total-namespaces-using-expect (if ee? 107 85))))))))
+        (let [ee?            (u/ignore-exceptions (require 'metabase-enterprise.core) true)
+              oss-forms      278
+              ee-forms       25
+              oss-namespaces 38
+              ee-namespaces  3]
+
+          (t/is (<= total-expect-forms (cond-> oss-forms ee? (+ ee-forms))))
+          (t/is (<= total-namespaces-using-expect (cond-> oss-namespaces ee? (+ ee-namespaces)))))))))
 
 (defmacro ^:deprecated expect
   "Simple macro that simulates converts an Expectations-style `expect` form into a `clojure.test` `deftest` form."

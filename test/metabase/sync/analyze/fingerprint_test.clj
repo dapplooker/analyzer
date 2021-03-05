@@ -1,18 +1,16 @@
 (ns metabase.sync.analyze.fingerprint-test
   "Basic tests to make sure the fingerprint generatation code is doing something that makes sense."
   (:require [clojure.test :refer :all]
-            [metabase
-             [db :as mdb]
-             [test :as mt]
-             [util :as u]]
-            [metabase.db.metadata-queries :as metadata-queries]
-            [metabase.models
-             [field :as field :refer [Field]]
-             [table :refer [Table]]]
+            [metabase.db.util :as mdb.u]
+            [metabase.models.field :as field :refer [Field]]
+            [metabase.models.table :refer [Table]]
+            [metabase.query-processor :as qp]
             [metabase.sync.analyze.fingerprint :as fingerprint]
             [metabase.sync.analyze.fingerprint.fingerprinters :as fingerprinters]
             [metabase.sync.interface :as i]
+            [metabase.test :as mt]
             [metabase.test.data :as data]
+            [metabase.util :as u]
             [schema.core :as s]
             [toucan.db :as db]
             [toucan.util.test :as tt]))
@@ -36,8 +34,8 @@
           [:and
            [:= :active true]
            [:or
-            [:not (mdb/isa :special_type :type/PK)]
-            [:= :special_type nil]]
+            [:not (mdb.u/isa :semantic_type :type/PK)]
+            [:= :semantic_type nil]]
            [:not-in :visibility_type ["retired" "sensitive"]]
            [:not= :base_type "type/Structured"]
            [:or
@@ -51,8 +49,8 @@
           [:and
            [:= :active true]
            [:or
-            [:not (mdb/isa :special_type :type/PK)]
-            [:= :special_type nil]]
+            [:not (mdb.u/isa :semantic_type :type/PK)]
+            [:= :semantic_type nil]]
            [:not-in :visibility_type ["retired" "sensitive"]]
            [:not= :base_type "type/Structured"]
            [:or
@@ -71,8 +69,8 @@
             [:and
              [:= :active true]
              [:or
-              [:not (mdb/isa :special_type :type/PK)]
-              [:= :special_type nil]]
+              [:not (mdb.u/isa :semantic_type :type/PK)]
+              [:= :semantic_type nil]]
              [:not-in :visibility_type ["retired" "sensitive"]]
              [:not= :base_type "type/Structured"]
              [:or
@@ -92,8 +90,8 @@
             [:and
              [:= :active true]
              [:or
-              [:not (mdb/isa :special_type :type/PK)]
-              [:= :special_type nil]]
+              [:not (mdb.u/isa :semantic_type :type/PK)]
+              [:= :semantic_type nil]]
              [:not-in :visibility_type ["retired" "sensitive"]]
              [:not= :base_type "type/Structured"]
              [:or
@@ -118,8 +116,8 @@
     (is (= {:where [:and
                     [:= :active true]
                     [:or
-                     [:not (mdb/isa :special_type :type/PK)]
-                     [:= :special_type nil]]
+                     [:not (mdb.u/isa :semantic_type :type/PK)]
+                     [:= :semantic_type nil]]
                     [:not-in :visibility_type ["retired" "sensitive"]]
                     [:not= :base_type "type/Structured"]]}
            (binding [fingerprint/*refingerprint?* true]
@@ -130,7 +128,8 @@
 (defn- field-was-fingerprinted? {:style/indent 0} [fingerprint-versions field-properties]
   (let [fingerprinted? (atom false)]
     (with-redefs [i/fingerprint-version->types-that-should-be-re-fingerprinted fingerprint-versions
-                  metadata-queries/table-rows-sample                           (constantly [[1] [2] [3] [4] [5]])
+                  qp/process-query                                             (fn [_ {:keys [rff]}]
+                                                                                 (transduce identity (rff :metadata) [[1] [2] [3] [4] [5]]))
                   fingerprint/save-fingerprint!                                (fn [& _] (reset! fingerprinted? true))]
       (tt/with-temp* [Table [table]
                       Field [_ (assoc field-properties :table_id (u/get-id table))]]
@@ -228,7 +227,8 @@
                                 :fingerprint_version 1
                                 :last_analyzed       #t "2017-08-09T00:00:00"}]
       (with-redefs [i/latest-fingerprint-version       3
-                    metadata-queries/table-rows-sample (constantly [[1] [2] [3] [4] [5]])
+                    qp/process-query                   (fn [_ {:keys [rff]}]
+                                                         (transduce identity (rff :metadata) [[1] [2] [3] [4] [5]]))
                     fingerprinters/fingerprinter       (constantly (fingerprinters/constant-fingerprinter {:experimental {:fake-fingerprint? true}}))]
         (is (= {:no-data-fingerprints 0, :failed-fingerprints    0,
                 :updated-fingerprints 1, :fingerprints-attempted 1}

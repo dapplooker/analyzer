@@ -1,10 +1,12 @@
-import { restore, signIn, signOut, USERS } from "__support__/cypress";
+import { browse, restore, signIn, signOut, USERS } from "__support__/cypress";
 
 const sizes = [[1280, 800], [640, 360]];
 
 describe("scenarios > auth > signin", () => {
-  before(restore);
-  beforeEach(signOut);
+  beforeEach(() => {
+    restore();
+    signOut();
+  });
 
   it("should redirect to  /auth/login", () => {
     cy.visit("/");
@@ -29,7 +31,9 @@ describe("scenarios > auth > signin", () => {
 
   it("should greet users after successful login", () => {
     cy.visit("/auth/login");
-    cy.findByLabelText("Email address").type(USERS.admin.username);
+    cy.findByLabelText("Email address")
+      .should("be.focused")
+      .type(USERS.admin.username);
     cy.findByLabelText("Password").type(USERS.admin.password);
     cy.findByText("Sign in").click();
     cy.contains(/[a-z ]+, Bob/i);
@@ -48,7 +52,8 @@ describe("scenarios > auth > signin", () => {
   it("should redirect to a unsaved question after login", () => {
     signIn();
     cy.visit("/");
-    cy.contains("Browse Data").click();
+    // Browse data moved to an icon
+    browse().click();
     cy.contains("Sample Dataset").click();
     cy.contains("Orders").click();
     cy.contains("37.65");

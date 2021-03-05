@@ -2,16 +2,18 @@ import { signInAsAdmin, modal, popover, restore } from "__support__/cypress";
 // NOTE: some overlap with parameters-embedded.cy.spec.js
 
 describe("scenarios > dashboard > parameters", () => {
-  before(restore);
-  beforeEach(signInAsAdmin);
+  beforeEach(() => {
+    restore();
+    signInAsAdmin();
+  });
 
   it("should be visible if previously added", () => {
     cy.visit("/dashboard/1");
     cy.findByText("Baker").should("not.exist");
 
     // Add a filter
-    cy.get(".Icon-pencil").click();
-    cy.get(".Icon-filter").click();
+    cy.icon("pencil").click();
+    cy.icon("filter").click();
     cy.findByText("Location").click();
     cy.findByText("City").click();
 
@@ -46,20 +48,18 @@ describe("scenarios > dashboard > parameters", () => {
   });
 
   it("should search across multiple fields", () => {
-    // create a new dashboard
-    cy.visit("/");
-    cy.get(".Icon-add").click();
-    cy.contains("New dashboard").click();
-    cy.get(`[name="name"]`).type("my dash");
-    cy.contains("button", "Create").click();
+    cy.request("POST", "/api/dashboard", { name: "my dash" });
+
+    cy.visit("/collection/root");
+    cy.findByText("my dash").click();
 
     // add the same question twice
-    cy.get(".Icon-pencil").click();
+    cy.icon("pencil").click();
     addQuestion("Orders, Count");
     addQuestion("Orders, Count");
 
     // add a category filter
-    cy.get(".Icon-filter").click();
+    cy.icon("filter").click();
     cy.contains("Other Categories").click();
 
     // connect it to people.name and product.category
@@ -104,15 +104,15 @@ describe("scenarios > dashboard > parameters", () => {
       .contains("4,939");
   });
 
-  it.skip("should remove previously deleted dashboard parameter from URL (metabase#10829)", () => {
+  it("should remove previously deleted dashboard parameter from URL (metabase#10829)", () => {
     // Mirrored issue in metabase-enterprise#275
 
     // Go directly to "Orders in a dashboard" dashboard
     cy.visit("/dashboard/1");
 
     // Add filter and save dashboard
-    cy.get(".Icon-pencil").click();
-    cy.get(".Icon-filter").click();
+    cy.icon("pencil").click();
+    cy.icon("filter").click();
     cy.contains("Other Categories").click();
     cy.findByText("Save").click();
 
@@ -120,19 +120,28 @@ describe("scenarios > dashboard > parameters", () => {
     cy.findByPlaceholderText("Category")
       .click()
       .type("Gizmo{enter}");
+
     cy.log(
       "**URL is updated correctly with the given parameter at this point**",
     );
     cy.url().should("include", "category=Gizmo");
 
-    // Remove filter and save dashboard
-    cy.get(".Icon-pencil").click();
-    cy.get(".Dashboard .Icon-gear").click();
-    cy.findByText("Remove").click();
+    // Remove filter name
+    cy.icon("pencil").click();
+    cy.get(".Dashboard")
+      .find(".Icon-gear")
+      .click();
+    cy.findByDisplayValue("Category")
+      .click()
+      .clear();
     cy.findByText("Save").click();
+    cy.findByText("You're editing this dashboard.").should("not.exist");
 
-    cy.log("**URL should not include deleted parameter**");
-    cy.url().should("not.include", "category=Gizmo");
+    cy.log("Filter name should be 'unnamed' and the value cleared");
+    cy.findByPlaceholderText(/unnamed/i);
+
+    cy.log("URL should reset");
+    cy.location("pathname").should("eq", "/dashboard/1");
   });
 
   it("should allow linked question to be changed without breaking (metabase#9299)", () => {
@@ -170,7 +179,7 @@ describe("scenarios > dashboard > parameters", () => {
     // it automatically switches to that dashboard and enters the editing mode
     cy.findByText("You're editing this dashboard.");
 
-    cy.get(".Icon-filter").click();
+    cy.icon("filter").click();
     cy.findByText("Time").click();
     cy.findByText("All Options").click();
     // update the filter with the default option "Previous 30 days"
@@ -210,7 +219,7 @@ describe("scenarios > dashboard > parameters", () => {
     });
     cy.findByText("New question").should("not.exist");
 
-    cy.log("**Bug was breaking the dashboard at this point**");
+    cy.log("Bug was breaking the dashboard at this point");
     cy.visit("/dashboard/1");
     // error was always ending in "is undefined" when dashboard broke in the past
     cy.contains(/is undefined$/).should("not.exist");

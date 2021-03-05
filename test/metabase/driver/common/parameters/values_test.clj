@@ -1,17 +1,16 @@
 (ns metabase.driver.common.parameters.values-test
   (:require [clojure.test :refer :all]
-            [metabase
-             [driver :as driver]
-             [models :refer [Card Collection NativeQuerySnippet]]
-             [query-processor :as qp]
-             [test :as mt]
-             [util :as u]]
+            [metabase.driver :as driver]
             [metabase.driver.common.parameters :as i]
             [metabase.driver.common.parameters.values :as values]
-            [metabase.models
-             [field :refer [map->FieldInstance]]
-             [permissions :as perms]
-             [permissions-group :as group]])
+            [metabase.models :refer [Card Collection NativeQuerySnippet]]
+            [metabase.models.field :refer [map->FieldInstance]]
+            [metabase.models.permissions :as perms]
+            [metabase.models.permissions-group :as group]
+            [metabase.query-processor :as qp]
+            [metabase.test :as mt]
+            [metabase.util :as u]
+            [metabase.query-processor.middleware.permissions :as qp.perms])
   (:import clojure.lang.ExceptionInfo))
 
 (deftest variable-value-test
@@ -34,11 +33,11 @@
   (testing "specified"
     (testing "date range for a normal :type/Temporal field"
       (is (= {:field (map->FieldInstance
-                      {:name         "DATE"
-                       :parent_id    nil
-                       :table_id     (mt/id :checkins)
-                       :base_type    :type/Date
-                       :special_type nil})
+                      {:name          "DATE"
+                       :parent_id     nil
+                       :table_id      (mt/id :checkins)
+                       :base_type     :type/Date
+                       :semantic_type nil})
               :value {:type  :date/range
                       :value "2015-04-01~2015-05-01"}}
              (into {} (#'values/value-for-tag
@@ -54,11 +53,11 @@
       (mt/dataset tupac-sightings
         (mt/$ids sightings
           (is (= {:field (map->FieldInstance
-                          {:name         "TIMESTAMP"
-                           :parent_id    nil
-                           :table_id     $$sightings
-                           :base_type    :type/BigInteger
-                           :special_type :type/UNIXTimestampSeconds})
+                          {:name          "TIMESTAMP"
+                           :parent_id     nil
+                           :table_id      $$sightings
+                           :base_type     :type/BigInteger
+                           :semantic_type :type/UNIXTimestampSeconds})
                   :value {:type  :date/range
                           :value "2020-02-01~2020-02-29"}}
                  (into {} (#'values/value-for-tag
@@ -73,11 +72,11 @@
 
   (testing "unspecified"
     (is (= {:field (map->FieldInstance
-                    {:name         "DATE"
-                     :parent_id    nil
-                     :table_id     (mt/id :checkins)
-                     :base_type    :type/Date
-                     :special_type nil})
+                    {:name          "DATE"
+                     :parent_id     nil
+                     :table_id      (mt/id :checkins)
+                     :base_type     :type/Date
+                     :semantic_type nil})
             :value i/no-value}
            (into {} (#'values/value-for-tag
                      {:name         "checkin_date"
@@ -88,11 +87,11 @@
 
   (testing "id requiring casting"
     (is (= {:field (map->FieldInstance
-                    {:name         "ID"
-                     :parent_id    nil
-                     :table_id     (mt/id :checkins)
-                     :base_type    :type/BigInteger
-                     :special_type :type/PK})
+                    {:name          "ID"
+                     :parent_id     nil
+                     :table_id      (mt/id :checkins)
+                     :base_type     :type/BigInteger
+                     :semantic_type :type/PK})
             :value {:type  :id
                     :value 5}}
            (into {} (#'values/value-for-tag
@@ -103,16 +102,16 @@
     (is (thrown? Exception
                  (into {} (#'values/value-for-tag
                            {:name      "checkin_date", :display-name "Checkin Date", :type "dimension", :required true,
-                            :dimension ["field-id" (mt/id :checkins :date)]}
+                            :dimension [:field (mt/id :checkins :date) nil]}
                            nil)))))
 
   (testing "required and default specified"
     (is (= {:field (map->FieldInstance
-                    {:name         "DATE"
-                     :parent_id    nil
-                     :table_id     (mt/id :checkins)
-                     :base_type    :type/Date
-                     :special_type nil})
+                    {:name          "DATE"
+                     :parent_id     nil
+                     :table_id      (mt/id :checkins)
+                     :base_type     :type/Date
+                     :semantic_type nil})
             :value {:type  :dimension
                     :value "2015-04-01~2015-05-01"}}
            (into {} (#'values/value-for-tag
@@ -127,11 +126,11 @@
 
   (testing "multiple values for the same tag should return a vector with multiple params instead of a single param"
     (is (= {:field (map->FieldInstance
-                    {:name         "DATE"
-                     :parent_id    nil
-                     :table_id     (mt/id :checkins)
-                     :base_type    :type/Date
-                     :special_type nil})
+                    {:name          "DATE"
+                     :parent_id     nil
+                     :table_id      (mt/id :checkins)
+                     :base_type     :type/Date
+                     :semantic_type nil})
             :value [{:type  :date/range
                      :value "2015-01-01~2016-09-01"}
                     {:type  :date/single
@@ -143,11 +142,11 @@
 
   (testing "Make sure defaults values get picked up for field filter clauses"
     (is (= {:field (map->FieldInstance
-                    {:name         "DATE"
-                     :parent_id    nil
-                     :table_id     (mt/id :checkins)
-                     :base_type    :type/Date
-                     :special_type nil})
+                    {:name          "DATE"
+                     :parent_id     nil
+                     :table_id      (mt/id :checkins)
+                     :base_type     :type/Date
+                     :semantic_type nil})
             :value {:type  :date/all-options
                     :value "past5days"}}
            (into {} (#'values/parse-tag
@@ -254,10 +253,10 @@
       (mt/with-temp-copy-of-db
         (perms/revoke-permissions! (group/all-users) (mt/id))
         (mt/with-temp* [Collection [collection]
-                        Card       [{card-1-id :id, :as card-1} {:collection_id (u/get-id collection)
+                        Card       [{card-1-id :id, :as card-1} {:collection_id (u/the-id collection)
                                                                  :dataset_query (mt/mbql-query venues
                                                                                   {:order-by [[:asc $id]], :limit 2})}]
-                        Card       [card-2 {:collection_id (u/get-id collection)
+                        Card       [card-2 {:collection_id (u/the-id collection)
                                             :dataset_query (mt/native-query
                                                              {:query         "SELECT * FROM {{card}}"
                                                               :template-tags {"card" {:name         "card"
@@ -266,12 +265,11 @@
                                                                                       :card-id      card-1-id}}})}]]
           (perms/grant-collection-read-permissions! (group/all-users) collection)
           (mt/with-test-user :rasta
-            (is (= [[1 "Red Medicine"           4 10.0646 -165.374 3]
-                    [2 "Stout Burgers & Beers" 11 34.0996 -118.329 2]]
-                   (mt/rows
-                     (qp/process-userland-query (assoc (:dataset_query card-2)
-                                                       :info {:executed-by (mt/user->id :rasta)
-                                                              :card-id     (u/get-id card-2)})))))))))))
+            (binding [qp.perms/*card-id* (u/the-id card-2)]
+              (is (= [[1 "Red Medicine"           4 10.0646 -165.374 3]
+                      [2 "Stout Burgers & Beers" 11 34.0996 -118.329 2]]
+                     (mt/rows
+                       (qp/process-query (:dataset_query card-2))))))))))))
 
 (deftest card-query-errors-test
   (testing "error conditions for :card parameters"
@@ -324,3 +322,31 @@
       (is (thrown?
            clojure.lang.ExceptionInfo
            (values/query->params-map query))))))
+
+(deftest dont-be-too-strict-test
+  (testing "values-for-tag should allow unknown keys (used only by FE) (#13868)"
+    (testing "\nUnknown key 'filteringParameters'"
+      (testing "in tag"
+        (is (= "2"
+               (#'values/value-for-tag
+                {:name                "id"
+                 :display-name        "ID"
+                 :type                :text
+                 :required            true
+                 :default             "100"
+                 :filteringParameters "222b245f"}
+                [{:type   :category
+                  :target [:variable [:template-tag "id"]]
+                  :value  "2"}]))))
+      (testing "in params"
+        (is (= "2"
+               (#'values/value-for-tag
+                {:name         "id"
+                 :display-name "ID"
+                 :type         :text
+                 :required     true
+                 :default      "100"}
+                [{:type                :category
+                  :target              [:variable [:template-tag "id"]]
+                  :value               "2"
+                  :filteringParameters "222b245f"}])))))))

@@ -22,8 +22,7 @@ import Field from "metabase-lib/lib/metadata/Field";
 
 import {
   AggregationDimension,
-  DatetimeFieldDimension,
-  BinnedDimension,
+  FieldDimension,
 } from "metabase-lib/lib/Dimension";
 import Mode from "metabase-lib/lib/Mode";
 
@@ -44,7 +43,7 @@ import {
   toUnderlyingRecords,
   drillUnderlyingRecords,
 } from "metabase/modes/lib/actions";
-import { MetabaseApi, CardApi } from "metabase/services";
+import { MetabaseApi, CardApi, maybeUsePivotEndpoint } from "metabase/services";
 import Questions from "metabase/entities/questions";
 
 import type {
@@ -101,12 +100,20 @@ export default class Question {
    */
   constructor(
     card: CardObject,
-    metadata: Metadata,
+    metadata?: Metadata,
     parameterValues?: ParameterValues,
     update?: ?QuestionUpdateFn,
   ) {
     this._card = card;
-    this._metadata = metadata;
+    this._metadata =
+      metadata ||
+      new Metadata({
+        databases: {},
+        tables: {},
+        fields: {},
+        metrics: {},
+        segments: {},
+      });
     this._parameterValues = parameterValues || {};
     this._update = update;
   }
@@ -352,15 +359,19 @@ export default class Question {
       if (aggregations.length >= 1 && breakouts.length === 1) {
         if (breakoutFields[0].isDate()) {
           if (
-            breakoutDimensions[0] instanceof DatetimeFieldDimension &&
-            breakoutDimensions[0].isExtraction()
+            breakoutDimensions[0] instanceof FieldDimension &&
+            breakoutDimensions[0].temporalUnit() &&
+            breakoutDimensions[0].isTemporalExtraction()
           ) {
             return this.setDisplay("bar");
           } else {
             return this.setDisplay("line");
           }
         }
-        if (breakoutDimensions[0] instanceof BinnedDimension) {
+        if (
+          breakoutDimensions[0] instanceof FieldDimension &&
+          breakoutDimensions[0].binningStrategy()
+        ) {
           return this.setDisplay("bar");
         }
         if (breakoutFields[0].isCategory()) {
@@ -523,7 +534,7 @@ export default class Question {
       return query
         .reset()
         .setTable(field.table)
-        .filter(["=", ["field-id", field.id], value])
+        .filter(["=", ["field", field.id, null], value])
         .question();
     }
   }
@@ -824,7 +835,11 @@ export default class Question {
       };
 
       return [
-        await CardApi.query(queryParams, {
+        await maybeUsePivotEndpoint(
+          CardApi.query,
+          this.card(),
+          this.metadata(),
+        )(queryParams, {
           cancelled: cancelDeferred.promise,
         }),
       ];
@@ -835,7 +850,11 @@ export default class Question {
           parameters,
         };
 
-        return MetabaseApi.dataset(
+        return maybeUsePivotEndpoint(
+          MetabaseApi.dataset,
+          this.card(),
+          this.metadata(),
+        )(
           datasetQueryWithParameters,
           cancelDeferred ? { cancelled: cancelDeferred.promise } : {},
         );

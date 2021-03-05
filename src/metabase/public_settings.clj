@@ -2,19 +2,15 @@
   (:require [clojure.string :as str]
             [clojure.tools.logging :as log]
             [java-time :as t]
-            [metabase
-             [config :as config]
-             [types :as types]
-             [util :as u]]
+            [metabase.config :as config]
             [metabase.driver.util :as driver.u]
-            [metabase.models
-             [common :as common]
-             [setting :as setting :refer [defsetting]]]
+            [metabase.models.setting :as setting :refer [defsetting]]
             [metabase.plugins.classloader :as classloader]
             [metabase.public-settings.metastore :as metastore]
-            [metabase.util
-             [i18n :as i18n :refer [available-locales-with-names deferred-tru trs tru]]
-             [password :as password]]
+            [metabase.types :as types]
+            [metabase.util :as u]
+            [metabase.util.i18n :as i18n :refer [available-locales-with-names deferred-tru trs tru]]
+            [metabase.util.password :as password]
             [toucan.db :as db])
   (:import java.util.UUID))
 
@@ -226,6 +222,11 @@
   []
   (or (:brand (setting/get-json :application-colors)) "#509EE3"))
 
+(defn secondary-chart-color
+  "The first 'Additional chart color'"
+  []
+  (or (:accent3 (setting/get-json :application-colors)) "#EF8C8C"))
+
 (defsetting application-logo-url
   (deferred-tru "For best results, use an SVG file with a transparent background.")
   :visibility :public
@@ -314,7 +315,7 @@
   "Available report timezone options"
   :visibility :public
   :setter     :none
-  :getter     (constantly common/timezones))
+  :getter     (comp sort t/available-zone-ids))
 
 (defsetting engines
   "Available database engines"
@@ -388,3 +389,15 @@
   :visibility :public
   :type       :keyword
   :default    "sunday")
+
+(defsetting ssh-heartbeat-interval-sec
+  (deferred-tru "Controls how often the heartbeats are sent when an SSH tunnel is established (in seconds).")
+  :visibility :public
+  :type       :integer
+  :default    180)
+
+(defsetting redshift-fetch-size
+  (deferred-tru "Controls the fetch size used for Redshift queries (in PreparedStatement), via defaultRowFetchSize.")
+  :visibility :public
+  :type       :integer
+  :default    5000)

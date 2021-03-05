@@ -1,9 +1,7 @@
 (ns metabase.models.params.chain-filter-test
   (:require [clojure.test :refer :all]
-            [metabase
-             [models :refer [Dimension FieldValues]]
-             [test :as mt]]
-            [metabase.models.params.chain-filter :as chain-filter]))
+            [metabase.models.params.chain-filter :as chain-filter]
+            [metabase.test :as mt]))
 
 (defmacro chain-filter [field field->value & options]
   `(chain-filter/chain-filter
@@ -187,12 +185,8 @@
 ;;; --------------------------------------------------- Remapping ----------------------------------------------------
 
 (defn do-with-human-readable-values-remapping [thunk]
-  (let [ids-and-names (mt/rows (mt/run-mbql-query categories {:fields [$id $name], :order-by [[:asc $id]]}))]
-    (mt/with-temp FieldValues [_ {:field_id              (mt/id :venues :category_id)
-                                  :values                (map first ids-and-names)
-                                  :human_readable_values (map second ids-and-names)}]
-      (testing "\nvenues.category_id given human-readable values based on matching category name\n"
-        (thunk)))))
+  (mt/with-column-remappings [venues.category_id (values-of categories.name)]
+    (thunk)))
 
 (defmacro with-human-readable-values-remapping {:style/indent 0} [& body]
   `(do-with-human-readable-values-remapping (fn [] ~@body)))
@@ -260,18 +254,9 @@
       (is (= []
              (mt/$ids (chain-filter/chain-filter-search %venues.id {%venues.price 4} "zzzzz")))))))
 
-(defn do-with-fk-field-to-field-remapping [thunk]
-  (mt/with-temp Dimension [_ {:field_id                (mt/id :venues :category_id)
-                              :type                    "external"
-                              :name                    "Category"
-                              :human_readable_field_id (mt/id :categories :name)}]
-    (testing (format "\nvenues.category_id FK Field %d -> Field remapped to categories.name %d\n"
-                     (mt/id :venues :category_id)
-                     (mt/id :categories :name))
-      (thunk))))
-
 (defmacro with-fk-field-to-field-remapping {:style/indent 0} [& body]
-  `(do-with-fk-field-to-field-remapping (fn [] ~@body)))
+  `(mt/with-column-remappings [~'venues.category_id ~'categories.name]
+     ~@body))
 
 (deftest fk-field-to-field-remapped-field-id-test
   (with-fk-field-to-field-remapping
@@ -308,3 +293,9 @@
     (testing "search for something crazy = should return empty results"
       (is (= []
              (mt/$ids (chain-filter/chain-filter-search %venues.category_id {%venues.price 4} "zzzzz")))))))
+
+(deftest time-interval-test
+  (testing "chain-filter should accept time interval strings like `past32weeks` for temporal Fields"
+    (mt/$ids
+      (is (= [:time-interval $checkins.date -32 :week {:include-current false}]
+             (#'chain-filter/filter-clause $$checkins %checkins.date "past32weeks"))))))
