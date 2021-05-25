@@ -29,7 +29,7 @@ export default class WhatsAPulse extends Component {
           className="h3 my3 text-centered text-light text-bold"
           style={{ maxWidth: "500px" }}
         >
-          {t`Reports let you send data from Dappquery to email on the schedule of your choice.`}
+          {t`Reports let you send data from Dapplooker to email on the schedule of your choice.`}
         </div>
         {this.props.button}
       </div>
