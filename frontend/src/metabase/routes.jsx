@@ -172,12 +172,12 @@ export const getRoutes = store => (
       <Route path="/auth" component={AuthApp}>
         <IndexRedirect to="/auth/login" />
         <Route component={IsNotAuthenticated}>
-         {/* <Route path='login' component={() => {
+         <Route path='login' component={() => {
             window.location.href = 'https://dapplooker.com/login?ref=analyzer';
             return null;
-          }}/> */}
-          { <Route path="login" title={t`Login`} component={LoginApp} />}
-          { <Route path="login/:provider" title={t`Login`} component={LoginApp} />}
+          }}/>
+          {/* { <Route path="login" title={t`Login`} component={LoginApp} />}
+          { <Route path="login/:provider" title={t`Login`} component={LoginApp} />} */}
         </Route>
         <Route path="logout" component={LogoutApp} />
         <Route path="forgot_password" component={() => {
