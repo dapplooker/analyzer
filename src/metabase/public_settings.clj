@@ -120,7 +120,7 @@
 
 (defsetting ga-code
   (deferred-tru "Google Analytics tracking code.")
-  :default    "UA-60817802-1"
+  :default    "UA-273668110"
   :visibility :public)
 
 (defsetting map-tile-server-url
