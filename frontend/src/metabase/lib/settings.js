@@ -131,7 +131,7 @@ class Settings {
     if (anchor) {
       anchor = `#${anchor}`;
     }
-    return `https://docs.dappquery.com`;
+    return `https://docs.dapplooker.com`;
   }
 
   newVersionAvailable() {

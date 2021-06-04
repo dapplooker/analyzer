@@ -226,7 +226,7 @@ export default class Navbar extends Component {
         {hasDataAccess && (
             <Link
               mr={[1, 2]}
-              to={Urls.dappqueryHome()}
+              to={Urls.dapplookerHome()}
               p={1}
               hover={{
                 backgroundColor: darken(color("brand")),
