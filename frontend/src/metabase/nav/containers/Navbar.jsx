@@ -260,7 +260,7 @@ export default class Navbar extends Component {
               hover={NavHover}
             >
               <Link
-                to="browse"
+                to="browse/2" // Take user to schemas directly
                 className="flex align-center rounded transition-background"
                 data-metabase-event={`NavBar;Data Browse`}
               >

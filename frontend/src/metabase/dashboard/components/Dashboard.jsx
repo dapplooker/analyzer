@@ -327,7 +327,7 @@ export default class Dashboard extends Component {
                           <span className="QuestionCircle">?</span>
                         }
                         title={t`This dashboard is looking empty.`}
-                        message={t`Add a question to start making it useful!`}
+                        message={t`Add a chart to start making it useful!`}
                       />
                     </Box>
                   ) : (

@@ -14,13 +14,13 @@ import { MetabaseApi } from "metabase/services";
 const STRINGS = {
   "": {
     tooltip: t`View the native query`,
-    title: t`Native query for this question`,
-    button: t`Convert this question to a native query`,
+    title: t`Native query for this chart`,
+    button: t`Convert this chart to a native query`,
   },
   sql: {
     tooltip: t`View the SQL`,
-    title: t`SQL for this question`,
-    button: t`Convert this question to SQL`,
+    title: t`SQL for this chart`,
+    button: t`Convert this chart to SQL`,
   },
 };
 
