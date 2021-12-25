@@ -1,5 +1,3 @@
-/* @flow */
-
 import React from "react";
 import { Route, IndexRedirect } from "react-router";
 
@@ -11,7 +9,6 @@ import {
 } from "metabase/containers/ErrorPages";
 
 // Import legacy apps - TODO - move this to a different style of documentation
-// $FlowFixMe: doesn't know about require.context
 const req = require.context(
   "metabase/internal/components",
   true,
@@ -31,6 +28,7 @@ import IconsPage from "metabase/internal/pages/IconsPage";
 import ColorsPage from "metabase/internal/pages/ColorsPage";
 import ComponentsPage from "metabase/internal/pages/ComponentsPage";
 import ModalsPage from "metabase/internal/pages/ModalsPage";
+import StaticVizPage from "metabase/internal/pages/StaticVizPage";
 
 import { InternalLayout } from "metabase/internal/components/Layout";
 
@@ -45,6 +43,7 @@ export default (
     <Route path="colors" component={ColorsPage} />
     <Route path="components/:componentName" component={ComponentsPage} />
     <Route path="modals" component={ModalsPage} />
+    <Route path="static-viz" component={StaticVizPage} />
     {/* Legacy App pages - not really style guide related, but keep for now */}
     {Object.entries(APPS).map(
       ([name, Component]) =>

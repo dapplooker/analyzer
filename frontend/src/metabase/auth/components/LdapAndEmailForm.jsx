@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
 import { Link } from "react-router";
 import { connect } from "react-redux";
@@ -12,10 +13,7 @@ import { login } from "../auth";
 
 const mapDispatchToProps = { login };
 
-@connect(
-  null,
-  mapDispatchToProps,
-)
+@connect(null, mapDispatchToProps)
 export default class LdapAndEmailForm extends Component {
   onSubmit = async credentials => {
     const { login, location } = this.props;
@@ -24,6 +22,7 @@ export default class LdapAndEmailForm extends Component {
 
   render() {
     const ldapEnabled = Settings.ldapEnabled();
+    const rememberMeDisabled = Settings.get("session-cookies");
     return (
       <Form onSubmit={this.onSubmit}>
         {({ values, Form, FormField, FormSubmit, FormMessage }) => (
@@ -50,6 +49,7 @@ export default class LdapAndEmailForm extends Component {
               type="checkbox"
               title={t`Remember me`}
               initial={true}
+              hidden={rememberMeDisabled}
               horizontal
             />
             <FormMessage />
@@ -68,7 +68,7 @@ const ForgotPasswordLink = ({ credentials = {} }) => (
   <Link
     to={
       "/auth/forgot_password" +
-      (Utils.validEmail(credentials.username)
+      (Utils.isEmail(credentials.username)
         ? "?email=" + encodeURIComponent(credentials.username)
         : "")
     }

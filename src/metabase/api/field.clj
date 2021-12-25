@@ -1,6 +1,5 @@
 (ns metabase.api.field
-  (:require [clojure.core.memoize :as memoize]
-            [clojure.tools.logging :as log]
+  (:require [clojure.tools.logging :as log]
             [compojure.core :refer [DELETE GET POST PUT]]
             [metabase.api.common :as api]
             [metabase.db.metadata-queries :as metadata]
@@ -8,10 +7,15 @@
             [metabase.models.field :as field :refer [Field]]
             [metabase.models.field-values :as field-values :refer [FieldValues]]
             [metabase.models.interface :as mi]
+            [metabase.models.params.field-values :as params.field-values]
             [metabase.models.permissions :as perms]
-            [metabase.models.table :refer [Table]]
+            [metabase.models.table :as table :refer [Table]]
             [metabase.query-processor :as qp]
             [metabase.related :as related]
+            [metabase.server.middleware.offset-paging :as offset-paging]
+            [metabase.sync :as sync]
+            [metabase.sync.concurrent :as sync.concurrent]
+            [metabase.types :as types]
             [metabase.util :as u]
             [metabase.util.i18n :refer [trs]]
             [metabase.util.schema :as su]
@@ -20,12 +24,10 @@
             [toucan.hydrate :refer [hydrate]])
   (:import java.text.NumberFormat))
 
+
 ;;; --------------------------------------------- Basic CRUD Operations ----------------------------------------------
 
-(def ^:private FieldType
-  "Schema for a valid `Field` type."
-  (su/with-api-error-message (s/constrained s/Str #(isa? (keyword %) :type/*))
-    "value must be a valid field type."))
+(def ^:private default-max-field-search-limit 1000)
 
 (def ^:private FieldVisibilityType
   "Schema for a valid `Field` visibility type."
@@ -93,19 +95,27 @@
 (api/defendpoint PUT "/:id"
   "Update `Field` with ID."
   [id :as {{:keys [caveats description display_name fk_target_field_id points_of_interest semantic_type
-                   visibility_type has_field_values settings]
+                   coercion_strategy visibility_type has_field_values settings]
             :as   body} :body}]
   {caveats            (s/maybe su/NonBlankString)
    description        (s/maybe su/NonBlankString)
    display_name       (s/maybe su/NonBlankString)
    fk_target_field_id (s/maybe su/IntGreaterThanZero)
    points_of_interest (s/maybe su/NonBlankString)
-   semantic_type      (s/maybe FieldType)
+   semantic_type      (s/maybe su/FieldSemanticOrRelationTypeKeywordOrString)
+   coercion_strategy  (s/maybe su/CoercionStrategyKeywordOrString)
    visibility_type    (s/maybe FieldVisibilityType)
    has_field_values   (s/maybe (apply s/enum (map name field/has-field-values-options)))
    settings           (s/maybe su/Map)}
   (let [field              (hydrate (api/write-check Field id) :dimensions)
         new-semantic-type  (keyword (get body :semantic_type (:semantic_type field)))
+        [effective-type coercion-strategy]
+        (or (when-let [coercion_strategy (keyword coercion_strategy)]
+              (let [effective (types/effective-type-for-coercion coercion_strategy)]
+                ;; throw an error in an else branch?
+                (when (types/is-coercible? coercion_strategy (:base_type field) effective)
+                  [effective coercion_strategy])))
+            [(:base_type field) nil])
         removed-fk?        (removed-fk-semantic-type? (:semantic_type field) new-semantic-type)
         fk-target-field-id (get body :fk_target_field_id (:fk_target_field_id field))]
 
@@ -123,13 +133,18 @@
           true)
         (clear-dimension-on-type-change! field (:base_type field) new-semantic-type)
         (db/update! Field id
-          (u/select-keys-when (assoc body :fk_target_field_id (when-not removed-fk? fk-target-field-id))
-            :present #{:caveats :description :fk_target_field_id :points_of_interest :semantic_type :visibility_type
+          (u/select-keys-when (assoc body
+                                     :fk_target_field_id (when-not removed-fk? fk-target-field-id)
+                                     :effective_type effective-type
+                                     :coercion_strategy coercion-strategy)
+            :present #{:caveats :description :fk_target_field_id :points_of_interest :semantic_type :visibility_type :coercion_strategy :effective_type
                        :has_field_values}
             :non-nil #{:display_name :settings})))))
-    ;; return updated field
-    (hydrate (Field id) :dimensions)))
-
+    ;; return updated field. note the fingerprint on this might be out of date if the task below would replace them
+    ;; but that shouldn't matter for the datamodel page
+    (u/prog1 (hydrate (Field id) :dimensions)
+      (when (not= effective-type (:effective_type field))
+        (sync.concurrent/submit-task (fn [] (sync/refingerprint-field! <>)))))))
 
 ;;; ------------------------------------------------- Field Metadata -------------------------------------------------
 
@@ -183,49 +198,21 @@
   "Fetch FieldValues, if they exist, for a `field` and return them in an appropriate format for public/embedded
   use-cases."
   [field]
-  (api/check-404 field)
-  (if-let [field-values (and (field-values/field-should-have-field-values? field)
-                             (field-values/create-field-values-if-needed! field))]
-    (-> field-values
-        (assoc :values (field-values/field-values->pairs field-values))
-        (dissoc :human_readable_values :created_at :updated_at :id))
-    {:values [], :field_id (:id field)}))
+  (params.field-values/get-or-create-field-values-for-current-user! (api/check-404 field)))
 
-(def ^:private ^{:arglist '([user-id last-updated field])} fetch-sandboxed-field-values*
-  (memoize/ttl
-   (fn [_ _ field]
-     {:values   (map vector (field-values/distinct-values field))
-      :field_id (u/the-id field)})
-   ;; Expire entires older than 30 days so we don't have entries for users and/or fields that
-   ;; no longer exists hanging around.
-   ;; (`clojure.core.cache/TTLCacheQ` (which `memoize` uses underneath) evicts all stale entries on
-   ;; every cache miss)
-   :ttl/threshold (* 1000 60 60 24 30)))
-
-(defn- fetch-sandboxed-field-values
-  [field]
-  (fetch-sandboxed-field-values*
-   api/*current-user-id*
-   (db/select-one-field :updated_at FieldValues :field_id (u/the-id field))
-   field))
+(defn- check-perms-and-return-field-values
+  "Impl for `GET /api/field/:id/values` endpoint; check whether current user has read perms for Field with `id`, and, if
+  so, return its values."
+  [field-id]
+  (let [field (api/check-404 (Field field-id))]
+    (api/check-403 (params.field-values/current-user-can-fetch-field-values? field))
+    (field->values field)))
 
 (api/defendpoint GET "/:id/values"
   "If a Field's value of `has_field_values` is `list`, return a list of all the distinct values of the Field, and (if
   defined by a User) a map of human-readable remapped values."
   [id]
-  (let [field (api/check-404 (Field id))]
-    (cond
-      ;; if you have normal read permissions, return normal results
-      (mi/can-read? field)
-      (field->values (api/read-check field))
-
-      ;; otherwise if you have Segmented query perms (but not normal read perms) we'll do an ad-hoc query to fetch the
-      ;; results, filtered by your GTAP
-      (has-segmented-query-permissions? (field/table field))
-      (fetch-sandboxed-field-values field)
-
-      :else
-      (api/throw-403))))
+  (check-perms-and-return-field-values id))
 
 ;; match things like GET /field%2Ccreated_at%2options
 ;; (this is how things like [field,created_at,{:base-type,:type/Datetime}] look when URL-encoded)
@@ -318,6 +305,7 @@
     (db/select-one Field :id fk-target-field-id)
     field))
 
+
 (defn- search-values-query
   "Generate the MBQL query used to power FieldValues search in `search-values` below. The actual query generated differs
   slightly based on whether the two Fields are the same Field."
@@ -325,7 +313,7 @@
   {:database (db-id field)
    :type     :query
    :query    {:source-table (table-id field)
-              :filter       [:starts-with [:field (u/the-id search-field) nil] value {:case-sensitive false}]
+              :filter       [:contains [:field (u/the-id search-field) nil] value {:case-sensitive false}]
               ;; if both fields are the same then make sure not to refer to it twice in the `:breakout` clause.
               ;; Otherwise this will break certain drivers like BigQuery that don't support duplicate
               ;; identifiers/aliases
@@ -336,20 +324,21 @@
               :limit        limit}})
 
 (s/defn search-values
-  "Search for values of `search-field` that start with `value` (up to `limit`, if specified), and return like
+  "Search for values of `search-field` that contain `value` (up to `limit`, if specified), and return like
 
       [<value-of-field> <matching-value-of-search-field>].
 
-   For example, with the Sample Dataset, you could search for the first three IDs & names of People whose name starts
-   with `Ma` as follows:
+   For example, with the Sample Dataset, you could search for the first three IDs & names of People whose name
+  contains `Ma` as follows:
 
       (search-values <PEOPLE.ID Field> <PEOPLE.NAME Field> \"Ma\" 3)
       ;; -> ((14 \"Marilyne Mohr\")
              (36 \"Margot Farrell\")
              (48 \"Maryam Douglas\"))"
-  [field search-field value & [limit]]
+  [field search-field value maybe-limit]
   (try
     (let [field   (follow-fks field)
+          limit   (or maybe-limit default-max-field-search-limit)
           results (qp/process-query (search-values-query field search-field value limit))
           rows    (get-in results [:data :rows])]
       ;; if the two Fields are different, we'll get results like [[v1 v2] [v1 v2]]. That is the expected format and we can
@@ -365,17 +354,17 @@
       (log/debug e (trs "Error searching field values"))
       nil)))
 
+
 (api/defendpoint GET "/:id/search/:search-id"
   "Search for values of a Field with `search-id` that start with `value`. See docstring for
   `metabase.api.field/search-values` for a more detailed explanation."
-  [id search-id value limit]
-  {value su/NonBlankString
-   limit (s/maybe su/IntStringGreaterThanZero)}
+  [id search-id value]
+  {value su/NonBlankString}
   (let [field        (api/check-404 (Field id))
         search-field (api/check-404 (Field search-id))]
     (throw-if-no-read-or-segmented-perms field)
     (throw-if-no-read-or-segmented-perms search-field)
-    (search-values field search-field value (when limit (Integer/parseInt limit)))))
+    (search-values field search-field value offset-paging/*limit*)))
 
 (defn remapped-value
   "Search for one specific remapping where the value of `field` exactly matches `value`. Returns a pair like

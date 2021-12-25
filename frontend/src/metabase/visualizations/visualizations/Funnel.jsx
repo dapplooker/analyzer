@@ -1,11 +1,13 @@
-/* @flow */
-
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
+import PropTypes from "prop-types";
 import { t } from "ttag";
 import {
   MinRowsError,
   ChartSettingsError,
 } from "metabase/visualizations/lib/errors";
+
+import { iconPropTypes } from "metabase/components/Icon";
 
 import { formatValue } from "metabase/lib/formatting";
 
@@ -23,12 +25,13 @@ import LegendHeader from "../components/LegendHeader";
 import _ from "underscore";
 import cx from "classnames";
 
-import type { VisualizationProps } from "metabase-types/types/Visualization";
-import TitleLegendHeader from "metabase/visualizations/components/TitleLegendHeader";
+import ChartCaption from "metabase/visualizations/components/ChartCaption";
+
+const propTypes = {
+  headerIcon: PropTypes.shape(iconPropTypes),
+};
 
 export default class Funnel extends Component {
-  props: VisualizationProps;
-
   static uiName = t`Funnel`;
   static identifier = "funnel";
   static iconName = "funnel";
@@ -174,7 +177,7 @@ export default class Funnel extends Component {
   }
 
   render() {
-    const { settings } = this.props;
+    const { headerIcon, settings } = this.props;
 
     const hasTitle = settings["card.title"];
 
@@ -190,18 +193,18 @@ export default class Funnel extends Component {
       return (
         <div className={cx(className, "flex flex-column p1")}>
           {hasTitle && (
-            <TitleLegendHeader
+            <ChartCaption
               series={series}
               settings={settings}
-              onChangeCardAndRun={onChangeCardAndRun}
+              icon={headerIcon}
               actionButtons={actionButtons}
+              onChangeCardAndRun={onChangeCardAndRun}
             />
           )}
           {!hasTitle &&
           actionButtons && ( // always show action buttons if we have them
               <LegendHeader
                 className="flex-no-shrink"
-                // $FlowFixMe
                 series={series._raw || series}
                 actionButtons={actionButtons}
                 onChangeCardAndRun={onChangeCardAndRun}
@@ -213,3 +216,5 @@ export default class Funnel extends Component {
     }
   }
 }
+
+Funnel.propTypes = propTypes;

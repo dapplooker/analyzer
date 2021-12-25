@@ -1,5 +1,5 @@
-/* @flow */
-
+/* eslint-disable react/prop-types */
+/* eslint-disable react/no-string-refs */
 import React from "react";
 import PropTypes from "prop-types";
 import ReactDOM from "react-dom";
@@ -17,40 +17,15 @@ import { DatabaseSchemaAndTableDataSelector } from "metabase/query_builder/compo
 
 import cx from "classnames";
 
-import type { DatasetQuery } from "metabase-types/types/Card";
-import type { Children } from "react";
-
-import StructuredQuery from "metabase-lib/lib/queries/StructuredQuery";
-
-export type GuiQueryEditorFeatures = {
-  filter?: boolean,
-  aggregation?: boolean,
-  breakout?: boolean,
-  sort?: boolean,
-  limit?: boolean,
-};
-
-type Props = {
-  children?: Children,
-
-  features: GuiQueryEditorFeatures,
-
-  query: StructuredQuery,
-
-  supportMultipleAggregations?: boolean,
-
-  setDatasetQuery: (datasetQuery: DatasetQuery) => void,
-
-  isShowingDataReference?: boolean,
-};
-
-type State = {
-  expanded: boolean,
-};
-
 export default class GuiQueryEditor extends React.Component {
-  props: Props;
-  state: State = {
+  constructor(props) {
+    super(props);
+
+    this.filterPopover = React.createRef();
+    this.guiBuilder = React.createRef();
+  }
+
+  state = {
     expanded: true,
   };
 
@@ -72,7 +47,7 @@ export default class GuiQueryEditor extends React.Component {
     supportMultipleAggregations: true,
   };
 
-  renderAdd(text: ?string, onClick: ?() => void, targetRefName?: string) {
+  renderAdd(text, onClick, targetRefName) {
     const className =
       "AddButton text-light text-bold flex align-center text-medium-hover cursor-pointer no-decoration transition-color";
     if (onClick) {
@@ -92,7 +67,7 @@ export default class GuiQueryEditor extends React.Component {
     }
   }
 
-  renderAddIcon(targetRefName?: string) {
+  renderAddIcon(targetRefName) {
     return (
       <IconBorder borderRadius="3px" ref={targetRefName}>
         <Icon name="add" size={14} />
@@ -152,10 +127,9 @@ export default class GuiQueryEditor extends React.Component {
         <div className="mx2">
           <PopoverWithTrigger
             id="FilterPopover"
-            ref="filterPopover"
+            ref={this.filterPopover}
             triggerElement={addFilterButton}
             triggerClasses="flex align-center"
-            getTarget={() => this.refs.addFilterTarget}
             horizontalAttachments={["left", "center"]}
             autoWidth
           >
@@ -165,7 +139,7 @@ export default class GuiQueryEditor extends React.Component {
               onChangeFilter={filter =>
                 query.filter(filter).update(setDatasetQuery)
               }
-              onClose={() => this.refs.filterPopover.close()}
+              onClose={() => this.filterPopover.current.close()}
               showCustom={false}
             />
           </PopoverWithTrigger>
@@ -188,8 +162,7 @@ export default class GuiQueryEditor extends React.Component {
 
     // aggregation clause.  must have table details available
     if (query.isEditable()) {
-      // $FlowFixMe
-      const aggregations: (Aggregation | null)[] = query.aggregations();
+      const aggregations = query.aggregations();
 
       if (aggregations.length === 0) {
         // add implicit rows aggregation
@@ -251,8 +224,7 @@ export default class GuiQueryEditor extends React.Component {
 
     const breakoutList = [];
 
-    // $FlowFixMe
-    const breakouts: (Breakout | null)[] = query.breakouts();
+    const breakouts = query.breakouts();
 
     // Placeholder breakout for showing the add button
     if (query.canAddBreakout()) {
@@ -335,7 +307,7 @@ export default class GuiQueryEditor extends React.Component {
     return (
       <div
         className="GuiBuilder-section GuiBuilder-filtered-by flex align-center"
-        ref="filterSection"
+        ref={this.filterSection}
       >
         <span className="GuiBuilder-section-label Query-label">{t`Filtered by`}</span>
         {this.renderFilters()}
@@ -378,7 +350,7 @@ export default class GuiQueryEditor extends React.Component {
   }
 
   componentDidUpdate() {
-    const guiBuilder = ReactDOM.findDOMNode(this.refs.guiBuilder);
+    const guiBuilder = this.guiBuilder.current;
     if (!guiBuilder) {
       return;
     }
@@ -406,7 +378,7 @@ export default class GuiQueryEditor extends React.Component {
         className={cx("GuiBuilder rounded shadowed", {
           "GuiBuilder--expand": this.state.expanded,
         })}
-        ref="guiBuilder"
+        ref={this.guiBuilder}
       >
         <div className="GuiBuilder-row flex">
           {this.renderDataSection()}

@@ -1,12 +1,10 @@
-/* @flow */
-
 export const mostQueried = () => ({
   card: {
     name: "Most-queried schemas",
     display: "row",
     dataset_query: {
       type: "internal",
-      fn: "metabase-enterprise.audit.pages.schemas/most-queried",
+      fn: "metabase-enterprise.audit-app.pages.schemas/most-queried",
       args: [],
     },
   },
@@ -18,19 +16,19 @@ export const slowestSchemas = () => ({
     display: "row",
     dataset_query: {
       type: "internal",
-      fn: "metabase-enterprise.audit.pages.schemas/slowest-schemas",
+      fn: "metabase-enterprise.audit-app.pages.schemas/slowest-schemas",
       args: [],
     },
   },
 });
 
-export const table = (searchString?: string) => ({
+export const table = searchString => ({
   card: {
     name: "Schemas",
     display: "table",
     dataset_query: {
       type: "internal",
-      fn: "metabase-enterprise.audit.pages.schemas/table",
+      fn: "metabase-enterprise.audit-app.pages.schemas/table",
       args: searchString ? [searchString] : [],
     },
   },

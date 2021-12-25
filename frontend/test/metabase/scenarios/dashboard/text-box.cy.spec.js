@@ -1,4 +1,4 @@
-import { signInAsAdmin, restore } from "__support__/cypress";
+import { restore, showDashboardCardActions } from "__support__/e2e/cypress";
 
 function addTextBox(string) {
   cy.icon("pencil").click();
@@ -11,7 +11,7 @@ function addTextBox(string) {
 describe("scenarios > dashboard > text-box", () => {
   beforeEach(() => {
     restore();
-    signInAsAdmin();
+    cy.signInAsAdmin();
   });
 
   describe("Editing", () => {
@@ -21,10 +21,14 @@ describe("scenarios > dashboard > text-box", () => {
       addTextBox("Text *text* __text__");
     });
 
-    it("should render edit and preview actions when editing", () => {
-      // Check edit options
+    it("should render correct icons for preview and edit modes", () => {
+      showDashboardCardActions(1);
+
+      // edit mode
+      cy.icon("eye").click();
+
+      // preview mode
       cy.icon("edit_document");
-      cy.icon("eye");
     });
 
     it("should not render edit and preview actions when not editing", () => {
@@ -45,26 +49,22 @@ describe("scenarios > dashboard > text-box", () => {
 
   describe("when text-box is the only element on the dashboard", () => {
     beforeEach(() => {
-      // Create dashboard
       cy.server();
-      cy.request("POST", "/api/dashboard", {
-        name: "Test Dashboard",
+      cy.createDashboard().then(({ body: { id } }) => {
+        cy.intercept("PUT", `/api/dashboard/${id}`).as("dashboardUpdated");
+
+        cy.visit(`/dashboard/${id}`);
       });
     });
 
     // fixed in metabase#11358
     it("should load after save/refresh (metabase#12873)", () => {
-      cy.visit(`/dashboard/2`);
-
       cy.findByText("Test Dashboard");
       cy.findByText("This dashboard is looking empty.");
 
       // Add save text box to dash
       addTextBox("Dashboard testing text");
       cy.findByText("Save").click();
-
-      cy.findByText("Saving…");
-      cy.findByText("Saving…").should("not.exist");
 
       // Reload page
       cy.reload();
@@ -81,17 +81,32 @@ describe("scenarios > dashboard > text-box", () => {
       cy.findByText("Dashboard testing text");
     });
 
-    it.skip("should have a scroll bar for long text (metabase#8333)", () => {
-      cy.visit(`/dashboard/2`);
-
-      // Add text box to dash
+    it("should have a scroll bar for long text (metabase#8333)", () => {
       addTextBox(
         "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.",
       );
       cy.findByText("Save").click();
-      cy.get(".CardVisualization").scrollTo("bottom");
-      cy.findByText("ex ea commodo consequat.");
-      cy.findByText("Lorem ipsum dolor sit amet").should("not.exist");
+
+      cy.wait("@dashboardUpdated");
+
+      // The test fails if there is no scroll bar
+      cy.get(".text-card-markdown")
+        .should("have.css", "overflow", "auto")
+        .scrollTo("bottom");
+    });
+
+    it("should render html links, and not just the markdown flavor of them (metabase#18114)", () => {
+      addTextBox(
+        "- Visit https://www.metabase.com{enter}- Or go to [Metabase](https://www.metabase.com)",
+      );
+
+      cy.findByText("Save").click();
+      cy.findByText("You're editing this dashboard.").should("not.exist");
+
+      cy.get(".Card")
+        .findAllByRole("link")
+        .should("be.visible")
+        .and("have.length", 2);
     });
   });
 });

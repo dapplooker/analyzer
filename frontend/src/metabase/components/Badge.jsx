@@ -1,23 +1,58 @@
 import React from "react";
+import PropTypes from "prop-types";
 
-import Link from "metabase/components/Link";
-import Icon from "metabase/components/Icon";
+import { iconPropTypes } from "metabase/components/Icon";
 
-import cx from "classnames";
+import { BadgeIcon, MaybeLink } from "./Badge.styled";
 
-export default function Badge({ icon, name, className, children, ...props }) {
+const iconProp = PropTypes.oneOfType([
+  PropTypes.string,
+  PropTypes.shape(iconPropTypes),
+]);
+
+const propTypes = {
+  to: PropTypes.string,
+  icon: iconProp,
+  inactiveColor: PropTypes.string,
+  activeColor: PropTypes.string,
+  onClick: PropTypes.func,
+  children: PropTypes.node,
+};
+
+const DEFAULT_ICON_SIZE = 12;
+
+function getIconProps(iconProp) {
+  if (!iconProp) {
+    return;
+  }
+  const props = typeof iconProp === "string" ? { name: iconProp } : iconProp;
+  if (!props.size && !props.width && !props.height) {
+    props.size = DEFAULT_ICON_SIZE;
+  }
+  return props;
+}
+
+function Badge({
+  icon,
+  inactiveColor = "text-medium",
+  activeColor = "brand",
+  children,
+  ...props
+}) {
   return (
     <MaybeLink
-      className={cx(className, "flex align-center text-bold text-medium", {
-        "cursor-pointer text-brand-hover": props.to || props.onClick,
-      })}
+      inactiveColor={inactiveColor}
+      activeColor={activeColor}
       {...props}
     >
-      {icon && <Icon name={icon} mr={children ? "5px" : null} size={11} />}
+      {icon && <BadgeIcon {...getIconProps(icon)} hasMargin={!!children} />}
       {children && <span className="text-wrap">{children}</span>}
     </MaybeLink>
   );
 }
 
-export const MaybeLink = ({ to, ...props }) =>
-  to ? <Link to={to} {...props} /> : <span {...props} />;
+Badge.propTypes = propTypes;
+
+export { MaybeLink };
+
+export default Badge;

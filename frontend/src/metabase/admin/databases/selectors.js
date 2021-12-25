@@ -1,5 +1,3 @@
-/* @flow weak */
-
 // Database Edit
 export const getEditingDatabase = state =>
   state.admin.databases.editingDatabase;
@@ -14,3 +12,11 @@ export const getIsAddingSampleDataset = state =>
   state.admin.databases.sampleDataset.loading;
 export const getAddSampleDatasetError = state =>
   state.admin.databases.sampleDataset.error;
+
+export const getInitializeError = state =>
+  state.admin.databases.initializeError;
+
+// Deprecation notice
+
+export const isDeprecationNoticeEnabled = state =>
+  state.admin.databases.isDeprecationNoticeEnabled;

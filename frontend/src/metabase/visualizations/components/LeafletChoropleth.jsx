@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React from "react";
 
 import { color } from "metabase/lib/colors";
@@ -13,13 +14,14 @@ import { computeMinimalBounds } from "metabase/visualizations/lib/mapping";
 const LeafletChoropleth = ({
   series,
   geoJson,
-  minimalBounds = computeMinimalBounds(geoJson.features),
+  minimalBounds = computeMinimalBounds(geoJson.features || [geoJson]),
   getColor = () => color("brand"),
   onHoverFeature = () => {},
   onClickFeature = () => {},
   onRenderError,
 }) => (
   <CardRenderer
+    card={{ display: "map" }}
     series={series}
     className="spread"
     renderer={(element, props) => {

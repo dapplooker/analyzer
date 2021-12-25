@@ -4,8 +4,7 @@ import PropTypes from "prop-types";
 import { Link } from "react-router";
 import { t } from "ttag";
 import * as MetabaseCore from "metabase/lib/core";
-import { isNumericBaseType } from "metabase/lib/schema_metadata";
-import { isa, isFK, TYPE } from "metabase/lib/types";
+import { isFK } from "metabase/lib/types";
 
 import { getIn } from "icepick";
 
@@ -16,7 +15,6 @@ import Select from "metabase/components/Select";
 import Icon from "metabase/components/Icon";
 
 import cx from "classnames";
-import pure from "recompose/pure";
 
 const Field = ({ field, foreignKeys, url, icon, isEditing, formField }) => (
   <div className={cx(S.item, "pt1", "border-top")}>
@@ -50,17 +48,11 @@ const Field = ({ field, foreignKeys, url, icon, isEditing, formField }) => (
               onChange={({ target: { value } }) =>
                 formField.semantic_type.onChange(value)
               }
-              options={MetabaseCore.field_semantic_types
-                .concat({
-                  id: null,
-                  name: t`No field type`,
-                  section: t`Other`,
-                })
-                .filter(
-                  type =>
-                    isNumericBaseType(field) ||
-                    !isa(type && type.id, TYPE.UNIXTimestamp),
-                )}
+              options={MetabaseCore.field_semantic_types.concat({
+                id: null,
+                name: t`No field type`,
+                section: t`Other`,
+              })}
               optionValueFn={o => o.id}
               optionSectionFn={o => o.section}
             />
@@ -134,4 +126,4 @@ Field.propTypes = {
   formField: PropTypes.object,
 };
 
-export default pure(Field);
+export default React.memo(Field);

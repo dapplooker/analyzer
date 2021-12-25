@@ -1,9 +1,18 @@
-import React, { Component } from "react";
+/* eslint-disable react/prop-types */
+import React, { Component, useEffect, useState } from "react";
 import { connect } from "react-redux";
 import PropTypes from "prop-types";
 import { t } from "ttag";
 import cx from "classnames";
+import _ from "underscore";
 
+import {
+  isVirtualCardId,
+  getQuestionVirtualTableId,
+  SAVED_QUESTIONS_VIRTUAL_DB_ID,
+} from "metabase/lib/saved-questions";
+
+import ListSearchField from "metabase/components/ListSearchField";
 import ExternalLink from "metabase/components/ExternalLink";
 import Icon from "metabase/components/Icon";
 import PopoverWithTrigger from "metabase/components/PopoverWithTrigger";
@@ -11,15 +20,44 @@ import AccordionList from "metabase/components/AccordionList";
 import LoadingAndErrorWrapper from "metabase/components/LoadingAndErrorWrapper";
 
 import MetabaseSettings from "metabase/lib/settings";
+import { getSchemaName } from "metabase/lib/schema";
+import { isSyncCompleted } from "metabase/lib/syncing";
 
 import Databases from "metabase/entities/databases";
 import Schemas from "metabase/entities/schemas";
 import Tables from "metabase/entities/tables";
+import Search from "metabase/entities/search";
+
+import { PLUGIN_MODERATION } from "metabase/plugins";
+
+import {
+  SearchResults,
+  convertSearchResultToTableLikeItem,
+} from "./data-search";
+import SavedQuestionPicker from "./saved-question-picker/SavedQuestionPicker";
 
 import { getMetadata } from "metabase/selectors/metadata";
 
-import _ from "underscore";
+import {
+  DataBucketList,
+  DataBucketListItem,
+  PickerSpinner,
+  RawDataBackButton,
+  CollectionDatasetSelectList,
+  CollectionDatasetAllDataLink,
+} from "./DataSelector.styled";
+import "./DataSelector.css";
 
+const MIN_SEARCH_LENGTH = 2;
+
+export const DATA_BUCKET = {
+  DATASETS: "datasets",
+  RAW_DATA: "raw-data",
+  SAVED_QUESTIONS: "saved-questions",
+};
+
+// chooses a data source bucket (datasets / raw data (tables) / saved questions)
+const DATA_BUCKET_STEP = "BUCKET";
 // chooses a database
 const DATABASE_STEP = "DATABASE";
 // chooses a schema (given that a database has already been selected)
@@ -28,6 +66,44 @@ const SCHEMA_STEP = "SCHEMA";
 const TABLE_STEP = "TABLE";
 // chooses a table field (table has already been selected)
 const FIELD_STEP = "FIELD";
+
+// allows to choose one of collection's dataset (requires collectionId prop)
+// is used while adding a question with the "+" button on collection page
+const COLLECTION_DATASET_STEP = "COLLECTION_DATASET";
+
+export const DataSourceSelector = props => (
+  <DataSelector
+    steps={[DATA_BUCKET_STEP, DATABASE_STEP, SCHEMA_STEP, TABLE_STEP]}
+    combineDatabaseSchemaSteps
+    getTriggerElementContent={TableTriggerContent}
+    {...props}
+  />
+);
+
+export const CollectionDatasetOrDataSourceSelector = ({
+  hasCollectionDatasetsStep,
+  ...props
+}) => {
+  const [collectionDatasetsShown, setCollectionDatasetsShown] = useState(
+    !!hasCollectionDatasetsStep,
+  );
+
+  const steps = collectionDatasetsShown
+    ? [COLLECTION_DATASET_STEP]
+    : [DATA_BUCKET_STEP, DATABASE_STEP, SCHEMA_STEP, TABLE_STEP];
+
+  return (
+    <DataSelector
+      steps={steps}
+      combineDatabaseSchemaSteps
+      getTriggerElementContent={TableTriggerContent}
+      {...props}
+      onCloseCollectionDatasets={() => {
+        setCollectionDatasetsShown(false);
+      }}
+    />
+  );
+};
 
 export const DatabaseDataSelector = props => (
   <DataSelector
@@ -103,6 +179,16 @@ const FieldTriggerContent = ({ selectedDatabase, selectedField }) => {
   }
 };
 
+@Search.loadList({
+  // If there is at least one dataset,
+  // we want to display a slightly different data picker view
+  // (see DATA_BUCKET step)
+  query: {
+    models: "dataset",
+    limit: 1,
+  },
+  loadingAndErrorWrapper: false,
+})
 @connect(
   (state, ownProps) => ({
     metadata: getMetadata(state),
@@ -140,10 +226,13 @@ export class UnconnectedDataSelector extends Component {
     super();
 
     const state = {
+      selectedDataBucketId: props.selectedDataBucketId,
       selectedDatabaseId: props.selectedDatabaseId,
       selectedSchemaId: props.selectedSchemaId,
       selectedTableId: props.selectedTableId,
       selectedFieldId: props.selectedFieldId,
+      searchText: "",
+      isSavedQuestionPickerShown: false,
     };
     const computedState = this._getComputedState(props, state);
     this.state = {
@@ -153,9 +242,11 @@ export class UnconnectedDataSelector extends Component {
       ...state,
       ...computedState,
     };
+    this.popover = React.createRef();
   }
 
   static propTypes = {
+    selectedDataBucketId: PropTypes.number,
     selectedDatabaseId: PropTypes.number,
     selectedSchemaId: PropTypes.string,
     selectedTableId: PropTypes.number,
@@ -171,6 +262,25 @@ export class UnconnectedDataSelector extends Component {
     isInitiallyOpen: PropTypes.bool,
     renderAsSelect: PropTypes.bool,
     tableFilter: PropTypes.func,
+    hasTableSearch: PropTypes.bool,
+    canChangeDatabase: PropTypes.bool,
+    containerClassName: PropTypes.string,
+
+    // from search entity list loader
+    allError: PropTypes.bool,
+    allFetched: PropTypes.bool,
+    allLoaded: PropTypes.bool,
+    allLoading: PropTypes.bool,
+    loaded: PropTypes.bool,
+    loading: PropTypes.bool,
+    fetched: PropTypes.bool,
+    fetch: PropTypes.func,
+    create: PropTypes.func,
+    update: PropTypes.func,
+    delete: PropTypes.func,
+    reload: PropTypes.func,
+    list: PropTypes.arrayOf(PropTypes.object),
+    search: PropTypes.arrayOf(PropTypes.object),
   };
 
   static defaultProps = {
@@ -180,6 +290,8 @@ export class UnconnectedDataSelector extends Component {
     useOnlyAvailableSchema: true,
     hideSingleSchema: true,
     hideSingleDatabase: false,
+    hasTableSearch: false,
+    canChangeDatabase: true,
   };
 
   // computes selected metadata objects (`selectedDatabase`, etc) and options (`databases`, etc)
@@ -220,7 +332,7 @@ export class UnconnectedDataSelector extends Component {
       if (!schemas && database) {
         schemas = database.schemas;
       }
-      if (!tables && schemas.length === 1) {
+      if (!tables && Array.isArray(schemas) && schemas.length === 1) {
         tables = schemas[0].tables;
       }
     }
@@ -291,10 +403,6 @@ export class UnconnectedDataSelector extends Component {
     });
   }
 
-  UNSAFE_componentWillMount() {
-    this.hydrateActiveStep();
-  }
-
   UNSAFE_componentWillReceiveProps(nextProps) {
     const newState = {};
     for (const propName of [
@@ -317,7 +425,32 @@ export class UnconnectedDataSelector extends Component {
     }
   }
 
-  async componentDidUpdate() {
+  async componentDidMount() {
+    const { activeStep } = this.state;
+    if (!this.isLoadingDatasets() && !activeStep) {
+      await this.hydrateActiveStep();
+    }
+
+    if (this.props.selectedTableId) {
+      await this.props.fetchFields(this.props.selectedTableId);
+      if (this.isSavedQuestionSelected()) {
+        this.showSavedQuestionPicker();
+      }
+    }
+  }
+
+  async componentDidUpdate(prevProps) {
+    const { loading } = this.props;
+    const loadedDatasets = prevProps.loading && !loading;
+
+    // Once datasets are queried with the search endpoint,
+    // this would hide the initial loading and view.
+    // If there is at least one dataset, DATA_BUCKER_STEP will be shown,
+    // otherwise, the picker will jump to the next step and present the regular picker
+    if (loadedDatasets) {
+      await this.hydrateActiveStep();
+    }
+
     // this logic cleans up invalid states, e.x. if a selectedSchema's database
     // doesn't match selectedDatabase we clear it and go to the SCHEMA_STEP
     const {
@@ -329,10 +462,13 @@ export class UnconnectedDataSelector extends Component {
     const invalidSchema =
       selectedDatabase &&
       selectedSchema &&
-      selectedSchema.database.id !== selectedDatabase.id;
+      selectedSchema.database.id !== selectedDatabase.id &&
+      selectedSchema.database.id !== SAVED_QUESTIONS_VIRTUAL_DB_ID;
+
     const invalidTable =
       selectedSchema &&
       selectedTable &&
+      !isVirtualCardId(selectedTable.id) &&
       selectedTable.schema.id !== selectedSchema.id;
     const invalidField =
       selectedTable &&
@@ -355,14 +491,44 @@ export class UnconnectedDataSelector extends Component {
     }
   }
 
+  isLoadingDatasets = () => this.props.loading;
+
+  hasDatasets = () => {
+    const { search, loaded } = this.props;
+    return loaded && search?.length > 0;
+  };
+
+  hasUsableDatasets = () => {
+    // As datasets are actually saved questions, nested queries must be enabled
+    return this.hasDatasets() && MetabaseSettings.get("enable-nested-queries");
+  };
+
+  getDatabases = () => {
+    const { databases } = this.state;
+
+    // When there is at least one dataset,
+    // "Saved Questions" are presented in a different picker step
+    // So it should be excluded from a regular databases list
+    const shouldRemoveSavedQuestionDatabaseFromList =
+      !MetabaseSettings.get("enable-nested-queries") || this.hasDatasets();
+
+    return shouldRemoveSavedQuestionDatabaseFromList
+      ? databases.filter(db => !db.is_saved_questions)
+      : databases;
+  };
+
   async hydrateActiveStep() {
     const { steps } = this.props;
-    if (this.state.selectedTableId && steps.includes(FIELD_STEP)) {
+    if (this.isSavedQuestionSelected()) {
+      await this.switchToStep(DATABASE_STEP);
+    } else if (this.state.selectedTableId && steps.includes(FIELD_STEP)) {
       await this.switchToStep(FIELD_STEP);
     } else if (this.state.selectedSchemaId && steps.includes(TABLE_STEP)) {
       await this.switchToStep(TABLE_STEP);
     } else if (this.state.selectedDatabaseId && steps.includes(SCHEMA_STEP)) {
       await this.switchToStep(SCHEMA_STEP);
+    } else if (steps[0] === DATA_BUCKET_STEP && !this.hasUsableDatasets()) {
+      await this.switchToStep(steps[1]);
     } else {
       await this.switchToStep(steps[0]);
     }
@@ -377,7 +543,7 @@ export class UnconnectedDataSelector extends Component {
       this.props.useOnlyAvailableDatabase &&
       this.props.selectedDatabaseId == null
     ) {
-      const { databases } = this.state;
+      const databases = this.getDatabases();
       if (databases && databases.length === 1) {
         this.onChangeDatabase(databases[0]);
       }
@@ -402,9 +568,14 @@ export class UnconnectedDataSelector extends Component {
 
   getPreviousStep() {
     const { steps } = this.props;
-    let index = steps.indexOf(this.state.activeStep);
+    const { activeStep } = this.state;
+    if (this.isLoadingDatasets() || activeStep === null) {
+      return null;
+    }
+
+    let index = steps.indexOf(activeStep);
     if (index === -1) {
-      console.error(`Step ${this.state.activeStep} not found in ${steps}.`);
+      console.error(`Step ${activeStep} not found in ${steps}.`);
       return null;
     }
 
@@ -420,6 +591,11 @@ export class UnconnectedDataSelector extends Component {
       index -= 1;
     }
 
+    // data bucket step doesn't make a lot of sense when there're no datasets
+    if (steps[index] === DATA_BUCKET_STEP && !this.hasUsableDatasets()) {
+      return null;
+    }
+
     // can't go back to a previous step
     if (index < 0) {
       return null;
@@ -431,7 +607,7 @@ export class UnconnectedDataSelector extends Component {
     const nextStep = this.getNextStep();
     if (!nextStep) {
       await this.setStateWithComputedState(stateChange);
-      this.refs.popover.toggle();
+      this.popover.current && this.popover.current.toggle();
     } else {
       await this.switchToStep(nextStep, stateChange, skipSteps);
     }
@@ -446,7 +622,15 @@ export class UnconnectedDataSelector extends Component {
   };
 
   getClearedStateForStep(step) {
-    if (step === DATABASE_STEP) {
+    if (step === DATA_BUCKET_STEP) {
+      return {
+        selectedDataBucketId: null,
+        selectedDatabaseId: null,
+        selectedSchemaId: null,
+        selectedTableId: null,
+        selectedFieldId: null,
+      };
+    } else if (step === DATABASE_STEP) {
       return {
         selectedDatabaseId: null,
         selectedSchemaId: null,
@@ -545,7 +729,34 @@ export class UnconnectedDataSelector extends Component {
     }
   };
 
+  showSavedQuestionPicker = () =>
+    this.setState({ isSavedQuestionPickerShown: true });
+
+  onChangeDataBucket = selectedDataBucketId => {
+    const { databases } = this.props;
+    if (selectedDataBucketId === DATA_BUCKET.RAW_DATA) {
+      this.switchToStep(DATABASE_STEP, { selectedDataBucketId });
+      return;
+    }
+    this.switchToStep(
+      DATABASE_STEP,
+      {
+        selectedDataBucketId,
+      },
+      false,
+    );
+    const database = databases.find(db => db.is_saved_questions);
+    if (database) {
+      this.onChangeDatabase(database);
+    }
+  };
+
   onChangeDatabase = async database => {
+    if (database.is_saved_questions) {
+      this.showSavedQuestionPicker();
+      return;
+    }
+
     if (this.props.setDatabaseFn) {
       this.props.setDatabaseFn(database && database.id);
     }
@@ -621,11 +832,25 @@ export class UnconnectedDataSelector extends Component {
       : "flex align-center";
   }
 
+  handleSavedQuestionPickerClose = () => {
+    const { selectedDataBucketId } = this.state;
+    if (
+      selectedDataBucketId === DATA_BUCKET.DATASETS ||
+      this.hasUsableDatasets()
+    ) {
+      this.previousStep();
+    }
+    this.setState({ isSavedQuestionPickerShown: false });
+  };
+
   renderActiveStep() {
     const { combineDatabaseSchemaSteps } = this.props;
+
     const props = {
       ...this.state,
+      databases: this.getDatabases(),
 
+      onChangeDataBucket: this.onChangeDataBucket,
       onChangeDatabase: this.onChangeDatabase,
       onChangeSchema: this.onChangeSchema,
       onChangeTable: this.onChangeTable,
@@ -635,18 +860,36 @@ export class UnconnectedDataSelector extends Component {
       isLoading: this.state.isLoading,
       hasNextStep: !!this.getNextStep(),
       onBack: this.getPreviousStep() ? this.previousStep : null,
+      hasFiltering: true,
     };
 
     switch (this.state.activeStep) {
+      case COLLECTION_DATASET_STEP:
+        return (
+          <CollectionDatasetPicker
+            {...props}
+            collectionId={this.props.collectionId}
+            handleCollectionDatasetSelect={this.handleCollectionDatasetSelect}
+            onSeeAllData={this.handleCollectionDatasetsPickerClose}
+          />
+        );
+      case DATA_BUCKET_STEP:
+        return <DataBucketPicker {...props} />;
       case DATABASE_STEP:
         return combineDatabaseSchemaSteps ? (
-          <DatabaseSchemaPicker {...props} />
+          <DatabaseSchemaPicker
+            {...props}
+            hasBackButton={this.hasUsableDatasets() && props.onBack}
+          />
         ) : (
           <DatabasePicker {...props} />
         );
       case SCHEMA_STEP:
         return combineDatabaseSchemaSteps ? (
-          <DatabaseSchemaPicker {...props} />
+          <DatabaseSchemaPicker
+            {...props}
+            hasBackButton={this.hasUsableDatasets() && props.onBack}
+          />
         ) : (
           <SchemaPicker {...props} />
         );
@@ -659,12 +902,124 @@ export class UnconnectedDataSelector extends Component {
     return null;
   }
 
+  isSavedQuestionSelected = () => isVirtualCardId(this.props.selectedTableId);
+
+  handleSavedQuestionSelect = async table => {
+    if (this.props.setSourceTableFn) {
+      this.props.setSourceTableFn(table.id);
+    }
+    this.popover.current.toggle();
+    this.handleClose();
+  };
+
+  showTableSearch = () => {
+    const { hasTableSearch, steps } = this.props;
+    const { activeStep } = this.state;
+    const hasTableStep = steps.includes(TABLE_STEP);
+    const isAllowedToShowOnActiveStep = [
+      DATA_BUCKET_STEP,
+      SCHEMA_STEP,
+      DATABASE_STEP,
+    ].includes(activeStep);
+
+    return hasTableSearch && hasTableStep && isAllowedToShowOnActiveStep;
+  };
+
+  handleSearchTextChange = searchText =>
+    this.setState({
+      searchText,
+    });
+
+  handleCollectionDatasetSelect = async dataset => {
+    const tableId = getQuestionVirtualTableId(dataset);
+    await this.props.fetchFields(tableId);
+    if (this.props.setSourceTableFn) {
+      this.props.setSourceTableFn(tableId);
+    }
+    this.popover.current.toggle();
+    this.props.onCloseCollectionDatasets();
+    this.switchToStep(TABLE_STEP);
+  };
+
+  handleCollectionDatasetsPickerClose = () => {
+    this.props.onCloseCollectionDatasets();
+    this.switchToStep(
+      this.hasUsableDatasets() ? DATA_BUCKET_STEP : DATABASE_STEP,
+    );
+  };
+
+  handleSearchItemSelect = async item => {
+    const table = convertSearchResultToTableLikeItem(item);
+    await this.props.fetchFields(table.id);
+    if (this.props.setSourceTableFn) {
+      this.props.setSourceTableFn(table.id);
+    }
+    this.popover.current.toggle();
+    this.handleClose();
+  };
+
+  handleClose = () => {
+    this.setState({ searchText: "" });
+  };
+
+  getSearchInputPlaceholder = () => {
+    const {
+      activeStep,
+      selectedDataBucketId,
+      isSavedQuestionPickerShown,
+    } = this.state;
+    if (activeStep === DATA_BUCKET_STEP) {
+      return t`Search for some data…`;
+    }
+    if (selectedDataBucketId === DATA_BUCKET.DATASETS) {
+      return t`Search for a model…`;
+    }
+    return isSavedQuestionPickerShown
+      ? t`Search for a question…`
+      : t`Search for a table…`;
+  };
+
+  getSearchModels = () => {
+    const { selectedDataBucketId, isSavedQuestionPickerShown } = this.state;
+    if (!MetabaseSettings.get("enable-nested-queries")) {
+      return ["table"];
+    }
+    if (!this.hasUsableDatasets()) {
+      return isSavedQuestionPickerShown ? ["card"] : ["card", "table"];
+    }
+    if (!selectedDataBucketId) {
+      return ["card", "dataset", "table"];
+    }
+    return {
+      [DATA_BUCKET.DATASETS]: ["dataset"],
+      [DATA_BUCKET.RAW_DATA]: ["table"],
+      [DATA_BUCKET.SAVED_QUESTIONS]: ["card"],
+    }[selectedDataBucketId];
+  };
+
   render() {
+    const {
+      searchText,
+      isSavedQuestionPickerShown,
+      selectedDataBucketId,
+      selectedTable,
+    } = this.state;
+    const { canChangeDatabase, selectedDatabaseId } = this.props;
+    const currentDatabaseId = canChangeDatabase ? null : selectedDatabaseId;
+
+    const isSearchActive = searchText.trim().length >= MIN_SEARCH_LENGTH;
+
+    const isPickerOpen =
+      isSavedQuestionPickerShown ||
+      selectedDataBucketId === DATA_BUCKET.DATASETS;
+
     return (
       <PopoverWithTrigger
         id="DataPopover"
-        ref="popover"
+        autoWidth
+        ref={this.popover}
         isInitiallyOpen={this.props.isInitiallyOpen}
+        containerClassName={this.props.containerClassName}
         triggerElement={this.getTriggerElement()}
         triggerClasses={this.getTriggerClasses()}
         horizontalAttachments={["center", "left", "right"]}
@@ -672,18 +1027,166 @@ export class UnconnectedDataSelector extends Component {
         tetherOptions={this.props.tetherOptions}
         sizeToFit
         isOpen={this.props.isOpen}
+        onClose={this.handleClose}
       >
-        {this.renderActiveStep()}
+        {this.isLoadingDatasets() ? (
+          <LoadingAndErrorWrapper loading />
+        ) : (
+          <React.Fragment>
+            {this.showTableSearch() && (
+              <ListSearchField
+                hasClearButton
+                className="bg-white m1"
+                onChange={this.handleSearchTextChange}
+                value={searchText}
+                placeholder={this.getSearchInputPlaceholder()}
+                autoFocus
+              />
+            )}
+            {isSearchActive && (
+              <SearchResults
+                searchModels={this.getSearchModels()}
+                searchQuery={searchText.trim()}
+                databaseId={currentDatabaseId}
+                onSelect={this.handleSearchItemSelect}
+              />
+            )}
+            {!isSearchActive &&
+              (isPickerOpen ? (
+                <SavedQuestionPicker
+                  collectionName={
+                    selectedTable &&
+                    selectedTable.schema &&
+                    getSchemaName(selectedTable.schema.id)
+                  }
+                  isDatasets={selectedDataBucketId === DATA_BUCKET.DATASETS}
+                  tableId={selectedTable && selectedTable.id}
+                  databaseId={currentDatabaseId}
+                  onSelect={this.handleSavedQuestionSelect}
+                  onBack={this.handleSavedQuestionPickerClose}
+                />
+              ) : (
+                this.renderActiveStep()
+              ))}
+          </React.Fragment>
+        )}
       </PopoverWithTrigger>
     );
   }
 }
+
+const CollectionDatasetPicker = ({
+  collectionId,
+  handleCollectionDatasetSelect,
+  onSeeAllData,
+}) => {
+  return (
+    <Search.ListLoader
+      query={{
+        collection: collectionId,
+        models: ["dataset"],
+      }}
+      loadingAndErrorWrapper={false}
+    >
+      {({ list: datasets }) => (
+        <CollectionDatasetList
+          datasets={datasets}
+          onSelect={handleCollectionDatasetSelect}
+          onSeeAllData={onSeeAllData}
+        />
+      )}
+    </Search.ListLoader>
+  );
+};
+
+function CollectionDatasetList({ datasets, onSelect, onSeeAllData }) {
+  useEffect(() => {
+    if (datasets?.length === 0) {
+      onSeeAllData();
+    } else if (datasets?.length === 1) {
+      onSelect(datasets[0]);
+    }
+  }, [datasets, onSelect, onSeeAllData]);
+
+  // If there are no datasets, in a collection, we just switch to the normal picker
+  // If there is exactly one dataset, we select it and close the picker
+  // The loading indicator is still shown for both cases to prevent flickering
+  // Example: spinner > one dataset shown > it gets selected > the selector closes, everything flickers
+  if (!datasets || datasets.length === 0 || datasets.length === 1) {
+    return <LoadingAndErrorWrapper loading />;
+  }
+
+  return (
+    <CollectionDatasetSelectList>
+      {datasets.map(dataset => {
+        return (
+          <CollectionDatasetSelectList.Item
+            key={dataset.id}
+            name={dataset.name}
+            onSelect={() => onSelect(dataset)}
+            size="small"
+            icon={{ name: "dataset", size: 16 }}
+            rightIcon={PLUGIN_MODERATION.getStatusIcon(
+              dataset.moderated_status,
+            )}
+          />
+        );
+      })}
+      <CollectionDatasetAllDataLink
+        key="all-data"
+        onSelect={onSeeAllData}
+        as={props => <li {...props} />}
+      >
+        <CollectionDatasetAllDataLink.Content>
+          {t`All data`}
+          <Icon key="icon" name="chevronright" size={12} />
+        </CollectionDatasetAllDataLink.Content>
+      </CollectionDatasetAllDataLink>
+    </CollectionDatasetSelectList>
+  );
+}
+
+const DataBucketPicker = ({ onChangeDataBucket }) => {
+  const BUCKETS = [
+    {
+      id: DATA_BUCKET.DATASETS,
+      icon: "dataset",
+      name: t`Datasets`,
+      description: t`The best starting place for new questions.`,
+    },
+    {
+      id: DATA_BUCKET.RAW_DATA,
+      icon: "database",
+      name: t`Raw Data`,
+      description: t`Unaltered tables in connected databases.`,
+    },
+    {
+      id: DATA_BUCKET.SAVED_QUESTIONS,
+      name: t`Saved Questions`,
+      icon: "folder",
+      description: t`Use any question’s results to start a new question.`,
+    },
+  ];
+
+  return (
+    <DataBucketList>
+      {BUCKETS.map(bucket => (
+        <DataBucketListItem
+          {...bucket}
+          key={bucket.id}
+          onSelect={onChangeDataBucket}
+        />
+      ))}
+    </DataBucketList>
+  );
+};
 
 const DatabasePicker = ({
   databases,
   selectedDatabase,
   onChangeDatabase,
   hasNextStep,
+  onBack,
 }) => {
   if (databases.length === 0) {
     return <DataSelectorLoading />;
@@ -699,6 +1202,10 @@ const DatabasePicker = ({
     },
   ];
 
+  if (onBack) {
+    sections.unshift({ name: <RawDataBackButton /> });
+  }
+
   return (
     <AccordionList
       id="DatabasePicker"
@@ -706,6 +1213,13 @@ const DatabasePicker = ({
       className="text-brand"
       sections={sections}
       onChange={item => onChangeDatabase(item.database)}
+      onChangeSection={(_section, sectionIndex) => {
+        const isNavigationSection = onBack && sectionIndex === 0;
+        if (isNavigationSection) {
+          onBack();
+        }
+        return false;
+      }}
       itemIsSelected={item =>
         selectedDatabase && item.database.id === selectedDatabase.id
       }
@@ -722,6 +1236,7 @@ const SchemaPicker = ({
   selectedSchemaId,
   onChangeSchema,
   hasNextStep,
+  hasFiltering,
 }) => {
   const sections = [
     {
@@ -738,7 +1253,7 @@ const SchemaPicker = ({
         key="schemaPicker"
         className="text-brand"
         sections={sections}
-        searchable
+        searchable={hasFiltering}
         onChange={item => onChangeSchema(item.schema)}
         itemIsSelected={item => item && item.schema.id === selectedSchemaId}
         renderItemIcon={() => <Icon name="folder" size={16} />}
@@ -756,15 +1271,17 @@ const DatabaseSchemaPicker = ({
   onChangeDatabase,
   hasNextStep,
   isLoading,
+  hasBackButton,
+  onBack,
 }) => {
   if (databases.length === 0) {
     return <DataSelectorLoading />;
   }
 
   const sections = databases.map(database => ({
-    name: database.name,
+    name: database.is_saved_questions ? t`Saved Questions` : database.name,
     items:
-      database.schemas.length > 1
+      !database.is_saved_questions && database.schemas.length > 1
         ? database.schemas.map(schema => ({
             schema,
             name: schema.displayName(),
@@ -777,7 +1294,15 @@ const DatabaseSchemaPicker = ({
       selectedDatabase.id === database.id &&
       database.schemas.length === 0 &&
       isLoading,
+    active: database.is_saved_questions || isSyncCompleted(database),
   }));
+
+  if (hasBackButton) {
+    sections.unshift({
+      name: <RawDataBackButton />,
+      active: true,
+    });
+  }
 
   let openSection = selectedSchema
     ? databases.findIndex(db => db.id === selectedSchema.database.id)
@@ -800,22 +1325,29 @@ const DatabaseSchemaPicker = ({
       className="text-brand"
       sections={sections}
       onChange={item => onChangeSchema(item.schema)}
-      onChangeSection={(section, sectionIndex) => {
-        if (
-          selectedDatabase &&
-          selectedDatabase.id === databases[sectionIndex].id
-        ) {
-          // You can't change to the current database. If you click on that,
-          // still return "true" to let the AccordionList collapse that section.
-          return true;
+      onChangeSection={(_section, sectionIndex) => {
+        const isNavigationSection = hasBackButton && sectionIndex === 0;
+        if (isNavigationSection) {
+          onBack();
+          return false;
         }
-        onChangeDatabase(databases[sectionIndex]);
+        // the "go back" button is also a section,
+        // so need to take its index in mind
+        const database = hasBackButton
+          ? databases[sectionIndex - 1]
+          : databases[sectionIndex];
+        onChangeDatabase(database);
         return true;
       }}
       itemIsSelected={schema => schema === selectedSchema}
-      renderSectionIcon={item => (
-        <Icon className="Icon text-default" name={item.icon} size={18} />
-      )}
+      renderSectionIcon={item =>
+        item.icon && (
+          <Icon className="Icon text-default" name={item.icon} size={18} />
+        )
+      }
+      renderSectionExtra={item =>
+        !item.active && <PickerSpinner size={16} borderWidth={2} />
+      }
       renderItemIcon={() => <Icon name="folder" size={16} />}
       initiallyOpenSection={openSection}
       alwaysTogglable={true}
@@ -834,6 +1366,8 @@ const TablePicker = ({
   hasNextStep,
   onBack,
   isLoading,
+  hasFiltering,
+  minTablesToShowSearch = 10,
 }) => {
   // In case DataSelector props get reseted
   if (!selectedDatabase) {
@@ -876,7 +1410,10 @@ const TablePicker = ({
       },
     ];
     return (
-      <div style={{ width: 300, overflowY: "auto" }}>
+      <div
+        style={{ width: 300, overflowY: "auto" }}
+        data-testid="data-selector"
+      >
         <AccordionList
           id="TablePicker"
           key="tablePicker"
@@ -884,14 +1421,14 @@ const TablePicker = ({
           sections={sections}
           maxHeight={Infinity}
           width={"100%"}
-          searchable
+          searchable={hasFiltering && tables.length >= minTablesToShowSearch}
           onChange={item => onChangeTable(item.table)}
           itemIsSelected={item =>
             item.table && selectedTable
               ? item.table.id === selectedTable.id
               : false
           }
-          itemIsClickable={item => item.table}
+          itemIsClickable={item => item.table && isSyncCompleted(item.table)}
           renderItemIcon={item =>
             item.table ? <Icon name="table2" size={18} /> : null
           }
@@ -941,6 +1478,7 @@ class FieldPicker extends Component {
       selectedField,
       onChangeField,
       onBack,
+      hasFiltering,
     } = this.props;
 
     const header = (
@@ -980,7 +1518,7 @@ class FieldPicker extends Component {
           sections={sections}
           maxHeight={Infinity}
           width={"100%"}
-          searchable
+          searchable={hasFiltering}
           onChange={item => onChangeField(item.field)}
           itemIsSelected={item =>
             item.field && selectedField

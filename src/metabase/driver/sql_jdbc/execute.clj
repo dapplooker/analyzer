@@ -10,10 +10,13 @@
             [java-time :as t]
             [metabase.driver :as driver]
             [metabase.driver.sql-jdbc.connection :as sql-jdbc.conn]
+            [metabase.driver.sql-jdbc.execute.diagnostic :as sql-jdbc.execute.diagnostic]
             [metabase.driver.sql-jdbc.execute.old-impl :as execute.old]
             [metabase.driver.sql-jdbc.sync.interface :as sql-jdbc.sync]
             [metabase.mbql.util :as mbql.u]
+            [metabase.models.setting :refer [defsetting]]
             [metabase.query-processor.context :as context]
+            [metabase.query-processor.error-type :as qp.error-type]
             [metabase.query-processor.interface :as qp.i]
             [metabase.query-processor.reducible :as qp.reducible]
             [metabase.query-processor.store :as qp.store]
@@ -132,6 +135,15 @@
   ^DataSource [database]
   (:datasource (sql-jdbc.conn/db->pooled-connection-spec database)))
 
+(defn datasource-with-diagnostic-info!
+  "Fetch the connection pool `DataSource` associated with `database`, while also recording diagnostic info for the
+  pool. To be used in conjunction with `sql-jdbc.execute.diagnostic/capturing-diagnostic-info`."
+  {:added "0.40.0"}
+  ^DataSource [driver database]
+  (let [ds (datasource database)]
+    (sql-jdbc.execute.diagnostic/record-diagnostic-info-for-pool driver (u/the-id database) ds)
+    ds))
+
 (defn set-time-zone-if-supported!
   "Execute `set-timezone-sql`, if implemented by driver, to set the session time zone. This way of setting the time zone
   should be considered deprecated in favor of implementing `connection-with-time-zone` directly."
@@ -176,7 +188,7 @@
 
 (defmethod connection-with-timezone :sql-jdbc
   [driver database ^String timezone-id]
-  (let [conn (.getConnection (datasource database))]
+  (let [conn (.getConnection (datasource-with-diagnostic-info! driver database))]
     (try
       (set-best-transaction-level! driver conn)
       (set-time-zone-if-supported! driver conn timezone-id)
@@ -184,6 +196,12 @@
         (.setReadOnly conn true)
         (catch Throwable e
           (log/debug e (trs "Error setting connection to read-only"))))
+      (try
+        ;; set autocommit to false so that pg honors fetchSize. Otherwise it commits the transaction and needs the
+        ;; entire realized result set
+        (.setAutoCommit conn false)
+        (catch Throwable e
+          (log/debug e (trs "Error setting connection to autoCommit false"))))
       (try
         (.setHoldability conn ResultSet/CLOSE_CURSORS_AT_COMMIT)
         (catch Throwable e
@@ -256,9 +274,17 @@
       (set-parameter driver stmt (inc i) param))
     params)))
 
+(defsetting ^:private sql-jdbc-fetch-size
+  "Fetch size for result sets. We want to ensure that the jdbc ResultSet objects are not realizing the entire results
+  in memory."
+  :default 500
+  :type :integer
+  :visibility :internal)
+
 (defmethod prepared-statement :sql-jdbc
   [driver ^Connection conn ^String sql params]
-  (let [stmt (.prepareStatement conn sql
+  (let [stmt (.prepareStatement conn
+                                sql
                                 ResultSet/TYPE_FORWARD_ONLY
                                 ResultSet/CONCUR_READ_ONLY
                                 ResultSet/CLOSE_CURSORS_AT_COMMIT)]
@@ -266,7 +292,12 @@
       (try
         (.setFetchDirection stmt ResultSet/FETCH_FORWARD)
         (catch Throwable e
-          (log/debug e (trs "Error setting result set fetch direction to FETCH_FORWARD"))))
+          (log/debug e (trs "Error setting prepared statement fetch direction to FETCH_FORWARD"))))
+      (try
+        (when (zero? (.getFetchSize stmt))
+          (.setFetchSize stmt (sql-jdbc-fetch-size)))
+        (catch Throwable e
+          (log/debug e (trs "Error setting prepared statement fetch size to fetch-size"))))
       (set-parameters! driver stmt params)
       stmt
       (catch Throwable e
@@ -288,7 +319,12 @@
       (try
         (.setFetchDirection stmt ResultSet/FETCH_FORWARD)
         (catch Throwable e
-          (log/debug e (trs "Error setting result set fetch direction to FETCH_FORWARD"))))
+          (log/debug e (trs "Error setting statement fetch direction to FETCH_FORWARD"))))
+      (try
+        (when (zero? (.getFetchSize stmt))
+          (.setFetchSize stmt (sql-jdbc-fetch-size)))
+        (catch Throwable e
+          (log/debug e (trs "Error setting statement fetch size to fetch-size"))))
       stmt
       (catch Throwable e
         (.close stmt)
@@ -308,8 +344,7 @@
 (defn- use-statement? [driver params]
   (and (statement-supported? driver) (empty? params)))
 
-(defn- statement*
-  ^Statement [driver conn canceled-chan]
+(defn- statement* ^Statement [driver conn canceled-chan]
   ;; if canceled-chan gets a message, cancel the Statement
   (let [^Statement stmt (statement driver conn)]
     (a/go
@@ -319,23 +354,23 @@
          (.cancel stmt))))
     stmt))
 
-(defn- ^Statement statement-or-prepared-statement [driver conn sql params canceled-chan]
+(defn- statement-or-prepared-statement ^Statement [driver conn sql params canceled-chan]
   (if (use-statement? driver params)
     (statement* driver conn canceled-chan)
     (prepared-statement* driver conn sql params canceled-chan)))
 
-(defmethod ^ResultSet execute-prepared-statement! :sql-jdbc
+(defmethod execute-prepared-statement! :sql-jdbc
   [_ ^PreparedStatement stmt]
   (.executeQuery stmt))
 
-(defmethod ^ResultSet execute-statement! :sql-jdbc
+(defmethod execute-statement! :sql-jdbc
   [driver ^Statement stmt ^String sql]
   (if (.execute stmt sql)
     (.getResultSet stmt)
     (throw (ex-info (str (tru "Select statement did not produce a ResultSet for native query"))
                     {:sql sql :driver driver}))))
 
-(defn- ^ResultSet execute-statement-or-prepared-statement [driver ^Statement stmt max-rows params sql]
+(defn- execute-statement-or-prepared-statement! ^ResultSet [driver ^Statement stmt max-rows params sql]
   (let [st (doto stmt (.setMaxRows max-rows))]
     (if (use-statement? driver params)
       (execute-statement! driver st sql)
@@ -461,12 +496,18 @@
      (execute-reducible-query driver sql params max-rows context respond)))
 
   ([driver sql params max-rows context respond]
-   (with-open [conn (connection-with-timezone driver (qp.store/database) (qp.timezone/report-timezone-id-if-supported))
-               stmt (statement-or-prepared-statement driver conn sql params (context/canceled-chan context))
-               rs   (execute-statement-or-prepared-statement driver stmt max-rows params sql)]
+   (with-open [conn          (connection-with-timezone driver (qp.store/database) (qp.timezone/report-timezone-id-if-supported))
+               stmt          (statement-or-prepared-statement driver conn sql params (context/canceled-chan context))
+               ^ResultSet rs (try
+                               (execute-statement-or-prepared-statement! driver stmt max-rows params sql)
+                               (catch Throwable e
+                                 (throw (ex-info (tru "Error executing query")
+                                                 {:sql sql, :params params, :type qp.error-type/invalid-query}
+                                                 e))))]
      (let [rsmeta           (.getMetaData rs)
            results-metadata {:cols (column-metadata driver rsmeta)}]
        (respond results-metadata (reducible-rows driver rs rsmeta (context/canceled-chan context)))))))
+
 
 ;;; +----------------------------------------------------------------------------------------------------------------+
 ;;; |                                       Convenience Imports from Old Impl                                        |

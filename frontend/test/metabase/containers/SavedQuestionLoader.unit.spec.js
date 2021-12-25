@@ -9,9 +9,6 @@ import { CardApi } from "metabase/services";
 // redux
 import { SavedQuestionLoader } from "metabase/containers/SavedQuestionLoader";
 
-// we need to mock the things that try and actually load the question
-jest.mock("metabase/services");
-
 describe("SavedQuestionLoader", () => {
   let loadQuestionSpy, loadMetadataSpy, mockChild;
   beforeEach(() => {
@@ -34,8 +31,9 @@ describe("SavedQuestionLoader", () => {
       <SavedQuestionLoader
         questionId={questionId}
         loadMetadataForCard={loadMetadataSpy}
-        children={mockChild}
-      />,
+      >
+        {mockChild}
+      </SavedQuestionLoader>,
     );
     expect(mockChild.mock.calls[0][0].loading).toEqual(true);
     expect(mockChild.mock.calls[0][0].error).toEqual(null);
@@ -60,8 +58,9 @@ describe("SavedQuestionLoader", () => {
       <SavedQuestionLoader
         questionId={originalQuestionId}
         loadMetadataForCard={loadMetadataSpy}
-        children={mockChild}
-      />,
+      >
+        {mockChild}
+      </SavedQuestionLoader>,
     );
 
     expect(loadQuestionSpy).toHaveBeenCalledWith(originalQuestionId);
@@ -71,8 +70,9 @@ describe("SavedQuestionLoader", () => {
       <SavedQuestionLoader
         questionId={newQuestionId}
         loadMetadataForCard={loadMetadataSpy}
-        children={mockChild}
-      />,
+      >
+        {mockChild}
+      </SavedQuestionLoader>,
     );
 
     // question loading should begin with the new ID

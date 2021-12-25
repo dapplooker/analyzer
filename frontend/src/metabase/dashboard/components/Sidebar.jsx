@@ -1,14 +1,21 @@
 import React from "react";
+import PropTypes from "prop-types";
 import { t } from "ttag";
-
 import Button from "metabase/components/Button";
 
 const WIDTH = 384;
 
-function Sidebar({ onClose, onCancel, closeIsDisabled, children }) {
+const propTypes = {
+  closeIsDisabled: PropTypes.bool,
+  children: PropTypes.node,
+  onClose: PropTypes.func,
+  onCancel: PropTypes.func,
+};
+
+function Sidebar({ closeIsDisabled, children, onClose, onCancel }) {
   return (
-    <div
-      style={{ width: WIDTH }}
+    <aside
+      style={{ width: WIDTH, minWidth: WIDTH }}
       className="flex flex-column border-left bg-white"
     >
       <div className="flex flex-column flex-auto overflow-y-auto">
@@ -38,8 +45,10 @@ function Sidebar({ onClose, onCancel, closeIsDisabled, children }) {
           )}
         </div>
       )}
-    </div>
+    </aside>
   );
 }
+
+Sidebar.propTypes = propTypes;
 
 export default Sidebar;

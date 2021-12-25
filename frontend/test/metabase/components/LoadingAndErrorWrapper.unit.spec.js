@@ -33,7 +33,7 @@ describe("LoadingAndErrorWrapper", () => {
         <LoadingAndErrorWrapper
           loading={true}
           error={null}
-          loadingScenes={[<Scene />]}
+          loadingScenes={[<Scene key="0" />]}
         />,
       );
       screen.getByText("Fun load animation");
@@ -55,13 +55,13 @@ describe("LoadingAndErrorWrapper", () => {
         );
 
         screen.getByText("One");
-        jest.runTimersToTime(interval);
+        jest.advanceTimersByTime(interval);
 
         screen.getByText("Two");
-        jest.runTimersToTime(interval);
+        jest.advanceTimersByTime(interval);
 
         screen.getByText("Three");
-        jest.runTimersToTime(interval);
+        jest.advanceTimersByTime(interval);
 
         screen.getByText("One");
       });

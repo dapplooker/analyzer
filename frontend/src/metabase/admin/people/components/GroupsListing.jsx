@@ -1,10 +1,11 @@
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
 import { Link } from "react-router";
 
 import _ from "underscore";
 import cx from "classnames";
 
-import MetabaseAnalytics from "metabase/lib/analytics";
+import * as MetabaseAnalytics from "metabase/lib/analytics";
 import {
   isDefaultGroup,
   isAdminGroup,
@@ -24,7 +25,7 @@ import UserAvatar from "metabase/components/UserAvatar";
 import AdminContentTable from "metabase/components/AdminContentTable";
 import AdminPaneLayout from "metabase/components/AdminPaneLayout";
 
-import AddRow from "./AddRow";
+import { AddRow } from "./AddRow";
 
 // ------------------------------------------------------------ Add Group ------------------------------------------------------------
 
@@ -267,7 +268,7 @@ export default class GroupsListing extends Component {
 
   // TODO: move this to Redux
   async onAddGroupCreateButtonClicked() {
-    MetabaseAnalytics.trackEvent("People Groups", "Group Added");
+    MetabaseAnalytics.trackStructEvent("People Groups", "Group Added");
 
     try {
       await this.props.create({ name: this.state.text });
@@ -328,7 +329,7 @@ export default class GroupsListing extends Component {
       this.setState({ groupBeingEdited: null });
     } else {
       // ok, fire off API call to change the group
-      MetabaseAnalytics.trackEvent("People Groups", "Group Updated");
+      MetabaseAnalytics.trackStructEvent("People Groups", "Group Updated");
       try {
         await this.props.update({ id: group.id, name: group.name });
         this.setState({ groupBeingEdited: null });
@@ -343,7 +344,7 @@ export default class GroupsListing extends Component {
 
   // TODO: move this to Redux
   async onDeleteGroupClicked(group) {
-    MetabaseAnalytics.trackEvent("People Groups", "Group Deleted");
+    MetabaseAnalytics.trackStructEvent("People Groups", "Group Deleted");
     try {
       await this.props.delete(group);
     } catch (error) {

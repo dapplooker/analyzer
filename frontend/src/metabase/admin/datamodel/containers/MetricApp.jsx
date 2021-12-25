@@ -1,8 +1,9 @@
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
 import { connect } from "react-redux";
 import { push } from "react-router-redux";
 
-import MetabaseAnalytics from "metabase/lib/analytics";
+import * as MetabaseAnalytics from "metabase/lib/analytics";
 import Metrics from "metabase/entities/metrics";
 
 import { updatePreviewSummary } from "../datamodel";
@@ -24,7 +25,7 @@ const mapStateToProps = (state, props) => ({
 class UpdateMetricForm extends Component {
   onSubmit = async metric => {
     await this.props.updateMetric(metric);
-    MetabaseAnalytics.trackEvent("Data Model", "Metric Updated");
+    MetabaseAnalytics.trackStructEvent("Data Model", "Metric Updated");
     this.props.onChangeLocation(`/admin/datamodel/metrics`);
   };
 
@@ -46,7 +47,7 @@ class CreateMetricForm extends Component {
       ...metric,
       table_id: metric.definition["source-table"],
     });
-    MetabaseAnalytics.trackEvent("Data Model", "Metric Updated");
+    MetabaseAnalytics.trackStructEvent("Data Model", "Metric Updated");
     this.props.onChangeLocation(`/admin/datamodel/metrics`);
   };
 
@@ -55,10 +56,7 @@ class CreateMetricForm extends Component {
   }
 }
 
-@connect(
-  mapStateToProps,
-  mapDispatchToProps,
-)
+@connect(mapStateToProps, mapDispatchToProps)
 export default class MetricApp extends Component {
   render() {
     return this.props.params.id ? (

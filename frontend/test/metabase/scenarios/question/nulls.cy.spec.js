@@ -1,34 +1,23 @@
-import {
-  restore,
-  signInAsAdmin,
-  openOrdersTable,
-  popover,
-} from "__support__/cypress";
+import { restore, openOrdersTable, popover } from "__support__/e2e/cypress";
 
-import { SAMPLE_DATASET } from "__support__/cypress_sample_dataset";
+import { SAMPLE_DATASET } from "__support__/e2e/cypress_sample_dataset";
 
 const { ORDERS, ORDERS_ID } = SAMPLE_DATASET;
 
 describe("scenarios > question > null", () => {
   beforeEach(() => {
     restore();
-    signInAsAdmin();
+    cy.signInAsAdmin();
   });
 
   it("should display rows whose value is `null` (metabase#13571)", () => {
-    cy.request("POST", "/api/card", {
+    cy.createQuestion({
       name: "13571",
-      dataset_query: {
-        database: 1,
-        query: {
-          "source-table": ORDERS_ID,
-          fields: [["field", ORDERS.DISCOUNT, null]],
-          filter: ["=", ["field", ORDERS.ID, null], 1],
-        },
-        type: "query",
+      query: {
+        "source-table": ORDERS_ID,
+        fields: [["field", ORDERS.DISCOUNT, null]],
+        filter: ["=", ["field", ORDERS.ID, null], 1],
       },
-      display: "table",
-      visualization_settings: {},
     });
 
     // find and open previously created question
@@ -47,118 +36,94 @@ describe("scenarios > question > null", () => {
   it.skip("pie chart should handle `0`/`null` values (metabase#13626)", () => {
     // Preparation for the test: "Arrange and Act phase" - see repro steps in #13626
 
-    // 1. create a question
-    cy.request("POST", "/api/card", {
+    cy.createQuestion({
       name: "13626",
-      dataset_query: {
-        database: 1,
-        query: {
-          "source-table": ORDERS_ID,
-          aggregation: [["sum", ["expression", "NewDiscount"]]],
-          breakout: [["field", ORDERS.ID, null]],
-          expressions: {
-            NewDiscount: [
-              "case",
-              [[["=", ["field", ORDERS.ID, null], 2], 0]],
-              { default: ["field", ORDERS.DISCOUNT, null] },
-            ],
-          },
-          filter: ["=", ["field", ORDERS.ID, null], 1, 2, 3],
-        },
-        type: "query",
-      },
-      display: "pie",
-      visualization_settings: {},
-    }).then(({ body: { id: questionId } }) => {
-      // 2. create a dashboard
-      cy.request("POST", "/api/dashboard", {
-        name: "13626D",
-      }).then(({ body: { id: dashboardId } }) => {
-        // add filter (ID) to the dashboard
-        cy.request("PUT", `/api/dashboard/${dashboardId}`, {
-          parameters: [
-            {
-              id: "1f97c149",
-              name: "ID",
-              slug: "id",
-              type: "id",
-            },
+      query: {
+        "source-table": ORDERS_ID,
+        aggregation: [["sum", ["expression", "NewDiscount"]]],
+        breakout: [["field", ORDERS.ID, null]],
+        expressions: {
+          NewDiscount: [
+            "case",
+            [[["=", ["field", ORDERS.ID, null], 2], 0]],
+            { default: ["field", ORDERS.DISCOUNT, null] },
           ],
-        });
+        },
+        filter: ["=", ["field", ORDERS.ID, null], 1, 2, 3],
+      },
 
-        // add previously created question to the dashboard
-        cy.request("POST", `/api/dashboard/${dashboardId}/cards`, {
-          cardId: questionId,
-        }).then(({ body: { id: dashCardId } }) => {
-          // connect filter to that question
-          cy.request("PUT", `/api/dashboard/${dashboardId}/cards`, {
-            cards: [
+      display: "pie",
+    }).then(({ body: { id: questionId } }) => {
+      cy.createDashboard({ name: "13626D" }).then(
+        ({ body: { id: dashboardId } }) => {
+          // add filter (ID) to the dashboard
+          cy.request("PUT", `/api/dashboard/${dashboardId}`, {
+            parameters: [
               {
-                id: dashCardId,
-                card_id: questionId,
-                row: 0,
-                col: 0,
-                sizeX: 8,
-                sizeY: 6,
-                parameter_mappings: [
-                  {
-                    parameter_id: "1f97c149",
-                    card_id: questionId,
-                    target: ["dimension", ["field", ORDERS.ID, null]],
-                  },
-                ],
+                id: "1f97c149",
+                name: "ID",
+                slug: "id",
+                type: "id",
               },
             ],
           });
-        });
-        // NOTE: The actual "Assertion" phase begins here
-        cy.visit(`/dashboard/${dashboardId}?id=1`);
-        cy.findByText("13626D");
 
-        cy.log("Reported failing in v0.37.0.2");
-        cy.get(".DashCard").within(() => {
-          cy.get(".LoadingSpinner").should("not.exist");
-          cy.findByText("13626");
-          // [quarantine]: flaking in CircleCI, passing locally
-          // TODO: figure out the cause of the failed test in CI after #13721 is merged
-          // cy.get("svg[class*=PieChart__Donut]");
-          // cy.get("[class*=PieChart__Value]").contains("0");
-          // cy.get("[class*=PieChart__Title]").contains(/total/i);
-        });
-      });
+          // add previously created question to the dashboard
+          cy.request("POST", `/api/dashboard/${dashboardId}/cards`, {
+            cardId: questionId,
+          }).then(({ body: { id: dashCardId } }) => {
+            // connect filter to that question
+            cy.request("PUT", `/api/dashboard/${dashboardId}/cards`, {
+              cards: [
+                {
+                  id: dashCardId,
+                  card_id: questionId,
+                  row: 0,
+                  col: 0,
+                  sizeX: 8,
+                  sizeY: 6,
+                  parameter_mappings: [
+                    {
+                      parameter_id: "1f97c149",
+                      card_id: questionId,
+                      target: ["dimension", ["field", ORDERS.ID, null]],
+                    },
+                  ],
+                },
+              ],
+            });
+          });
+          // NOTE: The actual "Assertion" phase begins here
+          cy.visit(`/dashboard/${dashboardId}?id=1`);
+          cy.findByText("13626D");
+
+          cy.log("Reported failing in v0.37.0.2");
+          cy.get(".DashCard").within(() => {
+            cy.findByTestId("loading-spinner").should("not.exist");
+            cy.findByText("13626");
+            // [quarantine]: flaking in CircleCI, passing locally
+            // TODO: figure out the cause of the failed test in CI after #13721 is merged
+            // cy.get("svg[class*=PieChart__Donut]");
+            // cy.get("[class*=PieChart__Value]").contains("0");
+            // cy.get("[class*=PieChart__Title]").contains(/total/i);
+          });
+        },
+      );
     });
   });
 
   it("dashboard should handle cards with null values (metabase#13801)", () => {
-    cy.log("Create Question 1");
-
-    cy.request("POST", "/api/card", {
+    cy.createNativeQuestion({
       name: "13801_Q1",
-      dataset_query: {
-        database: 1,
-        native: { query: "SELECT null", "template-tags": {} },
-        type: "native",
-      },
+      native: { query: "SELECT null", "template-tags": {} },
       display: "scalar",
-      visualization_settings: {},
     }).then(({ body: { id: Q1_ID } }) => {
-      cy.log("Create Question 2");
-
-      cy.request("POST", "/api/card", {
+      cy.createNativeQuestion({
         name: "13801_Q2",
-        dataset_query: {
-          database: 1,
-          native: { query: "SELECT 0", "template-tags": {} },
-          type: "native",
-        },
+        native: { query: "SELECT 0", "template-tags": {} },
         display: "scalar",
-        visualization_settings: {},
       }).then(({ body: { id: Q2_ID } }) => {
-        cy.log("Create Dashboard");
-
-        cy.request("POST", "/api/dashboard", {
-          name: "13801D",
-        }).then(({ body: { id: DASHBOARD_ID } }) => {
+        cy.createDashboard().then(({ body: { id: DASHBOARD_ID } }) => {
           cy.log("Add both previously created questions to the dashboard");
 
           [Q1_ID, Q2_ID].forEach((questionId, index) => {
@@ -182,20 +147,37 @@ describe("scenarios > question > null", () => {
               });
             });
           });
-          cy.server();
-          cy.route("POST", "/api/card/*/query").as("cardQuery");
 
           cy.visit(`/dashboard/${DASHBOARD_ID}`);
-          // wait for the second cardQuery to finish
-          cy.wait("@cardQuery.2");
-
           cy.log("P0 regression in v0.37.1!");
-          cy.get(".LoadingSpinner").should("not.exist");
+          cy.findByTestId("loading-spinner").should("not.exist");
           cy.findByText("13801_Q1");
+          cy.get(".ScalarValue").contains("0");
           cy.findByText("13801_Q2");
         });
       });
     });
+  });
+
+  it("should filter by clicking on the row with `null` value (metabase#18386)", () => {
+    openOrdersTable();
+
+    // Total of "39.72", and the next cell is the `discount` (which is empty)
+    cy.findByText("39.72")
+      .closest(".TableInteractive-cellWrapper")
+      .next()
+      .find("div")
+      .should("be.empty")
+      // Open the context menu that lets us apply filter using this column directly
+      .click({ force: true });
+
+    popover()
+      .contains("=")
+      .click();
+
+    cy.findByText("39.72");
+    // This row ([id] 3) had the `discount` column value and should be filtered out now
+    cy.findByText("49.21").should("not.exist");
   });
 
   describe("aggregations with null values", () => {

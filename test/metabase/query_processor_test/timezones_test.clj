@@ -119,8 +119,8 @@
                                              (hsql/raw "{{date1}}")
                                              (hsql/raw "{{date2}}")]
                                   :order-by [[(field-identifier :users :id) :asc]]})
-                 :template-tags {:date1 {:name "date1" :display_name "Date1" :type "date" }
-                                 :date2 {:name "date2" :display_name "Date2" :type "date" }}}
+                 :template-tags {:date1 {:name "date1" :display_name "Date1" :type "date"}
+                                 :date2 {:name "date2" :display_name "Date2" :type "date"}}}
     :parameters [{:type   "date/single"
                   :target ["variable" ["template-tag" "date1"]]
                   :value  "2014-08-02T02:00:00.000000"}
@@ -138,7 +138,8 @@
                  :template-tags {:ts_range {:name         "ts_range"
                                             :display_name "Timestamp Range"
                                             :type         "dimension"
-                                            :dimension    [:field-id (mt/id :users :last_login)]}}}
+                                            :widget-type  :date/all-options
+                                            :dimension    [:field (mt/id :users :last_login) nil]}}}
     :parameters [{:type   "date/range"
                   :target ["dimension" ["template-tag" "ts_range"]]
                   :value  "2014-08-02~2014-08-03"}]}
@@ -152,8 +153,9 @@
                                   :order-by [[(field-identifier :users :id) :asc]]})
                  :template-tags {:just_a_date {:name         "just_a_date"
                                                :display_name "Just A Date"
-                                               :type         "dimension",
-                                               :dimension    [:field-id (mt/id :users :last_login)]}}}
+                                               :type         "dimension"
+                                               :widget-type  :date/all-options
+                                               :dimension    [:field (mt/id :users :last_login) nil]}}}
     :parameters [{:type   "date/single"
                   :target ["dimension" ["template-tag" "just_a_date"]]
                   :value  "2014-08-02"}]}})
@@ -224,6 +226,6 @@
     (mt/dataset attempted-murders
       (doseq [timezone [nil "US/Pacific" "US/Eastern" "Asia/Hong_Kong"]]
         (mt/with-temporary-setting-values [report-timezone timezone]
-          (let [expected (expected-attempts)]
-            (is (= expected
-                   (select-keys (attempts) (keys expected))))))))))
+          (let [expected (expected-attempts)
+                actual   (select-keys (attempts) (keys expected))]
+            (is (= expected actual))))))))

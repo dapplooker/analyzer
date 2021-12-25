@@ -1,31 +1,33 @@
-/* @flow */
-
 import React from "react";
+import PropTypes from "prop-types";
+
+import Button from "metabase/components/Button";
 
 import _ from "underscore";
+import { AuditParametersInput } from "./AuditParameters.styled";
 
 const DEBOUNCE_PERIOD = 300;
 
-type AuditParameter = {
-  key: string,
-  placeholder: string,
-};
-
-type Props = {
-  parameters: AuditParameter[],
-  children?: (committedValues: { [key: string]: string }) => React$Element<any>,
-};
-
-type State = {
-  inputValues: { [key: string]: string },
-  committedValues: { [key: string]: string },
+const propTypes = {
+  parameters: PropTypes.arrayOf(
+    PropTypes.shape({
+      key: PropTypes.string.isRequired,
+      placeholder: PropTypes.string.isRequired,
+    }),
+  ),
+  buttons: PropTypes.arrayOf(
+    PropTypes.shape({
+      key: PropTypes.string.isRequired,
+      onClick: PropTypes.func.isRequired,
+      label: PropTypes.string.isRequired,
+    }),
+  ),
+  children: PropTypes.func,
+  hasResults: PropTypes.bool,
 };
 
 export default class AuditParameters extends React.Component {
-  props: Props;
-  state: State;
-
-  constructor(props: Props) {
+  constructor(props) {
     super(props);
     this.state = {
       inputValues: {},
@@ -33,36 +35,54 @@ export default class AuditParameters extends React.Component {
     };
   }
 
-  changeValue = (key: string, value: string) => {
+  changeValue = (key, value) => {
     this.setState({
       inputValues: { ...this.state.inputValues, [key]: value },
     });
     this.commitValueDebounced(key, value);
   };
 
-  commitValueDebounced = _.debounce((key: string, value: string) => {
+  commitValueDebounced = _.debounce((key, value) => {
     this.setState({
       committedValues: { ...this.state.committedValues, [key]: value },
     });
   }, DEBOUNCE_PERIOD);
 
   render() {
-    const { parameters, children } = this.props;
+    const { parameters, children, buttons, hasResults } = this.props;
     const { inputValues, committedValues } = this.state;
+
+    const isEmpty =
+      hasResults === false &&
+      inputValues &&
+      Object.values(inputValues).every(v => v === "");
+
     return (
       <div>
         <div className="pt4">
-          {parameters.map(({ key, placeholder }) => (
-            <input
-              className="input"
+          {parameters.map(({ key, placeholder, icon, disabled }) => (
+            <AuditParametersInput
               key={key}
               type="text"
               value={inputValues[key] || ""}
               placeholder={placeholder}
-              onChange={e => {
-                this.changeValue(key, e.target.value);
+              disabled={isEmpty || disabled}
+              onChange={value => {
+                this.changeValue(key, value);
               }}
+              icon={icon}
             />
+          ))}
+          {buttons?.map(({ key, label, disabled, onClick }) => (
+            <Button
+              className="ml2"
+              key={key}
+              primary
+              disabled={isEmpty || disabled}
+              onClick={onClick}
+            >
+              {label}
+            </Button>
           ))}
         </div>
         {children && children(committedValues)}
@@ -70,3 +90,5 @@ export default class AuditParameters extends React.Component {
     );
   }
 }
+
+AuditParameters.propTypes = propTypes;

@@ -30,7 +30,7 @@
 (s/defn ^:private job-context->database-id :- (s/maybe su/IntGreaterThanZero)
   "Get the Database ID referred to in `job-context`."
   [job-context]
-  (u/get-id (get (qc/from-job-data job-context) "db-id")))
+  (u/the-id (get (qc/from-job-data job-context) "db-id")))
 
 ;; The DisallowConcurrentExecution on the two defrecords below attaches an annotation to the generated class that will
 ;; constrain the job execution to only be one at a time. Other triggers wanting the job to run will misfire.
@@ -122,7 +122,7 @@
 (s/defn ^:private trigger-key :- TriggerKey
   "Return an appropriate string key for the trigger for `task-info` and `database-or-id`."
   [database :- DatabaseInstance, task-info :- TaskInfo]
-  (triggers/key (format "metabase.task.%s.trigger.%d" (name (:key task-info)) (u/get-id database))))
+  (triggers/key (format "metabase.task.%s.trigger.%d" (name (:key task-info)) (u/the-id database))))
 
 (s/defn ^:private cron-schedule :- cron-util/CronScheduleString
   "Fetch the appropriate cron schedule string for `database` and `task-info`."
@@ -137,7 +137,7 @@
 (s/defn ^:private trigger-description :- s/Str
   "Return an appropriate description string for a job/trigger for Database described by `task-info`."
   [database :- DatabaseInstance, task-info :- TaskInfo]
-  (format "%s Database %d" (name (:key task-info)) (u/get-id database)))
+  (format "%s Database %d" (name (:key task-info)) (u/the-id database)))
 
 (s/defn ^:private job-description :- s/Str
   "Return an appropriate description string for a job"
@@ -154,7 +154,7 @@
   [database :- DatabaseInstance, task-info :- TaskInfo]
   (let [trigger-key (trigger-key database task-info)]
     (log/debug (u/format-color 'red
-                   (trs "Unscheduling task for Database {0}: trigger: {1}" (u/get-id database) (.getName trigger-key))))
+                   (trs "Unscheduling task for Database {0}: trigger: {1}" (u/the-id database) (.getName trigger-key))))
     (task/delete-trigger! trigger-key)))
 
 (s/defn unschedule-tasks-for-db!
@@ -187,7 +187,7 @@
   (triggers/build
    (triggers/with-description (trigger-description database task-info))
    (triggers/with-identity (trigger-key database task-info))
-   (triggers/using-job-data {"db-id" (u/get-id database)})
+   (triggers/using-job-data {"db-id" (u/the-id database)})
    (triggers/for-job (job-key task-info))
    (triggers/start-now)
    (triggers/with-schedule
@@ -199,20 +199,41 @@
       ;; See https://www.nurkiewicz.com/2012/04/quartz-scheduler-misfire-instructions.html for more info
       (cron/with-misfire-handling-instruction-do-nothing)))))
 
-(s/defn ^:private schedule-tasks-for-db!
-  "Schedule a new Quartz job for `database` and `task-info`."
+(s/defn ^:private check-and-schedule-tasks-for-db!
+  "Schedule a new Quartz job for `database` and `task-info` if it doesn't already exist or is incorrect."
   [database :- DatabaseInstance]
-  (let [sync-trigger (trigger database sync-analyze-task-info)
-        fv-trigger   (trigger database field-values-task-info)]
-    ;; unschedule any tasks that might already be scheduled
-    (unschedule-tasks-for-db! database)
-    (log/debug
-     (u/format-color 'green "Scheduling sync/analyze and field-values task for database %d: trigger: %s and trigger: %s"
-                     (u/get-id database) (.getName (.getKey sync-trigger))
-                     (u/get-id database) (.getName (.getKey fv-trigger))))
-    ;; now (re)schedule all the tasks
-    (task/add-trigger! sync-trigger)
-    (task/add-trigger! fv-trigger)))
+  (let [sync-job (task/job-info (job-key sync-analyze-task-info))
+        fv-job   (task/job-info (job-key field-values-task-info))
+
+        sync-trigger (trigger database sync-analyze-task-info)
+        fv-trigger   (trigger database field-values-task-info)
+
+        existing-sync-trigger (some (fn [trigger] (when (= (:key trigger) (.. sync-trigger getKey getName))
+                                                    trigger))
+                                    (:triggers sync-job))
+        existing-fv-trigger   (some (fn [trigger] (when (= (:key trigger) (.. fv-trigger getKey getName))
+                                                    trigger))
+                                    (:triggers fv-job))]
+
+    (doseq [{:keys [existing-trigger existing-schedule ti trigger description]}
+            [{:existing-trigger  existing-sync-trigger
+              :existing-schedule (:metadata_sync_schedule database)
+              :ti                sync-analyze-task-info
+              :trigger           sync-trigger
+              :description       "sync/analyze"}
+             {:existing-trigger  existing-fv-trigger
+              :existing-schedule (:cache_field_values_schedule database)
+              :ti                field-values-task-info
+              :trigger           fv-trigger
+              :description       "field-values"}]]
+      (when (or (not existing-trigger)
+                (not= (:schedule existing-trigger) existing-schedule))
+        (delete-task! database ti)
+        (log/info
+         (u/format-color 'green "Scheduling %s for database %d: trigger: %s"
+                         description (u/the-id database) (.. ^org.quartz.Trigger trigger getKey getName)))
+        ;; now (re)schedule the task
+        (task/add-trigger! trigger)))))
 
 
 ;;; +----------------------------------------------------------------------------------------------------------------+
@@ -257,7 +278,6 @@
   (job-init)
   (doseq [database (db/select Database)]
     (try
-      ;; TODO -- shouldn't all the triggers be scheduled already?
-      (schedule-tasks-for-db! (maybe-update-db-schedules database))
+      (check-and-schedule-tasks-for-db! (maybe-update-db-schedules database))
       (catch Throwable e
         (log/error e (trs "Failed to schedule tasks for Database {0}" (:id database)))))))

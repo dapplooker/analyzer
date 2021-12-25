@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
 import PropTypes from "prop-types";
 import cx from "classnames";
@@ -121,12 +122,13 @@ export default class LogoIcon extends Component {
       <span
         ref={c => (this._container = c)}
         className={cx(
-          "Icon",
+          "Icon text-centered",
           { "text-brand": !dark },
           { "text-white": dark },
           className,
         )}
         style={style}
+        data-testid="main-logo"
       />
     );
   }

@@ -151,6 +151,11 @@
   line-height: 1.5em;
 }
 
+.text-unspaced,
+:local(.text-unspaced) {
+  line-height: normal;
+}
+
 .text-small {
   font-size: 0.875em;
 }
@@ -212,4 +217,8 @@
 
 .text-measure {
   max-width: 620px;
+}
+
+.break-anywhere {
+  line-break: anywhere;
 }

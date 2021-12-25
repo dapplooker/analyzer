@@ -13,11 +13,12 @@ import {
   SET_MODAL_SNIPPET,
   SET_SNIPPET_COLLECTION_ID,
   CLOSE_QB_NEWB_MODAL,
+  SOFT_RELOAD_CARD,
   RELOAD_CARD,
   API_CREATE_QUESTION,
   API_UPDATE_QUESTION,
   SET_CARD_AND_RUN,
-  UPDATE_TEMPLATE_TAG,
+  SET_TEMPLATE_TAG,
   SET_PARAMETER_VALUE,
   UPDATE_QUESTION,
   RUN_QUERY,
@@ -35,6 +36,7 @@ import {
   SHOW_CHART_SETTINGS,
   SET_UI_CONTROLS,
   RESET_UI_CONTROLS,
+  CANCEL_DATASET_CHANGES,
   onEditSummary,
   onCloseSummary,
   onAddFilter,
@@ -44,6 +46,10 @@ import {
   onOpenChartType,
   onCloseChartType,
   onCloseSidebars,
+  onOpenQuestionDetails,
+  onCloseQuestionDetails,
+  onOpenQuestionHistory,
+  onCloseQuestionHistory,
 } from "./actions";
 
 const DEFAULT_UI_CONTROLS = {
@@ -56,10 +62,11 @@ const DEFAULT_UI_CONTROLS = {
   isShowingFilterSidebar: false,
   isShowingChartTypeSidebar: false,
   isShowingChartSettingsSidebar: false,
+  isShowingQuestionDetailsSidebar: false,
   initialChartSetting: null,
   isPreviewing: true, // sql preview mode
   isShowingRawTable: false, // table/viz toggle
-  queryBuilderMode: false, // "view" or "notebook"
+  queryBuilderMode: false, // "view" | "notebook" | "dataset"
   snippetCollectionId: null,
 };
 
@@ -68,13 +75,15 @@ const UI_CONTROLS_SIDEBAR_DEFAULTS = {
   isShowingFilterSidebar: false,
   isShowingChartSettingsSidebar: false,
   isShowingChartTypeSidebar: false,
+  isShowingQuestionDetailsSidebar: false,
 };
 
-// this is used to close toher sidebar when one is updated
+// this is used to close other sidebar when one is updated
 const CLOSED_NATIVE_EDITOR_SIDEBARS = {
   isShowingTemplateTagsEditor: false,
   isShowingSnippetSidebar: false,
   isShowingDataReference: false,
+  isShowingQuestionDetailsSidebar: false,
 };
 
 // various ui state options
@@ -163,6 +172,7 @@ export const uiControls = handleActions(
     [SHOW_CHART_SETTINGS]: {
       next: (state, { payload }) => ({
         ...state,
+        ...UI_CONTROLS_SIDEBAR_DEFAULTS,
         isShowingChartSettingsSidebar: true,
         initialChartSetting: payload,
       }),
@@ -205,6 +215,29 @@ export const uiControls = handleActions(
       ...state,
       ...UI_CONTROLS_SIDEBAR_DEFAULTS,
     }),
+    [onOpenQuestionDetails]: state => ({
+      ...state,
+      ...UI_CONTROLS_SIDEBAR_DEFAULTS,
+      isShowingQuestionDetailsSidebar: true,
+      questionDetailsTimelineDrawerState: undefined,
+    }),
+    [onCloseQuestionDetails]: state => ({
+      ...state,
+      ...UI_CONTROLS_SIDEBAR_DEFAULTS,
+      questionDetailsTimelineDrawerState: undefined,
+    }),
+    [onOpenQuestionHistory]: state => ({
+      ...state,
+      ...UI_CONTROLS_SIDEBAR_DEFAULTS,
+      isShowingQuestionDetailsSidebar: true,
+      questionDetailsTimelineDrawerState: "open",
+    }),
+    [onCloseQuestionHistory]: state => ({
+      ...state,
+      ...UI_CONTROLS_SIDEBAR_DEFAULTS,
+      isShowingQuestionDetailsSidebar: true,
+      questionDetailsTimelineDrawerState: "closed",
+    }),
     [onCloseSidebars]: state => ({
       ...state,
       ...UI_CONTROLS_SIDEBAR_DEFAULTS,
@@ -220,19 +253,23 @@ export const card = handleActions(
     [INITIALIZE_QB]: {
       next: (state, { payload }) => (payload ? payload.card : null),
     },
+    [SOFT_RELOAD_CARD]: { next: (state, { payload }) => payload },
     [RELOAD_CARD]: { next: (state, { payload }) => payload },
     [SET_CARD_AND_RUN]: { next: (state, { payload }) => payload.card },
     [API_CREATE_QUESTION]: { next: (state, { payload }) => payload },
     [API_UPDATE_QUESTION]: { next: (state, { payload }) => payload },
 
-    [UPDATE_TEMPLATE_TAG]: { next: (state, { payload }) => payload },
+    [CANCEL_DATASET_CHANGES]: { next: (state, { payload }) => payload.card },
+
+    [SET_TEMPLATE_TAG]: { next: (state, { payload }) => payload },
 
     [UPDATE_QUESTION]: (state, { payload: { card } }) => card,
 
     [QUERY_COMPLETED]: {
-      next: (state, { payload }) => ({
+      next: (state, { payload: { card } }) => ({
         ...state,
-        display: payload.card.display,
+        display: card.display,
+        visualization_settings: card.visualization_settings,
       }),
     },
 
@@ -301,6 +338,7 @@ export const lastRunCard = handleActions(
     [RESET_QB]: { next: (state, { payload }) => null },
     [QUERY_COMPLETED]: { next: (state, { payload }) => payload.card },
     [QUERY_ERRORED]: { next: (state, { payload }) => null },
+    [CANCEL_DATASET_CHANGES]: { next: () => null },
   },
   null,
 );
@@ -316,6 +354,7 @@ export const queryResults = handleActions(
       next: (state, { payload }) => (payload ? [payload] : state),
     },
     [CLEAR_QUERY_RESULT]: { next: (state, { payload }) => null },
+    [CANCEL_DATASET_CHANGES]: { next: () => null },
   },
   null,
 );
@@ -346,6 +385,9 @@ export const queryStartTime = handleActions(
 
 export const parameterValues = handleActions(
   {
+    [INITIALIZE_QB]: {
+      next: (state, { payload: { parameterValues } }) => parameterValues,
+    },
     [SET_PARAMETER_VALUE]: {
       next: (state, { payload: { id, value } }) =>
         value == null ? dissoc(state, id) : assoc(state, id, value),

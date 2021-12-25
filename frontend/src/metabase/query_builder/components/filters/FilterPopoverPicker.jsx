@@ -1,7 +1,9 @@
 import React from "react";
+import PropTypes from "prop-types";
 
 import DatePicker from "../filters/pickers/DatePicker";
 import TimePicker from "../filters/pickers/TimePicker";
+import BooleanPicker from "../filters/pickers/BooleanPicker";
 import DefaultPicker from "../filters/pickers/DefaultPicker";
 
 export default class FilterPopoverPicker extends React.Component {
@@ -13,7 +15,7 @@ export default class FilterPopoverPicker extends React.Component {
     window.removeEventListener("keydown", this.handleKeyDown);
   }
 
-  handleKeyDown = (event: KeyboardEvent) => {
+  handleKeyDown = event => {
     if (event.key === "Enter") {
       this.props.onCommit();
     }
@@ -29,15 +31,18 @@ export default class FilterPopoverPicker extends React.Component {
       minWidth,
       maxWidth,
     } = this.props;
-    const setValue = (index: number, value: any) => {
+
+    const setValue = (index, value) => {
       onFilterChange(filter.setArgument(index, value));
     };
-    const setValues = (values: any[]) => {
+
+    const setValues = values => {
       onFilterChange(filter.setArguments(values));
     };
 
     const dimension = filter.dimension();
     const field = dimension.field();
+
     return field.isTime() ? (
       <TimePicker
         className={className}
@@ -56,6 +61,12 @@ export default class FilterPopoverPicker extends React.Component {
         maxWidth={maxWidth}
         isSidebar={isSidebar}
       />
+    ) : field.isBoolean() ? (
+      <BooleanPicker
+        className={className}
+        filter={filter}
+        onFilterChange={onFilterChange}
+      />
     ) : (
       <DefaultPicker
         className={className}
@@ -70,3 +81,13 @@ export default class FilterPopoverPicker extends React.Component {
     );
   }
 }
+
+FilterPopoverPicker.propTypes = {
+  className: PropTypes.string,
+  filter: PropTypes.object,
+  onFilterChange: PropTypes.func,
+  onCommit: PropTypes.func,
+  isSidebar: PropTypes.bool,
+  minWidth: PropTypes.number,
+  maxWidth: PropTypes.number,
+};

@@ -105,22 +105,35 @@
   [field]
   (field->name field \.))
 
+(defmethod ->lvalue :expression
+  [[_ expression-name]]
+  expression-name)
+
 (defmethod ->rvalue :default
   [x]
   x)
 
+(defmethod ->rvalue :expression
+  [[_ expression-name]]
+  (->rvalue (mbql.u/expression-with-name (:query *query*) expression-name)))
+
 (defmethod ->rvalue (class Field)
-  [{semantic-type :semantic_type, :as field}]
+  [{coercion :coercion_strategy, :as field}]
   (let [field-name (str \$ (field->name field "."))]
     (cond
-      (isa? semantic-type :type/UNIXTimestampMicroseconds)
+      (isa? coercion :Coercion/UNIXMicroSeconds->DateTime)
       {:$dateFromParts {:millisecond {$divide [field-name 1000]}, :year 1970}}
 
-      (isa? semantic-type :type/UNIXTimestampMilliseconds)
+      (isa? coercion :Coercion/UNIXMilliSeconds->DateTime)
       {:$dateFromParts {:millisecond field-name, :year 1970}}
 
-      (isa? semantic-type :type/UNIXTimestampSeconds)
+      (isa? coercion :Coercion/UNIXSeconds->DateTime)
       {:$dateFromParts {:second field-name, :year 1970}}
+
+      (isa? coercion :Coercion/YYYYMMDDHHMMSSString->Temporal)
+      {"$dateFromString" {:dateString field-name
+                          :format "%Y%m%d%H%M%S"
+                          :onError field-name}}
 
       :else field-name)))
 
@@ -279,6 +292,77 @@
             (u.date/add unit amount)
             (u.date/bucket unit)))))))
 
+;;; ---------------------------------------------------- functions ---------------------------------------------------
+
+;; It doesn't make 100% sense to have lvalues for all these but it's a formal requirement
+
+(defmethod ->lvalue :avg       [[_ inp]] (->lvalue inp))
+(defmethod ->lvalue :stddev    [[_ inp]] (->lvalue inp))
+(defmethod ->lvalue :sum       [[_ inp]] (->lvalue inp))
+(defmethod ->lvalue :min       [[_ inp]] (->lvalue inp))
+(defmethod ->lvalue :max       [[_ inp]] (->lvalue inp))
+
+(defmethod ->lvalue :floor     [[_ inp]] (->lvalue inp))
+(defmethod ->lvalue :ceil      [[_ inp]] (->lvalue inp))
+(defmethod ->lvalue :round     [[_ inp]] (->lvalue inp))
+(defmethod ->lvalue :abs       [[_ inp]] (->lvalue inp))
+
+(defmethod ->lvalue :log       [[_ inp]] (->lvalue inp))
+(defmethod ->lvalue :exp       [[_ inp]] (->lvalue inp))
+(defmethod ->lvalue :sqrt      [[_ inp]] (->lvalue inp))
+
+(defmethod ->lvalue :trim      [[_ inp]] (->lvalue inp))
+(defmethod ->lvalue :ltrim     [[_ inp]] (->lvalue inp))
+(defmethod ->lvalue :rtrim     [[_ inp]] (->lvalue inp))
+(defmethod ->lvalue :upper     [[_ inp]] (->lvalue inp))
+(defmethod ->lvalue :lower     [[_ inp]] (->lvalue inp))
+(defmethod ->lvalue :length    [[_ inp]] (->lvalue inp))
+
+(defmethod ->lvalue :power     [[_ & args]] (->lvalue (first args)))
+(defmethod ->lvalue :replace   [[_ & args]] (->lvalue (first args)))
+(defmethod ->lvalue :concat    [[_ & args]] (->lvalue (first args)))
+(defmethod ->lvalue :substring [[_ & args]] (->lvalue (first args)))
+
+(defmethod ->lvalue :+ [[_ & args]] (->lvalue (first args)))
+(defmethod ->lvalue :- [[_ & args]] (->lvalue (first args)))
+(defmethod ->lvalue :* [[_ & args]] (->lvalue (first args)))
+(defmethod ->lvalue :/ [[_ & args]] (->lvalue (first args)))
+
+(defmethod ->lvalue :coalesce [[_ & args]] (->lvalue (first args)))
+
+(defmethod ->rvalue :avg       [[_ inp]] {"$avg" (->rvalue inp)})
+(defmethod ->rvalue :stddev    [[_ inp]] {"$stdDevPop" (->rvalue inp)})
+(defmethod ->rvalue :sum       [[_ inp]] {"$sum" (->rvalue inp)})
+(defmethod ->rvalue :min       [[_ inp]] {"$min" (->rvalue inp)})
+(defmethod ->rvalue :max       [[_ inp]] {"$max" (->rvalue inp)})
+
+(defmethod ->rvalue :floor     [[_ inp]] {"$floor" (->rvalue inp)})
+(defmethod ->rvalue :ceil      [[_ inp]] {"$ceil" (->rvalue inp)})
+(defmethod ->rvalue :round     [[_ inp]] {"$round" (->rvalue inp)})
+(defmethod ->rvalue :abs       [[_ inp]] {"$abs" (->rvalue inp)})
+
+(defmethod ->rvalue :log       [[_ inp]] {"$log10" (->rvalue inp)})
+(defmethod ->rvalue :exp       [[_ inp]] {"$exp" (->rvalue inp)})
+(defmethod ->rvalue :sqrt      [[_ inp]] {"$sqrt" (->rvalue inp)})
+
+(defmethod ->rvalue :trim      [[_ inp]] {"$trim" (->rvalue inp)})
+(defmethod ->rvalue :ltrim     [[_ inp]] {"$ltrim" (->rvalue inp)})
+(defmethod ->rvalue :rtrim     [[_ inp]] {"$rtrim" (->rvalue inp)})
+(defmethod ->rvalue :upper     [[_ inp]] {"$toUpper" (->rvalue inp)})
+(defmethod ->rvalue :lower     [[_ inp]] {"$toLower" (->rvalue inp)})
+(defmethod ->rvalue :length    [[_ inp]] {"$strLenCP" (->rvalue inp)})
+
+(defmethod ->rvalue :power     [[_ & args]] {"$pow" (mapv ->rvalue args)})
+(defmethod ->rvalue :replace   [[_ & args]] {"$replaceAll" (mapv ->rvalue args)})
+(defmethod ->rvalue :concat    [[_ & args]] {"$concat" (mapv ->rvalue args)})
+(defmethod ->rvalue :substring [[_ & args]] {"$substrCP" (mapv ->rvalue args)})
+
+(defmethod ->rvalue :+ [[_ & args]] {"$add" (mapv ->rvalue args)})
+(defmethod ->rvalue :- [[_ & args]] {"$subtract" (mapv ->rvalue args)})
+(defmethod ->rvalue :* [[_ & args]] {"$multiply" (mapv ->rvalue args)})
+(defmethod ->rvalue :/ [[_ & args]] {"$divide" (mapv ->rvalue args)})
+
+(defmethod ->rvalue :coalesce [[_ & args]] {"$ifNull" (mapv ->rvalue args)})
 
 ;;; +----------------------------------------------------------------------------------------------------------------+
 ;;; |                                               CLAUSE APPLICATION                                               |
@@ -289,12 +373,11 @@
 (defmethod ->rvalue ::not [[_ value]]
   {$not (->rvalue value)})
 
-(defmulti ^:private compile-filter mbql.u/dispatch-by-clause-name-or-class)
-
-(def ^:private ^:dynamic *top-level-filter?*
-  "Whether we are compiling a top-level filter clause. This means we can generate somewhat simpler `$match` clauses that
-  don't need to use `$expr` (see below)."
-  true)
+(defmulti compile-filter
+  "Compile an mbql filter clause to datastructures suitable to query mongo. Note this is not the whole query but just
+  compiling the \"where\" clause equivalent."
+  {:arglists '([clause])}
+  mbql.u/dispatch-by-clause-name-or-class)
 
 (defmethod compile-filter :between
   [[_ field min-val max-val]]
@@ -306,29 +389,48 @@
   (if (mbql.u/is-clause? ::not value)
     {$not (str-match-pattern options prefix (second value) suffix)}
     (let [case-sensitive? (get options :case-sensitive true)]
-      (re-pattern (str (when-not case-sensitive? "(?i)") prefix (->rvalue value) suffix)))))
+      {$regex (str (when-not case-sensitive? "(?i)") prefix (->rvalue value) suffix)})))
 
+;; these are changed to {field {$regex "regex"}} instead of {field #regex} for serialization purposes. When doing
+;; native query substitution we need a string and the explicit regex form is better there
 (defmethod compile-filter :contains    [[_ field v opts]] {(->lvalue field) (str-match-pattern opts nil v nil)})
 (defmethod compile-filter :starts-with [[_ field v opts]] {(->lvalue field) (str-match-pattern opts \^  v nil)})
 (defmethod compile-filter :ends-with   [[_ field v opts]] {(->lvalue field) (str-match-pattern opts nil v \$)})
 
-(defn- simple-rvalue? [rvalue]
+(defn- rvalue-is-field? [rvalue]
   (and (string? rvalue)
        (str/starts-with? rvalue "$")))
+
+(defn- rvalue-can-be-compared-directly?
+  "Whether `rvalue` is something simple that can be compared directly e.g.
+
+    {$match {$field {$eq rvalue}}}
+
+  as opposed to
+
+    {$match {$expr {$eq [$field rvalue]}}}"
+  [rvalue]
+  (or (rvalue-is-field? rvalue)
+      (and (not (map? rvalue))
+           (not (instance? java.util.regex.Pattern rvalue)))))
 
 (defn- filter-expr [operator field value]
   (let [field-rvalue (->rvalue field)
         value-rvalue (->rvalue value)]
-    (if (and (simple-rvalue? field-rvalue) *top-level-filter?*)
+    (if (and (rvalue-is-field? field-rvalue)
+             (not (rvalue-is-field? value-rvalue))
+             (rvalue-can-be-compared-directly? value-rvalue))
       ;; if we don't need to do anything fancy with field we can generate a clause like
       ;;
-      ;;    {field {$eq 100}}
-      ;;
-      ;; this only works at the top level. Doesn't work inside compound expressions
-      {(str/replace-first field-rvalue #"^\$" "") {operator value-rvalue}}
+      ;;    {field {$lte 100}}
+      {(str/replace-first field-rvalue #"^\$" "")
+       ;; for the $eq operator we actually don't need to do {field {$eq 100}}, we can just do {field 100}
+       (if (= (name operator) "$eq")
+         value-rvalue
+         {operator value-rvalue})}
       ;; if we need to do something fancy then we have to use `$expr` e.g.
       ;;
-      ;;    {$expr {$eq [{$add [$field 1]} 100]}}
+      ;;    {$expr {$lte [{$add [$field 1]} 100]}}
       {:$expr {operator [field-rvalue value-rvalue]}})))
 
 (defmethod compile-filter :=  [[_ field value]] (filter-expr $eq field value))
@@ -340,13 +442,11 @@
 
 (defmethod compile-filter :and
   [[_ & args]]
-  (binding [*top-level-filter?* false]
-    {$and (mapv compile-filter args)}))
+  {$and (mapv compile-filter args)})
 
 (defmethod compile-filter :or
   [[_ & args]]
-  (binding [*top-level-filter?* false]
-    {$or (mapv compile-filter args)}))
+  {$or (mapv compile-filter args)})
 
 
 ;; MongoDB doesn't support negating top-level filter clauses. So we can leverage the MBQL lib's `negate-filter-clause`
@@ -399,9 +499,9 @@
 (defmethod compile-cond :ends-with
   [[_ field value opts]]
   (let [strcmp (fn [a b]
-                 (if (get opts :case-sensitive true)
-                   {$eq [a b]}
-                   {$eq [{$strcasecmp [a b]} 0]}))]
+                 {$eq (if (get opts :case-sensitive true)
+                        [a b]
+                        [{$strcasecmp [a b]} 0])})]
     (strcmp {:$substrCP [(->rvalue field)
                          {$subtract [{:$strLenCP (->rvalue field)}
                                      {:$strLenCP (->rvalue value)}]}
@@ -479,11 +579,11 @@
 (s/defn ^:private breakouts-and-ags->projected-fields :- [(s/pair su/NonBlankString "projected-field-name"
                                                                   s/Any             "source")]
   "Determine field projections for MBQL breakouts and aggregations. Returns a sequence of pairs like
-  `[projectied-field-name source]`."
+  `[projected-field-name source]`."
   [breakout-fields aggregations]
   (concat
-   (for [field breakout-fields]
-     [(->lvalue field) (format "$_id.%s" (->lvalue field))])
+   (for [field-or-expr breakout-fields]
+     [(->lvalue field-or-expr) (format "$_id.%s" (->lvalue field-or-expr))])
    (for [ag aggregations
          :let [ag-name (annotate/aggregation-name ag)]]
      [ag-name (if (mbql.u/is-clause? :distinct (unwrap-named-ag ag))
@@ -508,10 +608,10 @@
   [[[(annotate/aggregation-name ag) (aggregation->rvalue ag)]]])
 
 (defn- group-and-post-aggregations
-  "Mongo is picky (and somewhat stupid) which top-level aggregations it alows with groups. Eg. even
-   though [:/ [:coun-if ...] [:count]] is a perfectly fine reduction, it's not allowed. Therefore
+  "Mongo is picky about which top-level aggregations it allows with groups. Eg. even
+   though [:/ [:count-if ...] [:count]] is a perfectly fine reduction, it's not allowed. Therefore
    more complex aggregations are split in two: the reductions are done in `$group` stage after which
-   we do postprocessing in `$addFields` stage to arrive at the final result. The intermitent results
+   we do postprocessing in `$addFields` stage to arrive at the final result. The intermittent results
    accrued in `$group` stage are discarded in the final `$project` stage."
   [id aggregations]
   (let [expanded-ags (map expand-aggregation aggregations)
@@ -539,7 +639,10 @@
         (str/split (->lvalue field-clause) #"\.")
 
         [:field (field-name :guard string?) _]
-        [field-name])
+        [field-name]
+
+        [:expression expr-name]
+        [expr-name])
       (->rvalue field-clause)))
    (ordered-map/ordered-map)
    fields))
@@ -569,13 +672,14 @@
     ;; if both aggregations and breakouts are empty, there's nothing to do...
     pipeline-ctx
     ;; determine the projections we'll need. projected-fields is like [[projected-field-name source]]`
-    (let [projected-fields (breakouts-and-ags->projected-fields breakout-fields aggregations)]
+    (let [projected-fields (breakouts-and-ags->projected-fields breakout-fields aggregations)
+          pipeline-stages  (breakouts-and-ags->pipeline-stages projected-fields breakout-fields aggregations)]
       (-> pipeline-ctx
           ;; add :projections key which is just a sequence of the names of projections from above
           (assoc :projections (vec (for [[field] projected-fields]
                                      field)))
           ;; now add additional clauses to the end of :query as applicable
-          (update :query into (breakouts-and-ags->pipeline-stages projected-fields breakout-fields aggregations))))))
+          (update :query into pipeline-stages)))))
 
 
 ;;; ---------------------------------------------------- order-by ----------------------------------------------------
@@ -595,10 +699,31 @@
 
 ;;; ----------------------------------------------------- fields -----------------------------------------------------
 
+(defn- remove-parent-fields
+  "Removes any and all entries in `fields` that are parents of another field in `fields`. This is necessary because as
+  of MongoDB 4.4, including both will result in an error (see:
+  `https://docs.mongodb.com/manual/release-notes/4.4-compatibility/#path-collision-restrictions`).
+
+  To preserve the previous behavior, we will include only the child fields (since the parent field always appears first
+  in the projection/field order list, and that is the stated behavior according to the link above)."
+  [fields]
+  (let [parent->child-id (reduce (fn [acc [_ field-id & _]]
+                                   (if (integer? field-id)
+                                     (let [field (qp.store/field field-id)]
+                                       (if-let [parent-id (:parent_id field)]
+                                         (update acc parent-id conj (u/the-id field))
+                                         acc))
+                                     acc))
+                                 {}
+                                 fields)]
+    (remove (fn [[_ field-id & _]]
+              (and (integer? field-id) (contains? parent->child-id field-id)))
+            fields)))
+
 (defn- handle-fields [{:keys [fields]} pipeline-ctx]
   (if-not (seq fields)
     pipeline-ctx
-    (let [new-projections (for [field fields]
+    (let [new-projections (for [field (remove-parent-fields fields)]
                             [(->lvalue field) (->rvalue field)])]
       (-> pipeline-ctx
           (assoc :projections (map first new-projections))
@@ -624,7 +749,6 @@
                                                         (when-not (zero? offset)
                                                           {$skip offset}))
                                                       {$limit items-per-page}]))))
-
 
 ;;; +----------------------------------------------------------------------------------------------------------------+
 ;;; |                                                 Process & Run                                                  |

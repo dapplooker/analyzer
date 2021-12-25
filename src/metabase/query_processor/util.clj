@@ -39,7 +39,16 @@
 (defmulti query->remark
   "Generate an appropriate remark `^String` to be prepended to a query to give DBAs additional information about the query
   being executed. See documentation for `mbql->native` and #2386.
-  for more information."
+  for more information.
+
+  So this turns your average 10, 20, 30 character query into a 110, 120, 130 etc character query.
+  One leaky-abstraction part of this is that this will confuse the bejeezus out of
+  people who first encounter their passed-through RDBMS error messages.
+
+  'Hey, this is a 20 character query! What's it talking about, error at position 120?'
+  This gets fixed, but in a spooky-action-at-a-distance way, in
+  `frontend/src/metabase/query_builder/components/VisualizationError.jsx`
+  "
   {:arglists '(^String [driver query])}
   driver/dispatch-on-initialized-driver
   :hierarchy #'driver/hierarchy)
@@ -60,19 +69,6 @@
       str/lower-case
       (str/replace #"_" "-")
       keyword))
-
-;; TODO - rename this to `get-in-mbql-query-recursive` or something like that?
-(defn get-in-query
-  "Similar to `get-in` but will look in either `:query` or recursively in `[:query :source-query]`. Using this function
-  will avoid having to check if there's a nested query vs. top-level query. Results in deeper levels of nesting are
-  preferred; i.e. if a key is present in both a `:source-query` and the top-level query, the value from the source
-  query will be returned."
-  ([m ks]
-   (get-in-query m ks nil))
-  ([m ks not-found]
-   (if-let [source-query (get-in m [:query :source-query])]
-     (recur (assoc m :query source-query) ks not-found)
-     (get-in m (cons :query ks) not-found))))
 
 
 ;;; ---------------------------------------------------- Hashing -----------------------------------------------------

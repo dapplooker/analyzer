@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React from "react";
 import { Box, Flex } from "grid-styled";
 import { t } from "ttag";
@@ -208,7 +209,7 @@ const AccountStatus = ({
       flexDirection="column"
       className={className}
       p={[2, 4]}
-      w="100%"
+      width="100%"
     >
       <Box>
         <h2>{title}</h2>
@@ -218,9 +219,10 @@ const AccountStatus = ({
           {subtitle}
         </Box>
       )}
-      <Flex mt={4} align="center" flexWrap="wrap" w="100%">
+      <Flex mt={4} align="center" flexWrap="wrap" width="100%">
         {featuresOrdered.map(([id, feature]) => (
           <Feature
+            key={id}
             feature={feature}
             included={features[id]}
             expired={expired}
@@ -243,7 +245,7 @@ const CallToAction = ({ title, buttonText, buttonLink }) => (
 );
 
 const Feature = ({ feature, included, expired, preview }) => (
-  <Box w={[1, 1 / 2, 1 / 4]} p={2}>
+  <Box width={[1, 1 / 2, 1 / 4]} p={2}>
     <Card
       p={[1, 2]}
       style={{
@@ -296,7 +298,7 @@ const FeatureLinks = ({ links, defaultTitle }) => (
   <Flex align="center">
     {links &&
       links.map(({ link, title }) => (
-        <ExternalLink href={link} className="mx2 link">
+        <ExternalLink href={link} key={link} className="mx2 link">
           {title || defaultTitle}
         </ExternalLink>
       ))}

@@ -1,5 +1,4 @@
-/* @flow */
-
+/* eslint-disable react/prop-types */
 import React from "react";
 
 import AccordionList from "metabase/components/AccordionList";
@@ -7,19 +6,8 @@ import Icon from "metabase/components/Icon";
 
 import _ from "underscore";
 
-import type {
-  ParameterMappingUIOption,
-  ParameterTarget,
-} from "metabase-types/types/Parameter";
-
-type Props = {
-  target: ?ParameterTarget,
-  onChange: (target: ?ParameterTarget) => void,
-  mappingOptions: ParameterMappingUIOption[],
-};
-
 export default class ParameterTargetList extends React.Component {
-  props: Props;
+  props;
 
   render() {
     const { target, mappingOptions } = this.props;

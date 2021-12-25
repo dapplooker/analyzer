@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React from "react";
 import { Box } from "grid-styled";
 import { t } from "ttag";
@@ -5,6 +6,7 @@ import { t } from "ttag";
 import Database from "metabase/entities/databases";
 
 import { color } from "metabase/lib/colors";
+import * as Urls from "metabase/lib/urls";
 
 import Card from "metabase/components/Card";
 import { Grid, GridItem } from "metabase/components/Grid";
@@ -22,9 +24,9 @@ function DatabaseBrowser({ databases }) {
 
       <Grid>
         {databases.map(database => (
-          <GridItem w={ITEM_WIDTHS} key={database.id}>
+          <GridItem width={ITEM_WIDTHS} key={database.id}>
             <Link
-              to={`browse/${database.id}`}
+              to={Urls.browseDatabase(database)}
               data-metabase-event={`${ANALYTICS_CONTEXT};Database Click`}
               display="block"
               hover={{ color: color("brand") }}

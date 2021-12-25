@@ -1,6 +1,5 @@
-/* @flow */
-
 import React from "react";
+import PropTypes from "prop-types";
 import { connect } from "react-redux";
 import _ from "underscore";
 import { createSelector } from "reselect";
@@ -10,30 +9,50 @@ import entityType from "./EntityType";
 import paginationState from "metabase/hoc/PaginationState";
 import LoadingAndErrorWrapper from "metabase/components/LoadingAndErrorWrapper";
 
-export type Props = {
-  entityType?: string,
-  entityQuery?: ?{ [key: string]: any },
-  reload?: boolean,
-  wrapped?: boolean,
-  debounced?: boolean,
-  loadingAndErrorWrapper: boolean,
-  selectorName?: string,
-  children: (props: RenderProps) => ?React$Element<any>,
+const propTypes = {
+  entityType: PropTypes.string,
+  entityQuery: PropTypes.oneOfType([PropTypes.func, PropTypes.object]),
+  reload: PropTypes.bool,
+  reloadInterval: PropTypes.oneOfType([PropTypes.number, PropTypes.func]),
+  wrapped: PropTypes.bool,
+  debounced: PropTypes.bool,
+  loadingAndErrorWrapper: PropTypes.bool,
+  keepListWhileLoading: PropTypes.bool,
+  listName: PropTypes.string,
+  selectorName: PropTypes.string,
+  children: PropTypes.func,
+
+  // via entityType HOC
+  entityDef: PropTypes.object,
+
+  // via react-redux connect
+  list: PropTypes.arrayOf(PropTypes.object),
+  metadata: PropTypes.object,
+  loading: PropTypes.bool,
+  loaded: PropTypes.bool,
+  fetched: PropTypes.bool,
+  error: PropTypes.any,
+  allLoading: PropTypes.bool,
+  allLoaded: PropTypes.bool,
+  allFetched: PropTypes.bool,
+  allError: PropTypes.bool,
+  dispatch: PropTypes.func,
 };
 
-export type RenderProps = {
-  list: ?(any[]),
-  fetched: boolean,
-  loading: boolean,
-  error: ?any,
-  reload: () => void,
+const defaultProps = {
+  loadingAndErrorWrapper: true,
+  keepListWhileLoading: false,
+  reload: false,
+  wrapped: false,
+  debounced: false,
 };
 
 // props that shouldn't be passed to children in order to properly stack
-const CONSUMED_PROPS: string[] = [
+const CONSUMED_PROPS = [
   "entityType",
   "entityQuery",
   // "reload", // Masked by `reload` function. Should we rename that?
+  "reloadInterval",
   "wrapped",
   "debounced",
   "loadingAndErrorWrapper",
@@ -60,6 +79,7 @@ const getMemoizedEntityQuery = createMemoizedSelector(
   let {
     entityDef,
     entityQuery,
+    reloadInterval,
     page,
     pageSize,
     allLoading,
@@ -76,14 +96,22 @@ const getMemoizedEntityQuery = createMemoizedSelector(
   }
   entityQuery = getMemoizedEntityQuery(state, { entityQuery });
 
+  const list = entityDef.selectors[selectorName](state, { entityQuery });
+  if (typeof reloadInterval === "function") {
+    reloadInterval = reloadInterval(state, props, list);
+  }
+
   const loading = entityDef.selectors.getLoading(state, { entityQuery });
   const loaded = entityDef.selectors.getLoaded(state, { entityQuery });
   const fetched = entityDef.selectors.getFetched(state, { entityQuery });
   const error = entityDef.selectors.getError(state, { entityQuery });
+  const metadata = entityDef.selectors.getListMetadata(state, { entityQuery });
 
   return {
+    list,
     entityQuery,
-    list: entityDef.selectors[selectorName](state, { entityQuery }),
+    reloadInterval,
+    metadata,
     loading,
     loaded,
     fetched,
@@ -95,19 +123,13 @@ const getMemoizedEntityQuery = createMemoizedSelector(
     allError: error || (allError == null ? null : allError),
   };
 })
-export default class EntityListLoader extends React.Component {
-  props: Props;
-
-  static defaultProps = {
-    loadingAndErrorWrapper: true,
-    reload: false,
-    wrapped: false,
-    debounced: false,
+class EntityListLoader extends React.Component {
+  state = {
+    previousList: [],
+    isReloading: this.props.reload,
   };
 
-  _getWrappedList: ?(props: Props) => any;
-
-  constructor(props: Props) {
+  constructor(props) {
     super(props);
 
     this._getWrappedList = createSelector(
@@ -117,7 +139,7 @@ export default class EntityListLoader extends React.Component {
     );
   }
 
-  maybeDebounce(f: any, ...args: any) {
+  maybeDebounce(f, ...args) {
     if (this.props.debounced) {
       return _.debounce(f, ...args);
     } else {
@@ -128,9 +150,11 @@ export default class EntityListLoader extends React.Component {
   fetchList = this.maybeDebounce(
     async (
       { fetchList, entityQuery, pageSize, onChangeHasMorePages },
-      options?: any,
+      options,
     ) => {
       const result = await fetchList(entityQuery, options);
+
+      this.setState({ isReloading: false });
 
       if (typeof pageSize === "number" && onChangeHasMorePages) {
         onChangeHasMorePages(
@@ -142,11 +166,16 @@ export default class EntityListLoader extends React.Component {
     250,
   );
 
-  UNSAFE_componentWillMount() {
-    this.fetchList(this.props, { reload: this.props.reload });
+  componentDidMount() {
+    const { loaded, reload, reloadInterval } = this.props;
+    this.fetchList(this.props, { reload });
+
+    if (loaded && reloadInterval) {
+      this.reloadTimeout = setTimeout(this.reload, reloadInterval);
+    }
   }
 
-  UNSAFE_componentWillReceiveProps(nextProps: Props) {
+  UNSAFE_componentWillReceiveProps(nextProps) {
     if (!_.isEqual(nextProps.entityQuery, this.props.entityQuery)) {
       // entityQuery changed, reload
       this.fetchList(nextProps, { reload: nextProps.reload });
@@ -158,36 +187,75 @@ export default class EntityListLoader extends React.Component {
     }
   }
 
-  renderChildren = () => {
-    // $FlowFixMe: provided by @connect
-    let { children, entityDef, wrapped, list, reload, ...props } = this.props; // eslint-disable-line no-unused-vars
+  componentDidUpdate(prevProps) {
+    const { loaded, reloadInterval, keepListWhileLoading } = this.props;
+    const { previousList } = this.state;
 
-    if (wrapped) {
-      // $FlowFixMe
-      list = this._getWrappedList(this.props);
+    const shouldUpdatePrevList =
+      keepListWhileLoading &&
+      Array.isArray(prevProps.list) &&
+      previousList !== prevProps.list;
+
+    if (shouldUpdatePrevList) {
+      this.setState({ previousList: prevProps.list });
     }
 
-    // $FlowFixMe: loading and error missing
+    if (loaded && !prevProps.loaded) {
+      clearTimeout(this.reloadTimeout);
+
+      if (reloadInterval) {
+        this.reloadTimeout = setTimeout(this.reload, reloadInterval);
+      }
+    }
+  }
+
+  componentWillUnmount() {
+    clearTimeout(this.reloadTimeout);
+  }
+
+  renderChildren = () => {
+    const {
+      children,
+      entityDef,
+      wrapped,
+      list: currentList,
+      listName = entityDef.nameMany,
+      loading,
+      reload, // eslint-disable-line no-unused-vars
+      keepListWhileLoading,
+      ...props
+    } = this.props;
+    const { previousList } = this.state;
+
+    const finalList =
+      keepListWhileLoading && loading ? previousList : currentList;
+
+    const list = wrapped
+      ? this._getWrappedList({ ...this.props, list: finalList })
+      : finalList;
+
     return children({
       ..._.omit(props, ...CONSUMED_PROPS),
       list,
+      loading,
       // alias the entities name:
-      [entityDef.nameMany]: list,
+      [listName]: list,
       reload: this.reload,
     });
   };
 
   render() {
-    // $FlowFixMe: provided by @connect
-    const { allFetched, allError } = this.props;
-    const { loadingAndErrorWrapper } = this.props;
+    const { allFetched, allError, loadingAndErrorWrapper } = this.props;
+    const { isReloading } = this.state;
+
     return loadingAndErrorWrapper ? (
       <LoadingAndErrorWrapper
-        loading={!allFetched}
+        loading={!allFetched || isReloading}
         error={allError}
-        children={this.renderChildren}
         noWrapper
-      />
+      >
+        {this.renderChildren}
+      </LoadingAndErrorWrapper>
     ) : (
       this.renderChildren()
     );
@@ -198,11 +266,14 @@ export default class EntityListLoader extends React.Component {
   };
 }
 
-export const entityListLoader = (ellProps: Props) =>
-  // eslint-disable-line react/display-name
-  (ComposedComponent: any) =>
-    // eslint-disable-next-line react/display-name
-    (props: Props) => (
+EntityListLoader.propTypes = propTypes;
+EntityListLoader.defaultProps = defaultProps;
+
+export default EntityListLoader;
+
+export const entityListLoader = ellProps => ComposedComponent => {
+  function WrappedComponent(props) {
+    return (
       <EntityListLoader {...props} {...ellProps}>
         {childProps => (
           <ComposedComponent
@@ -212,3 +283,7 @@ export const entityListLoader = (ellProps: Props) =>
         )}
       </EntityListLoader>
     );
+  }
+  WrappedComponent.displayName = ComposedComponent.displayName;
+  return WrappedComponent;
+};

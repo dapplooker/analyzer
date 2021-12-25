@@ -1,5 +1,4 @@
-/* @flow */
-
+/* eslint-disable react/prop-types */
 import React from "react";
 import { Link } from "react-router";
 
@@ -14,30 +13,13 @@ import { color } from "metabase/lib/colors";
 import { t } from "ttag";
 import _ from "underscore";
 
-import type { DatabaseCandidates, Candidate } from "metabase-types/types/Auto";
-
 const DEFAULT_TITLE = t`Hi, Metabot here.`;
 const DEFAULT_DESCRIPTION = "";
-
-type Props = {
-  candidates?: ?DatabaseCandidates,
-  title?: ?string,
-  description?: ?string,
-  withMetabot: ?boolean,
-  gridColumns: ?number,
-  asCards: ?boolean,
-};
-
-type State = {
-  schemaName: ?string,
-  visibleItems: number,
-};
 
 const DEFAULT_VISIBLE_ITEMS = 4;
 
 export class ExplorePane extends React.Component {
-  props: Props;
-  state: State = {
+  state = {
     schemaName: null,
     visibleItems: DEFAULT_VISIBLE_ITEMS,
   };
@@ -129,19 +111,11 @@ export class ExplorePane extends React.Component {
   }
 }
 
-export const ExploreList = ({
-  candidates,
-  gridColumns,
-  asCards,
-}: {
-  candidates: Candidate[],
-  gridColumns: ?number,
-  asCards: ?boolean,
-}) => (
+export const ExploreList = ({ candidates, gridColumns, asCards }) => (
   <Grid>
     {candidates &&
       candidates.map((option, index) => (
-        <GridItem w={gridColumns} key={index}>
+        <GridItem width={gridColumns} key={index}>
           {asCards ? (
             <Card hoverable p={2}>
               <ExploreOption option={option} />
@@ -154,7 +128,7 @@ export const ExploreList = ({
   </Grid>
 );
 
-export const ExploreOption = ({ option }: { option: Candidate }) => (
+export const ExploreOption = ({ option }) => (
   <Link
     to={option.url}
     className="flex align-center no-decoration text-medium text-brand-hover"
@@ -162,9 +136,12 @@ export const ExploreOption = ({ option }: { option: Candidate }) => (
     <Flex
       align="center"
       justify="center"
-      bg={color("accent4")}
-      w="42px"
-      style={{ borderRadius: 6, height: 42 }}
+      style={{
+        backgroundColor: color("accent4"),
+        borderRadius: 6,
+        width: 42,
+        height: 42,
+      }}
       mr={1}
     >
       <Icon name="bolt" size={20} className="flex-no-shrink text-white" />

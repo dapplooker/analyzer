@@ -23,7 +23,7 @@
                 "FROM \"PUBLIC\".\"VENUES\" "
                 "LEFT JOIN \"PUBLIC\".\"CATEGORIES\" \"source\""
                 " ON \"PUBLIC\".\"VENUES\".\"CATEGORY_ID\" = 1 "
-                "LIMIT 1048576")
+                "LIMIT 1048575")
            (native-form
             (mt/mbql-query venues
               {:joins [{:source-table $$categories
@@ -81,7 +81,7 @@
                   ["Paul Pelican"   "SoMa Squadron"]
                   ["Peter Pelican"  "SoMa Squadron"]
                   ["Russell Crow"   "Mission Street Murder"]]
-            rows (if (tx/sorts-nil-first? driver/*driver*)
+            rows (if (tx/sorts-nil-first? driver/*driver* :type/Text)
                    (cons [nil "Fillmore Flock"] rows)
                    (conj rows [nil "Fillmore Flock"]))]
         (is (= rows
@@ -129,7 +129,7 @@
                   ["Paul Pelican"     "SoMa Squadron"]
                   ["Peter Pelican"    "SoMa Squadron"]
                   ["Russell Crow"     "Mission Street Murder"]]
-            rows (if (tx/sorts-nil-first? driver/*driver*)
+            rows (if (tx/sorts-nil-first? driver/*driver* :type/Text)
                    (cons [nil "Fillmore Flock"] rows)
                    (conj rows [nil "Fillmore Flock"]))]
         (is (= rows
@@ -173,24 +173,24 @@
   (mt/test-drivers (mt/normal-drivers-with-feature :left-join)
     (testing "Can we include no Fields (with `:none`)"
       (is (= {:columns (mapv mt/format-name ["id" "name" "flock_id"])
-              :rows    [[2  "Big Red"          5  ]
-                        [7  "Callie Crow"      4  ]
+              :rows    [[2  "Big Red"          5]
+                        [7  "Callie Crow"      4]
                         [3  "Camellia Crow"    nil]
-                        [16 "Carson Crow"      4  ]
-                        [12 "Chicken Little"   5  ]
+                        [16 "Carson Crow"      4]
+                        [12 "Chicken Little"   5]
                         [5  "Geoff Goose"      nil]
-                        [9  "Gerald Goose"     1  ]
-                        [6  "Greg Goose"       1  ]
-                        [14 "McNugget"         5  ]
+                        [9  "Gerald Goose"     1]
+                        [6  "Greg Goose"       1]
+                        [14 "McNugget"         5]
                         [17 "Olita Owl"        nil]
-                        [18 "Oliver Owl"       3  ]
-                        [15 "Orville Owl"      3  ]
+                        [18 "Oliver Owl"       3]
+                        [15 "Orville Owl"      3]
                         [11 "Oswald Owl"       nil]
                         [10 "Pamela Pelican"   nil]
                         [8  "Patricia Pelican" nil]
-                        [13 "Paul Pelican"     2  ]
-                        [4  "Peter Pelican"    2  ]
-                        [1  "Russell Crow"     4  ]]}
+                        [13 "Paul Pelican"     2]
+                        [4  "Peter Pelican"    2]
+                        [1  "Russell Crow"     4]]}
              (mt/format-rows-by [#(some-> % int) str #(some-> % int)]
                (mt/rows+column-names
                  (mt/dataset bird-flocks
@@ -518,3 +518,65 @@
                                  :alias        "CategoriesStats"
                                  :fields       :all}]
                   :limit       3})))))))
+
+(deftest join-source-queries-with-joins-test
+  (testing "Should be able to join against source queries that themselves contain joins (#12928)"
+    (mt/test-drivers (mt/normal-drivers-with-feature :nested-queries :left-join :foreign-keys)
+      (mt/dataset sample-dataset
+        (testing "(#12928)"
+          (let [query (mt/mbql-query orders
+                        {:source-query {:source-table $$orders
+                                        :joins        [{:fields       :all
+                                                        :source-table $$products
+                                                        :condition    [:= $orders.product_id &P1.products.id]
+                                                        :alias        "P1"}
+                                                       {:fields       :all
+                                                        :source-table $$people
+                                                        :condition    [:= $orders.user_id &People.people.id]
+                                                        :alias        "People"}]
+                                        :aggregation  [[:count]]
+                                        :breakout     [&P1.products.category
+                                                       [:field %people.source {:join-alias "People"}]]}
+                         :joins        [{:fields       :all
+                                         :condition    [:= $products.category &Q2.products.category]
+                                         :alias        "Q2"
+                                         :source-query {:source-table $$reviews
+                                                        :joins        [{:fields       :all
+                                                                        :source-table $$products
+                                                                        :condition    [:=
+                                                                                       $reviews.product_id
+                                                                                       &P2.products.id]
+                                                                        :alias        "P2"}]
+                                                        :aggregation  [[:avg $reviews.rating]]
+                                                        :breakout     [&P2.products.category]}}]
+                         :order-by     [[:asc &P1.products.category]
+                                        [:asc [:field %people.source {:join-alias "People"}]]]
+                         :limit        2})]
+            (is (= [["Doohickey" "Affiliate" 783 "Doohickey" 3]
+                    ["Doohickey" "Facebook" 816 "Doohickey" 3]]
+                   (mt/formatted-rows [str str int str int]
+                     (qp/process-query query))))))
+
+        (testing "and custom expressions (#13649)"
+          (let [query (mt/mbql-query orders
+                        {:source-query {:source-table $$orders
+                                        :aggregation  [[:count]]
+                                        :breakout     [$product_id]
+                                        :filter       [:= $product_id 4]}
+                         :joins        [{:fields       :all
+                                         :source-query {:source-table $$orders
+                                                        :aggregation  [[:count]]
+                                                        :breakout     [$product_id]
+                                                        :filter       [:and
+                                                                       [:= $product_id 4]
+                                                                       [:> $quantity 3]]}
+                                         :condition    [:= $product_id &Q2.orders.product_id]
+                                         :alias        "Q2"}]
+                         :expressions {:expr [:/
+                                              [:field "count" {:base-type :type/BigInteger, :join-alias "Q2"}]
+                                              [:field "count" {:base-type :type/BigInteger}]]}
+                         :limit        2})]
+            ;; This result is actually wrong due to metabase#18086, the correct result is [4 89 0.46 41].
+            (is (= [[4 89 0.46 89]]
+                   (mt/formatted-rows [int int 2.0 int]
+                     (qp/process-query query))))))))))

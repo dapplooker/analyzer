@@ -1,5 +1,3 @@
-/* @flow weak */
-
 import moment from "moment";
 
 import {
@@ -9,11 +7,8 @@ import {
 } from "metabase/lib/dataset";
 import { isDate, isNumber } from "metabase/lib/schema_metadata";
 
-import type { Breakout } from "metabase-types/types/Query";
-import type { DimensionValue } from "metabase-types/types/Visualization";
 import { parseTimestamp } from "metabase/lib/time";
 
-import Question from "metabase-lib/lib/Question";
 import StructuredQuery from "metabase-lib/lib/queries/StructuredQuery";
 import { FieldDimension } from "metabase-lib/lib/Dimension";
 
@@ -21,7 +16,7 @@ export { drillDownForDimensions } from "./drilldown";
 
 // QUESTION DRILL ACTIONS
 
-export function aggregate(question: Question, aggregation): ?Question {
+export function aggregate(question, aggregation) {
   const query = question.query();
   if (query instanceof StructuredQuery) {
     return query
@@ -31,7 +26,7 @@ export function aggregate(question: Question, aggregation): ?Question {
   }
 }
 
-export function breakout(question: Question, breakout): ?Question {
+export function breakout(question, breakout) {
   const query = question.query();
   if (query instanceof StructuredQuery) {
     return query
@@ -42,7 +37,7 @@ export function breakout(question: Question, breakout): ?Question {
 }
 
 // Adds a new filter with the specified operator, column, and value
-export function filter(question: Question, operator, column, value): ?Question {
+export function filter(question, operator, column, value) {
   const query = question.query();
   if (query instanceof StructuredQuery) {
     return query
@@ -51,11 +46,7 @@ export function filter(question: Question, operator, column, value): ?Question {
   }
 }
 
-export function pivot(
-  question: Question,
-  breakouts: Breakout[] = [],
-  dimensions: DimensionValue[] = [],
-): ?Question {
+export function pivot(question, breakouts = [], dimensions = []) {
   let query = question.query();
   if (query instanceof StructuredQuery) {
     for (const dimension of dimensions) {
@@ -76,7 +67,7 @@ export function pivot(
   }
 }
 
-export function distribution(question: Question, column): ?Question {
+export function distribution(question, column) {
   const query = question.query();
   if (query instanceof StructuredQuery) {
     const breakout = isDate(column)
@@ -98,7 +89,7 @@ export function distribution(question: Question, column): ?Question {
   }
 }
 
-export function toUnderlyingRecords(question: Question): ?Question {
+export function toUnderlyingRecords(question) {
   const query = question.query();
   if (query instanceof StructuredQuery) {
     return query
@@ -112,10 +103,7 @@ export function toUnderlyingRecords(question: Question): ?Question {
   }
 }
 
-export function drillUnderlyingRecords(
-  question: Question,
-  dimensions,
-): ?Question {
+export function drillUnderlyingRecords(question, dimensions) {
   let query = question.query();
   if (query instanceof StructuredQuery) {
     for (const dimension of dimensions) {
@@ -138,11 +126,7 @@ const fieldRefWithTemporalUnit = (mbqlClause, unit) => {
 const fieldRefWithTemporalUnitForColumn = (column, unit) =>
   fieldRefWithTemporalUnit(fieldRefForColumn(column), unit);
 
-export function drillFilter(
-  query: StructuredQuery,
-  value,
-  column,
-): StructuredQuery {
+export function drillFilter(query, value, column) {
   let filter;
   if (isDate(column)) {
     filter = [
@@ -154,18 +138,17 @@ export function drillFilter(
     const range = rangeForValue(value, column);
     if (range) {
       filter = ["between", fieldRefForColumn(column), range[0], range[1]];
-    } else {
+    } else if (value != null) {
       filter = ["=", fieldRefForColumn(column), value];
+    } else {
+      filter = ["is-null", fieldRefForColumn(column)];
     }
   }
 
   return addOrUpdateFilter(query, filter);
 }
 
-export function addOrUpdateFilter(
-  query: StructuredQuery,
-  newFilter,
-): StructuredQuery {
+export function addOrUpdateFilter(query, newFilter) {
   // replace existing filter, if it exists
   for (const filter of query.filters()) {
     const dimension = filter.dimension();
@@ -185,10 +168,7 @@ const getNextUnit = unit => {
   return UNITS[Math.max(0, UNITS.indexOf(unit) - 1)];
 };
 
-export function addOrUpdateBreakout(
-  query: StructuredQuery,
-  newBreakout,
-): StructuredQuery {
+export function addOrUpdateBreakout(query, newBreakout) {
   // replace existing breakout, if it exists
   for (const breakout of query.breakouts()) {
     if (breakout.dimension().isSameBaseDimension(newBreakout)) {
@@ -199,12 +179,7 @@ export function addOrUpdateBreakout(
   return query.breakout(newBreakout);
 }
 
-export function updateDateTimeFilter(
-  query: StructuredQuery,
-  column,
-  start,
-  end,
-): StructuredQuery {
+export function updateDateTimeFilter(query, column, start, end) {
   const fieldRef = fieldRefForColumn(column);
   start = moment(start);
   end = moment(end);
@@ -264,11 +239,11 @@ export function updateDateTimeFilter(
 }
 
 export function updateLatLonFilter(
-  query: StructuredQuery,
+  query,
   latitudeColumn,
   longitudeColumn,
   bounds,
-): StructuredQuery {
+) {
   return addOrUpdateFilter(query, [
     "inside",
     fieldRefForColumn(latitudeColumn),
@@ -280,12 +255,7 @@ export function updateLatLonFilter(
   ]);
 }
 
-export function updateNumericFilter(
-  query: StructuredQuery,
-  column,
-  start,
-  end,
-): StructuredQuery {
+export function updateNumericFilter(query, column, start, end) {
   const fieldRef = fieldRefForColumn(column);
   return addOrUpdateFilter(query, ["between", fieldRef, start, end]);
 }

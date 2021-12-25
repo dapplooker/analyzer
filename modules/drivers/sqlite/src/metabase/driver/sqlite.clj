@@ -1,5 +1,6 @@
 (ns metabase.driver.sqlite
-  (:require [clojure.string :as str]
+  (:require [clojure.java.io :as io]
+            [clojure.string :as str]
             [honeysql.core :as hsql]
             [honeysql.format :as hformat]
             [java-time :as t]
@@ -12,7 +13,6 @@
             [metabase.driver.sql-jdbc.sync :as sql-jdbc.sync]
             [metabase.driver.sql.parameters.substitution :as params.substitution]
             [metabase.driver.sql.query-processor :as sql.qp]
-            [metabase.query-processor.timezone :as qp.timezone]
             [metabase.util.date-2 :as u.date]
             [metabase.util.honeysql-extensions :as hx]
             [schema.core :as s])
@@ -38,6 +38,23 @@
 ;; HACK SQLite doesn't support ALTER TABLE ADD CONSTRAINT FOREIGN KEY and I don't have all day to work around this so
 ;; for now we'll just skip the foreign key stuff in the tests.
 (defmethod driver/supports? [:sqlite :foreign-keys] [_ _] (not config/is-test?))
+
+;; Every SQLite3 file starts with "SQLite Format 3"
+;; or "** This file contains an SQLite
+;; There is also SQLite2 but last 2 version was 2005
+(defn- confirm-file-is-sqlite [filename]
+  (with-open [reader (io/input-stream filename)]
+    (let [outarr (byte-array 50)]
+      (.read reader outarr)
+      (let [line (String. outarr)]
+        (or (str/includes? line "SQLite format 3")
+            (str/includes? line "This file contains an SQLite"))))))
+
+(defmethod driver/can-connect? :sqlite
+  [driver details]
+  (if (confirm-file-is-sqlite (:db details))
+    (sql-jdbc.conn/can-connect? driver details)
+    false ))
 
 (defmethod driver/db-start-of-week :sqlite
   [_]
@@ -216,15 +233,15 @@
   [_ _ expr]
   (->datetime expr (hx/literal "unixepoch")))
 
-(defmethod sql.qp/cast-temporal-string [:sqlite :type/ISO8601DateTimeString]
+(defmethod sql.qp/cast-temporal-string [:sqlite :Coercion/ISO8601->DateTime]
   [_driver _semantic_type expr]
   (->datetime expr))
 
-(defmethod sql.qp/cast-temporal-string [:sqlite :type/ISO8601DateString]
+(defmethod sql.qp/cast-temporal-string [:sqlite :Coercion/ISO8601->Date]
   [_driver _semantic_type expr]
   (->date expr))
 
-(defmethod sql.qp/cast-temporal-string [:sqlite :type/ISO8601TimeString]
+(defmethod sql.qp/cast-temporal-string [:sqlite :Coercion/ISO8601->Time]
   [_driver _semantic_type expr]
   (->time expr))
 
@@ -337,7 +354,7 @@
 ;; SQLite's JDBC driver is fussy and won't let you change connections to read-only after you create them
 (defmethod sql-jdbc.execute/connection-with-timezone :sqlite
   [driver database ^String timezone-id]
-  (let [conn (.getConnection (sql-jdbc.execute/datasource database))]
+  (let [conn (.getConnection (sql-jdbc.execute/datasource-with-diagnostic-info! driver database))]
     (try
       (sql-jdbc.execute/set-best-transaction-level! driver conn)
       conn
@@ -359,14 +376,30 @@
         (.close stmt)
         (throw e)))))
 
-;; (.getObject rs i LocalDate) doesn't seem to work, nor does `(.getDate)`; and it seems to be the case that
-;; timestamps come back as `Types/DATE` as well? Fetch them as a String and then parse them
+;; SQLite has no intrinsic date/time type. The sqlite-jdbc driver provides the following de-facto mappings:
+;;    DATE or DATETIME => Types/DATE (only if type is int or string)
+;;    TIMESTAMP => Types/TIMESTAMP (only if type is int)
+;; The data itself can be stored either as
+;;    1) integer (unix epoch) - this is "point in time", so no confusion about timezone
+;;    2) float (julian days) - this is "point in time", so no confusion about timezone
+;;    3) string (ISO8601) - zoned or unzoned depending on content, sqlite-jdbc always treat it as local time
+;; Note that it is possible to store other invalid data in the column as SQLite does not perform any validation.
+(defn- sqlite-handle-timestamp
+  [^ResultSet rs ^Integer i]
+  (let [obj (.getObject rs i)]
+    (cond
+      ;; For strings, use our own parser which is more flexible than sqlite-jdbc's and handles timezones correctly
+      (instance? String obj) (u.date/parse obj)
+      ;; For other types, fallback to sqlite-jdbc's parser
+      ;; Even in DATE column, it is possible to put DATETIME, so always treat as DATETIME
+      (some? obj) (t/local-date-time (.getTimestamp rs i)))))
+
 (defmethod sql-jdbc.execute/read-column-thunk [:sqlite Types/DATE]
   [_ ^ResultSet rs _ ^Integer i]
   (fn []
-    (try
-      (when-let [t (.getDate rs i)]
-        (t/local-date t))
-      (catch Throwable _
-        (when-let [s (.getString rs i)]
-          (u.date/parse s (qp.timezone/results-timezone-id)))))))
+    (sqlite-handle-timestamp rs i)))
+
+(defmethod sql-jdbc.execute/read-column-thunk [:sqlite Types/TIMESTAMP]
+  [_ ^ResultSet rs _ ^Integer i]
+  (fn []
+    (sqlite-handle-timestamp rs i)))

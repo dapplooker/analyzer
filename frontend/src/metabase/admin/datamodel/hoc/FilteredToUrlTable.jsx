@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React from "react";
 import { connect } from "react-redux";
 import { push } from "react-router-redux";
@@ -10,10 +11,7 @@ import FieldSet from "metabase/components/FieldSet";
 import { DatabaseSchemaAndTableDataSelector } from "metabase/query_builder/components/DataSelector";
 
 const FilteredToUrlTable = propName => ComposedComponent =>
-  connect(
-    null,
-    { push },
-  )(
+  connect(null, { push })(
     class FilteredToUrlTable extends React.Component {
       constructor(props) {
         super(props);

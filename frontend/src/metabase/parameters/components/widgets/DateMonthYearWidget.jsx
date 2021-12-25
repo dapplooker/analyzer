@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React from "react";
 import YearPicker from "./YearPicker";
 import { Flex } from "grid-styled";
@@ -56,11 +57,10 @@ export default class DateMonthYearWidget extends React.Component {
             onChange={year => this.setState({ year: year })}
           />
         </div>
-        <Flex flexWrap="wrap" w="100%" p={1}>
+        <Flex flexWrap="wrap" width="100%" p={1}>
           {_.range(0, 12).map(m => (
-            <Flex w={1 / 3} align="center" justifyContent="center">
+            <Flex key={m} width={1 / 3} align="center" justifyContent="center">
               <Month
-                key={m}
                 month={m}
                 selected={m === month}
                 onClick={() => this.setState({ month: m }, onClose)}

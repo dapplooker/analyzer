@@ -5,15 +5,20 @@
             [honeysql.core :as hsql]
             [honeysql.format :as hformat]
             [java-time :as t]
+            [metabase.config :as config]
             [metabase.driver :as driver]
             [metabase.driver.common :as driver.common]
             [metabase.driver.sql :as sql]
+            [metabase.driver.sql-jdbc.common :as sql-jdbc.common]
             [metabase.driver.sql-jdbc.connection :as sql-jdbc.conn]
             [metabase.driver.sql-jdbc.execute :as sql-jdbc.execute]
             [metabase.driver.sql-jdbc.sync :as sql-jdbc.sync]
             [metabase.driver.sql.query-processor :as sql.qp]
+            [metabase.driver.sql.query-processor.empty-string-is-null :as sql.qp.empty-string-is-null]
             [metabase.driver.sql.util :as sql.u]
             [metabase.driver.sql.util.unprepare :as unprepare]
+            [metabase.models.secret :as secret]
+            [metabase.util :as u]
             [metabase.util.honeysql-extensions :as hx]
             [metabase.util.i18n :refer [trs]]
             [metabase.util.ssh :as ssh])
@@ -24,7 +29,7 @@
            [oracle.jdbc OracleConnection OracleTypes]
            oracle.sql.TIMESTAMPTZ))
 
-(driver/register! :oracle, :parent :sql-jdbc)
+(driver/register! :oracle, :parent #{:sql-jdbc ::sql.qp.empty-string-is-null/empty-string-is-null})
 
 (def ^:private database-type->base-type
   (sql-jdbc.sync/pattern-based-database-type->base-type
@@ -63,21 +68,70 @@
   [_ column-type]
   (database-type->base-type column-type))
 
+(defn- non-ssl-spec [details spec host port sid service-name]
+  (assoc spec :subname (str "@" host
+                            ":" port
+                            (when sid
+                              (str ":" sid))
+                            (when service-name
+                              (str "/" service-name)))))
+
+(defn- ssl-spec [details spec host port sid service-name]
+  (-> (assoc spec :subname
+                  (format "@(DESCRIPTION=(ADDRESS=(PROTOCOL=tcps)(HOST=%s)(PORT=%d))(CONNECT_DATA=%s%s))"
+                          host
+                          port
+                          (if sid (str "(SID=" sid ")") "")
+                          (if service-name (str "(SERVICE_NAME=" service-name ")") "")))
+      (sql-jdbc.common/handle-additional-options details)))
+
+(def ^:private ^:const prog-name-property
+  "The connection property used by the Oracle JDBC Thin Driver to control the program name."
+  "v$session.program")
+
+(defn- handle-ssl-options [{:keys [ssl ssl-use-keystore ssl-use-truststore] :as details}]
+  (if ssl
+    (cond-> details
+
+      ssl-use-keystore
+      (-> ; from outer cond->
+        (assoc :javax.net.ssl.keyStoreType "JKS"
+               :javax.net.ssl.keyStore (-> (secret/db-details-prop->secret-map details "ssl-keystore")
+                                           (secret/value->file! :oracle))
+               :javax.net.ssl.keyStorePassword (-> (secret/db-details-prop->secret-map details "ssl-keystore-password")
+                                                   secret/value->string))
+        (dissoc :ssl-use-keystore :ssl-keystore-value :ssl-keystore-path :ssl-keystore-password-value))
+
+      ssl-use-truststore
+      (-> ; from outer cond->
+        (assoc :javax.net.ssl.trustStoreType "JKS"
+               :javax.net.ssl.trustStore (-> (secret/db-details-prop->secret-map details "ssl-truststore")
+                                             (secret/value->file! :oracle))
+               :javax.net.ssl.trustStorePassword (-> (secret/db-details-prop->secret-map details
+                                                                                         "ssl-truststore-password")
+                                                     secret/value->string))
+        (dissoc :ssl-use-truststore :ssl-truststore-value :ssl-truststore-path :ssl-truststore-password-value))
+
+      true
+      (dissoc :ssl))
+    details))
+
 (defmethod sql-jdbc.conn/connection-details->spec :oracle
   [_ {:keys [host port sid service-name]
       :or   {host "localhost", port 1521}
       :as   details}]
   (assert (or sid service-name))
-  (merge
-   {:classname   "oracle.jdbc.OracleDriver"
-    :subprotocol "oracle:thin"
-    :subname     (str "@" host
-                      ":" port
-                      (when sid
-                        (str ":" sid))
-                      (when service-name
-                        (str "/" service-name)))}
-   (dissoc details :host :port :sid :service-name)))
+  (let [spec      {:classname "oracle.jdbc.OracleDriver", :subprotocol "oracle:thin"}
+        finish-fn (partial (if (:ssl details) ssl-spec non-ssl-spec) details)
+        ;; the v$session.program value has a max length of 48 (see T4Connection), so we have to make it more terse than
+        ;; the usual config/mb-version-and-process-identifier string and ensure we truncate to a length of 48
+        prog-nm   (as-> (format "MB %s %s" (config/mb-version-info :tag) config/local-process-uuid) s
+                    (subs s 0 (min 48 (count s))))]
+    (-> (merge spec details)
+        (assoc prog-name-property prog-nm)
+        handle-ssl-options
+        (dissoc :host :port :sid :service-name :ssl)
+        (finish-fn host port sid service-name))))
 
 (defmethod driver/can-connect? :oracle
   [driver details]
@@ -87,6 +141,11 @@
 (defmethod driver/db-start-of-week :oracle
   [_]
   :sunday)
+
+;; Oracle mod is a function like mod(x, y) rather than an operator like x mod y
+(defmethod hformat/fn-handler (u/qualified-name ::mod)
+  [_ x y]
+  (format "mod(%s, %s)" (hformat/to-sql x) (hformat/to-sql y)))
 
 (defn- trunc
   "Truncate a date. See also this [table of format
@@ -104,23 +163,33 @@
 (defmethod sql.qp/date [:oracle :day]            [_ _ v] (trunc :dd v))
 (defmethod sql.qp/date [:oracle :day-of-month]   [_ _ v] (hsql/call :extract :day v))
 ;; [SIC] The format template for truncating to start of week is 'day' in Oracle #WTF
-(defmethod sql.qp/date [:oracle :week]           [_ _ v] (sql.qp/adjust-start-of-week :oracle (partial trunc :day) v))
 (defmethod sql.qp/date [:oracle :month]          [_ _ v] (trunc :month v))
 (defmethod sql.qp/date [:oracle :month-of-year]  [_ _ v] (hsql/call :extract :month v))
 (defmethod sql.qp/date [:oracle :quarter]        [_ _ v] (trunc :q v))
 (defmethod sql.qp/date [:oracle :year]           [_ _ v] (trunc :year v))
 
-(defmethod sql.qp/date [:oracle :day-of-year] [driver _ v]
+(defmethod sql.qp/date [:oracle :week]
+  [driver _ v]
+  (sql.qp/adjust-start-of-week driver (partial trunc :day) v))
+
+(defmethod sql.qp/date [:oracle :day-of-year]
+  [driver _ v]
   (hx/inc (hx/- (sql.qp/date driver :day v) (trunc :year v))))
 
-(defmethod sql.qp/date [:oracle :quarter-of-year] [driver _ v]
+(defmethod sql.qp/date [:oracle :quarter-of-year]
+  [driver _ v]
   (hx// (hx/+ (sql.qp/date driver :month-of-year (sql.qp/date driver :quarter v))
               2)
         3))
 
 ;; subtract number of days between today and first day of week, then add one since first day of week = 1
-(defmethod sql.qp/date [:oracle :day-of-week] [driver _ v]
-  (sql.qp/adjust-day-of-week :oracle (hx/->integer (hsql/call :to_char v (hx/literal :d)))))
+(defmethod sql.qp/date [:oracle :day-of-week]
+  [driver _ v]
+  (sql.qp/adjust-day-of-week
+   driver
+   (hx/->integer (hsql/call :to_char v (hx/literal :d)))
+   (driver.common/start-of-week-offset driver)
+   (partial hsql/call (u/qualified-name ::mod))))
 
 (def ^:private now (hsql/raw "SYSDATE"))
 
@@ -189,13 +258,17 @@
   (hx/+ (hsql/raw "timestamp '1970-01-01 00:00:00 UTC'")
         (num-to-ds-interval :second field-or-value)))
 
-(defmethod sql.qp/cast-temporal-string [:oracle :type/ISO8601DateTimeString]
-  [_driver _semantic_type expr]
+(defmethod sql.qp/cast-temporal-string [:oracle :Coercion/ISO8601->DateTime]
+  [_driver _coercion-strategy expr]
   (hsql/call :to_timestamp expr "YYYY-MM-DD HH:mi:SS"))
 
-(defmethod sql.qp/cast-temporal-string [:oracle :type/ISO8601DateString]
-  [_driver _semantic_type expr]
+(defmethod sql.qp/cast-temporal-string [:oracle :Coercion/ISO8601->Date]
+  [_driver _coercion-strategy expr]
   (hsql/call :to_date expr "YYYY-MM-DD"))
+
+(defmethod sql.qp/cast-temporal-string [:oracle :Coercion/YYYYMMDDHHMMSSString->Temporal]
+  [_driver _coercion-strategy expr]
+  (hsql/call :to_timestamp expr "YYYYMMDDHH24miSS"))
 
 (defmethod sql.qp/unix-timestamp->honeysql [:oracle :milliseconds]
   [driver _ field-or-value]

@@ -1,13 +1,11 @@
 import {
-  signIn,
-  signInAsAdmin,
   restore,
   visitQuestionAdhoc,
-  getIframeBody,
   popover,
   sidebar,
-} from "__support__/cypress";
-import { SAMPLE_DATASET } from "__support__/cypress_sample_dataset";
+} from "__support__/e2e/cypress";
+
+import { SAMPLE_DATASET } from "__support__/e2e/cypress_sample_dataset";
 
 const {
   ORDERS,
@@ -30,7 +28,7 @@ const TEST_CASES = [
 describe("scenarios > visualizations > pivot tables", () => {
   beforeEach(() => {
     restore();
-    signInAsAdmin();
+    cy.signInAsAdmin();
   });
 
   it("should be created from an ad-hoc question", () => {
@@ -529,31 +527,30 @@ describe("scenarios > visualizations > pivot tables", () => {
         display: "pivot",
         visualization_settings: {},
       }).then(({ body: { id: QUESTION_ID } }) => {
-        cy.log("Create new dashboard");
-        cy.request("POST", "/api/dashboard", {
-          name: DASHBOARD_NAME,
-        }).then(({ body: { id: DASHBOARD_ID } }) => {
-          cy.log("Add previously created question to that dashboard");
-          cy.request("POST", `/api/dashboard/${DASHBOARD_ID}/cards`, {
-            cardId: QUESTION_ID,
-          }).then(({ body: { id: DASH_CARD_ID } }) => {
-            cy.log("Resize the dashboard card");
-            cy.request("PUT", `/api/dashboard/${DASHBOARD_ID}/cards`, {
-              cards: [
-                {
-                  id: DASH_CARD_ID,
-                  card_id: QUESTION_ID,
-                  row: 0,
-                  col: 0,
-                  sizeX: 12,
-                  sizeY: 8,
-                },
-              ],
+        cy.createDashboard({ name: DASHBOARD_NAME }).then(
+          ({ body: { id: DASHBOARD_ID } }) => {
+            cy.log("Add previously created question to that dashboard");
+            cy.request("POST", `/api/dashboard/${DASHBOARD_ID}/cards`, {
+              cardId: QUESTION_ID,
+            }).then(({ body: { id: DASH_CARD_ID } }) => {
+              cy.log("Resize the dashboard card");
+              cy.request("PUT", `/api/dashboard/${DASHBOARD_ID}/cards`, {
+                cards: [
+                  {
+                    id: DASH_CARD_ID,
+                    card_id: QUESTION_ID,
+                    row: 0,
+                    col: 0,
+                    sizeX: 12,
+                    sizeY: 8,
+                  },
+                ],
+              });
+              cy.log("Open the dashboard");
+              cy.visit(`/dashboard/${DASHBOARD_ID}`);
             });
-            cy.log("Open the dashboard");
-            cy.visit(`/dashboard/${DASHBOARD_ID}`);
-          });
-        });
+          },
+        );
       });
     });
 
@@ -590,37 +587,36 @@ describe("scenarios > visualizations > pivot tables", () => {
           enable_embedding: true,
         });
 
-        cy.log("Create new dashboard");
-        cy.request("POST", "/api/dashboard", {
-          name: DASHBOARD_NAME,
-        }).then(({ body: { id: DASHBOARD_ID } }) => {
-          cy.log("Add previously created question to that dashboard");
-          cy.request("POST", `/api/dashboard/${DASHBOARD_ID}/cards`, {
-            cardId: QUESTION_ID,
-          }).then(({ body: { id: DASH_CARD_ID } }) => {
-            cy.log("Resize the dashboard card");
-            cy.request("PUT", `/api/dashboard/${DASHBOARD_ID}/cards`, {
-              cards: [
-                {
-                  id: DASH_CARD_ID,
-                  card_id: QUESTION_ID,
-                  row: 0,
-                  col: 0,
-                  sizeX: 12,
-                  sizeY: 8,
-                },
-              ],
+        cy.createDashboard({ name: DASHBOARD_NAME }).then(
+          ({ body: { id: DASHBOARD_ID } }) => {
+            cy.log("Add previously created question to that dashboard");
+            cy.request("POST", `/api/dashboard/${DASHBOARD_ID}/cards`, {
+              cardId: QUESTION_ID,
+            }).then(({ body: { id: DASH_CARD_ID } }) => {
+              cy.log("Resize the dashboard card");
+              cy.request("PUT", `/api/dashboard/${DASHBOARD_ID}/cards`, {
+                cards: [
+                  {
+                    id: DASH_CARD_ID,
+                    card_id: QUESTION_ID,
+                    row: 0,
+                    col: 0,
+                    sizeX: 12,
+                    sizeY: 8,
+                  },
+                ],
+              });
             });
-          });
 
-          cy.log("Enable sharing");
-          cy.request("POST", `/api/dashboard/${DASHBOARD_ID}/public_link`);
+            cy.log("Enable sharing");
+            cy.request("POST", `/api/dashboard/${DASHBOARD_ID}/public_link`);
 
-          cy.log("Enable embedding");
-          cy.request("PUT", `/api/dashboard/${DASHBOARD_ID}`, {
-            enable_embedding: true,
-          });
-        });
+            cy.log("Enable embedding");
+            cy.request("PUT", `/api/dashboard/${DASHBOARD_ID}`, {
+              enable_embedding: true,
+            });
+          },
+        );
         cy.visit(`/question/${QUESTION_ID}`);
       });
     });
@@ -698,7 +694,7 @@ describe("scenarios > visualizations > pivot tables", () => {
       display: "pivot",
       visualization_settings: {},
     }).then(({ body: { id: QUESTION_ID } }) => {
-      signIn("nodata");
+      cy.signIn("nodata");
       cy.visit(`/question/${QUESTION_ID}`);
     });
 
@@ -719,7 +715,13 @@ describe("scenarios > visualizations > pivot tables", () => {
       human_readable_field_id: null,
     });
     cy.request("POST", `/api/field/${REVIEWS.RATING}/values`, {
-      values: [[1, "A"], [2, "B"], [3, "C"], [4, "D"], [5, "E"]],
+      values: [
+        [1, "A"],
+        [2, "B"],
+        [3, "C"],
+        [4, "D"],
+        [5, "E"],
+      ],
     });
 
     visitQuestionAdhoc({
@@ -753,6 +755,113 @@ describe("scenarios > visualizations > pivot tables", () => {
       cy.findByText("333"); // Row totals for 2018
       cy.findByText("Grand totals");
     });
+  });
+
+  it("should show stand-alone row values in grouping when rows are collapsed (metabase#15211)", () => {
+    visitQuestionAdhoc({
+      dataset_query: {
+        type: "query",
+        query: {
+          "source-table": ORDERS_ID,
+          aggregation: [["sum", ["field", ORDERS.DISCOUNT, null]], ["count"]],
+          breakout: [
+            ["field", ORDERS.CREATED_AT, { "temporal-unit": "day" }],
+            ["field", ORDERS.PRODUCT_ID, null],
+          ],
+          filter: [
+            "and",
+            [
+              "between",
+              ["field", ORDERS.CREATED_AT, null],
+              "2016-11-09",
+              "2016-11-11",
+            ],
+            ["!=", ["field", ORDERS.PRODUCT_ID, null], 146],
+          ],
+        },
+        database: 1,
+      },
+      display: "pivot",
+      visualization_settings: {
+        "pivot_table.column_split": {
+          rows: [
+            ["field", ORDERS.CREATED_AT, { "temporal-unit": "day" }],
+            ["field", ORDERS.PRODUCT_ID, null],
+          ],
+          columns: [],
+          values: [
+            ["aggregation", 0],
+            ["aggregation", 1],
+          ],
+        },
+        "pivot_table.collapsed_rows": {
+          value: [],
+          rows: [
+            ["field", ORDERS.CREATED_AT, { "temporal-unit": "day" }],
+            ["field", ORDERS.PRODUCT_ID, null],
+          ],
+        },
+      },
+    });
+
+    cy.findByText("November 9, 2016");
+    cy.findByText("November 10, 2016");
+    cy.findByText("November 11, 2016");
+    collapseRowsFor("Created At: Day");
+    cy.findByText("Totals for November 9, 2016");
+    cy.findByText("Totals for November 10, 2016");
+    cy.findByText("Totals for November 11, 2016");
+
+    function collapseRowsFor(column_name) {
+      cy.findByText(column_name)
+        .parent()
+        .find(".Icon-dash")
+        .click();
+    }
+  });
+
+  it("should not show subtotals for flat tables", () => {
+    cy.intercept("POST", "api/dataset/pivot").as("createPivotedDataset");
+
+    visitQuestionAdhoc({
+      dataset_query: {
+        type: "query",
+        query: {
+          "source-table": ORDERS_ID,
+          aggregation: [["sum", ["field", ORDERS.SUBTOTAL, null]]],
+          breakout: [
+            ["field", ORDERS.CREATED_AT, { "temporal-unit": "year" }],
+            ["field", PRODUCTS.CATEGORY, { "source-field": ORDERS.PRODUCT_ID }],
+            ["field", PEOPLE.STATE, { "source-field": ORDERS.USER_ID }],
+          ],
+          filter: [">", ["field", ORDERS.CREATED_AT, null], "2020-01-01"],
+        },
+        database: 1,
+      },
+      display: "pivot",
+      visualization_settings: {
+        "pivot_table.column_split": {
+          rows: [
+            ["field", PEOPLE.STATE, { "source-field": ORDERS.USER_ID }],
+            ["field", ORDERS.CREATED_AT, { "temporal-unit": "year" }],
+          ],
+          columns: [
+            ["field", PRODUCTS.CATEGORY, { "source-field": ORDERS.PRODUCT_ID }],
+          ],
+          values: [["aggregation", 0]],
+        },
+        "pivot_table.collapsed_rows": {
+          value: [],
+          rows: [
+            ["field", PEOPLE.STATE, { "source-field": ORDERS.USER_ID }],
+            ["field", ORDERS.CREATED_AT, { "temporal-unit": "year" }],
+          ],
+        },
+      },
+    });
+
+    cy.wait("@createPivotedDataset");
+    cy.findAllByText(/Totals for .*/i).should("have.length", 0);
   });
 });
 
@@ -826,4 +935,14 @@ function dragField(startIndex, dropIndex) {
   cy.get("@dragHandle")
     .eq(dropIndex)
     .trigger("drop");
+}
+
+function getIframeBody(selector = "iframe") {
+  return cy
+    .get(selector)
+    .its("0.contentDocument")
+    .should("exist")
+    .its("body")
+    .should("not.be.null")
+    .then(cy.wrap);
 }

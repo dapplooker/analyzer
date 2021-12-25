@@ -120,13 +120,14 @@
     :fingerprint_version true
     :fingerprint         true))
 
-(def ^:private field:movie-id
+(defn- field:movie-id []
   (merge
    (field-defaults)
    {:name              "id"
     :display_name      "ID"
     :database_type     "SERIAL"
     :base_type         :type/Integer
+    :effective_type    :type/Integer
     :semantic_type     :type/PK
     :database_position 0
     :position          0}))
@@ -138,6 +139,7 @@
     :display_name       "Studio"
     :database_type      "VARCHAR"
     :base_type          :type/Text
+    :effective_type          :type/Text
     :fk_target_field_id true
     :semantic_type      :type/FK
     :database_position  2
@@ -150,6 +152,7 @@
     :display_name      "Title"
     :database_type     "VARCHAR"
     :base_type         :type/Text
+    :effective_type    :type/Text
     :semantic_type     :type/Title
     :database_position 1
     :position          1}))
@@ -161,6 +164,7 @@
     :display_name      "Name"
     :database_type     "VARCHAR"
     :base_type         :type/Text
+    :effective_type    :type/Text
     :semantic_type     :type/Name
     :database_position 1
     :position          1}))
@@ -173,6 +177,7 @@
     :display_name      "Studio"
     :database_type     "VARCHAR"
     :base_type         :type/Text
+    :effective_type    :type/Text
     :semantic_type     :type/PK
     :database_position 0
     :position          0}))
@@ -181,21 +186,23 @@
   (mt/with-temp Database [db {:engine ::sync-test}]
     (sync/sync-database! db)
     (sync/sync-database! db)
-    (let [[movie studio] (mapv table-details (db/select Table :db_id (u/get-id db) {:order-by [:name]}))]
+    (let [[movie studio] (mapv table-details (db/select Table :db_id (u/the-id db) {:order-by [:name]}))]
       (testing "`movie` Table"
         (is (= (merge
                 (table-defaults)
-                {:schema       "default"
-                 :name         "movie"
-                 :display_name "Movie"
-                 :fields       [field:movie-id (field:movie-studio) (field:movie-title)]})
+                {:schema              "default"
+                 :name                "movie"
+                 :display_name        "Movie"
+                 :initial_sync_status "complete"
+                 :fields              [(field:movie-id) (field:movie-studio) (field:movie-title)]})
                movie)))
       (testing "`studio` Table"
         (is (= (merge
                 (table-defaults)
-                {:name         "studio"
-                 :display_name "Studio"
-                 :fields       [(field:studio-name) (field:studio-studio)]})
+                {:name                "studio"
+                 :display_name        "Studio"
+                 :initial_sync_status "complete"
+                 :fields              [(field:studio-name) (field:studio-studio)]})
                studio)))))
   (testing "Returns results from sync-database step"
     (mt/with-temp Database [db {:engine ::sync-test}]
@@ -205,14 +212,14 @@
 
 (deftest sync-table-test
   (mt/with-temp* [Database [db {:engine ::sync-test}]
-                  Table    [table {:name "movie", :schema "default", :db_id (u/get-id db)}]]
+                  Table    [table {:name "movie", :schema "default", :db_id (u/the-id db)}]]
     (sync/sync-table! table)
     (is (= (merge
             (table-defaults)
             {:schema       "default"
              :name         "movie"
              :display_name "Movie"
-             :fields       [field:movie-id
+             :fields       [(field:movie-id)
                             (assoc (field:movie-studio) :fk_target_field_id false :semantic_type nil)
                             (field:movie-title)]})
            (table-details (Table (:id table)))))))

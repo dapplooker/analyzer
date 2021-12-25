@@ -8,13 +8,12 @@
   (not= :aggregation (:source col)))
 
 (defn- summable-column?
-  "A summable column is any numeric column that isn't a semantic type like an FK or PK. It also excludes unix
-  timestamps that are numbers, but with a semantic type of DateTime"
-  [{:keys [base_type semantic_type]}]
-  (and (or (isa? base_type :type/Number)
-           (isa? semantic_type :type/Number))
-       (not (isa? semantic_type :type/Special))
-       (not (isa? semantic_type :type/Temporal))))
+  "A summable column is any numeric column that isn't a relation type like an FK or PK. It also excludes unix
+  timestamps that are numbers, but with an effective type of `Temporal`."
+  [{base-type :base_type, effective-type :effective_type, semantic-type :semantic_type}]
+  (and (isa? base-type :type/Number)
+       (not (isa? effective-type :type/Temporal))
+       (not (isa? semantic-type :Relation/*))))
 
 (defn- metric-column?
   "A metric column is any non-breakout column that is summable (numeric that isn't a semantic type like an FK/PK/Unix
@@ -83,6 +82,30 @@
   "This is used as the X-axis column in the UI"
   [card results]
   (graph-column-index :graph.dimensions card results))
+
+(defn mult-y-axis-rowfn
+  "This is used as the Y-axis column in the UI
+  when we have comboes, which have more than one y axis."
+  [card results]
+  (let [metrics     (some-> card
+                            (get-in [:visualization_settings :graph.metrics]))
+        col-indices (map #(column-name->index % results) metrics)]
+    (when (seq? col-indices)
+      (fn [row]
+        (vec (for [idx col-indices]
+               (get row idx)))))))
+
+(defn mult-x-axis-rowfn
+  "This is used as the X-axis column in the UI
+  when we have comboes, which have more than one x axis."
+  [card results]
+  (let [dimensions  (some-> card
+                            (get-in [:visualization_settings :graph.dimensions]))
+        col-indices (map #(column-name->index % results) dimensions)]
+    (when (seq? col-indices)
+      (fn [row]
+        (vec (for [idx col-indices]
+               (get row idx)))))))
 
 (defn make-goal-comparison-rowfn
   "For a given resultset, return the index of the column that should be used for the goal comparison. This can come

@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React from "react";
 
 import { t } from "ttag";
@@ -149,6 +150,7 @@ const ViewFooter = ({
               className="mx1 hide sm-show"
               card={question.card()}
               result={result}
+              visualizationSettings={visualizationSettings}
             />
           ),
           QuestionAlertWidget.shouldRender({
@@ -190,20 +192,35 @@ const VizTypeButton = ({ question, result, ...props }) => {
   const icon = visualization && visualization.iconName;
 
   return (
-    <ViewButton medium p={[2, 1]} icon={icon} labelBreakpoint="sm" {...props}>
+    <ViewButton
+      medium
+      p={[2, 1]}
+      icon={icon}
+      labelBreakpoint="sm"
+      data-testid="viz-type-button"
+      {...props}
+    >
       {t`Visualization`}
     </ViewButton>
   );
 };
 
 const VizSettingsButton = ({ ...props }) => (
-  <ViewButton medium p={[2, 1]} icon="gear" labelBreakpoint="sm" {...props}>
+  <ViewButton
+    medium
+    p={[2, 1]}
+    icon="gear"
+    labelBreakpoint="sm"
+    data-testid="viz-settings-button"
+    {...props}
+  >
     {t`Settings`}
   </ViewButton>
 );
 
 const Well = styled(Flex)`
   border-radius: 99px;
+  background-color: ${color("bg-medium")};
   &:hover {
     background-color: ${darken(color("bg-medium"), 0.05)};
   }
@@ -214,7 +231,6 @@ Well.defaultProps = {
   px: "6px",
   py: "4px",
   align: "center",
-  bg: color("bg-medium"),
 };
 
 const ToggleIcon = styled(Flex)`

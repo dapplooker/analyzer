@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
 import { connect } from "react-redux";
 import { t, jt } from "ttag";
@@ -24,12 +25,6 @@ import {
   null,
 )
 export default class AlertListPopoverContent extends Component {
-  props: {
-    questionAlerts: any[],
-    setMenuFreeze: boolean => void,
-    closeMenu: () => void,
-  };
-
   state = {
     adding: false,
     hasJustUnsubscribedFromOwnAlert: false,
@@ -78,6 +73,7 @@ export default class AlertListPopoverContent extends Component {
         <ul>
           {Object.values(sortedQuestionAlerts).map(alert => (
             <AlertListItem
+              key={alert.id}
               alert={alert}
               setMenuFreeze={setMenuFreeze}
               closeMenu={closeMenu}
@@ -96,7 +92,7 @@ export default class AlertListPopoverContent extends Component {
               className="link flex align-center text-bold text-small"
               onClick={this.onAdd}
             >
-              <Icon name="add" style={{ marginLeft: 9, marignRight: 17 }} />{" "}
+              <Icon name="add" style={{ marginLeft: 9, marginRight: 17 }} />{" "}
               {t`Set up your own alert`}
             </a>
           </div>
@@ -114,22 +110,11 @@ export default class AlertListPopoverContent extends Component {
   }
 }
 
-@connect(
-  state => ({ user: getUser(state) }),
-  {
-    unsubscribeFromAlert,
-    deleteAlert,
-  },
-)
+@connect(state => ({ user: getUser(state) }), {
+  unsubscribeFromAlert,
+  deleteAlert,
+})
 export class AlertListItem extends Component {
-  props: {
-    alert: any,
-    user: any,
-    setMenuFreeze: boolean => void,
-    closeMenu: () => void,
-    onUnsubscribe: () => void,
-  };
-
   state = {
     unsubscribingProgress: null,
     hasJustUnsubscribed: false,
@@ -284,7 +269,6 @@ export class AlertScheduleText extends Component {
 
       return `${verbose ? "daily at " : "Daily, "} ${hour} ${amPm}`;
     } else if (scheduleType === "weekly") {
-      console.log(schedule);
       const hourOfDay = schedule.schedule_hour;
       const day = _.find(
         DAY_OF_WEEK_OPTIONS,

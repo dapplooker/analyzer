@@ -4,7 +4,7 @@
             [metabase.models.collection :as collection]
             [metabase.models.permissions :as perms]
             [metabase.models.permissions-group :as group]
-            [metabase.public-settings.metastore-test :as metastore-test]
+            [metabase.public-settings.premium-features-test :as premium-features-test]
             [metabase.test :as mt]
             [metabase.util :as u]
             [toucan.db :as db]))
@@ -22,12 +22,12 @@
         (testing (format "\nSnippet in %s" collection-name)
           (mt/with-temp NativeQuerySnippet [snippet {:collection_id (:id collection)}]
             (testing "\nShould be allowed regardless if EE features aren't enabled"
-              (metastore-test/with-metastore-token-features #{}
+              (premium-features-test/with-premium-features #{}
                 (is (= true
                        (has-perms? snippet))
                     "allowed?")))
             (testing "\nWith EE features enabled"
-              (metastore-test/with-metastore-token-features #{:enhancements}
+              (premium-features-test/with-premium-features #{:enhancements}
                 (testing (format "\nShould not be allowed with no perms for %s" collection-name)
                   (is (= false
                          (has-perms? snippet))
@@ -56,7 +56,7 @@
          (boolean
           (some
            (fn [a-snippet]
-             (= (u/get-id a-snippet) (u/get-id snippet)))
+             (= (u/the-id a-snippet) (u/the-id snippet)))
            ((mt/user->client :rasta) :get "native-query-snippet"))))))))
 
 (deftest fetch-test
@@ -65,7 +65,7 @@
       (test-perms
        :read
        (fn [snippet]
-         (let [response ((mt/user->client :rasta) :get (format "native-query-snippet/%d" (u/get-id snippet)))]
+         (let [response ((mt/user->client :rasta) :get (format "native-query-snippet/%d" (u/the-id snippet)))]
            (not= response "You don't have permissions to do that.")))))))
 
 (deftest create-test
@@ -89,7 +89,7 @@
       (test-perms
        :write
        (fn [snippet]
-         (let [response ((mt/user->client :rasta) :put (format "native-query-snippet/%d" (u/get-id snippet)) {:name (mt/random-name)})]
+         (let [response ((mt/user->client :rasta) :put (format "native-query-snippet/%d" (u/the-id snippet)) {:name (mt/random-name)})]
            (not= response "You don't have permissions to do that.")))))))
 
 (deftest move-perms-test
@@ -113,10 +113,10 @@
                   (when-not (= source-collection dest-collection)
                     (testing (format "\nMove from %s -> %s should need write ('curate') perms for both" (:name source-collection) (:name dest-collection))
                       (testing "\nShould be allowed if EE perms aren't enabled"
-                        (metastore-test/with-metastore-token-features #{}
+                        (premium-features-test/with-premium-features #{}
                           (is (= true
                                  (has-perms?)))))
-                      (metastore-test/with-metastore-token-features #{:enhancements}
+                      (premium-features-test/with-premium-features #{:enhancements}
                         (doseq [c [source-collection dest-collection]]
                           (testing (format "\nPerms for only %s should fail" (:name c))
                             (try

@@ -1,10 +1,13 @@
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
 import PropTypes from "prop-types";
 import { Link } from "react-router";
 import { connect } from "react-redux";
-import title from "metabase/hoc/Title";
-import MetabaseAnalytics from "metabase/lib/analytics";
 import { t } from "ttag";
+
+import title from "metabase/hoc/Title";
+import * as MetabaseAnalytics from "metabase/lib/analytics";
+import MetabaseSettings from "metabase/lib/settings";
 import AdminLayout from "metabase/components/AdminLayout";
 import { NotFound } from "metabase/containers/ErrorPages";
 
@@ -42,35 +45,46 @@ const mapDispatchToProps = {
   reloadSettings,
 };
 
-@connect(
-  mapStateToProps,
-  mapDispatchToProps,
-)
+@connect(mapStateToProps, mapDispatchToProps)
 @title(({ activeSection }) => activeSection && activeSection.name)
 export default class SettingsEditorApp extends Component {
   layout = null; // the reference to AdminLayout
 
   static propTypes = {
-    sections: PropTypes.array.isRequired,
+    sections: PropTypes.object.isRequired,
     activeSection: PropTypes.object,
     activeSectionName: PropTypes.string,
     updateSetting: PropTypes.func.isRequired,
   };
 
-  UNSAFE_componentWillMount() {
+  constructor(props) {
+    super(props);
+    this.saveStatusRef = React.createRef();
+  }
+
+  componentDidMount() {
     this.props.initializeSettings();
   }
 
   updateSetting = async (setting, newValue) => {
     const { settingValues, updateSetting } = this.props;
 
-    this.layout.setSaving();
+    this.saveStatusRef.current.setSaving();
 
     const oldValue = setting.value;
 
     // TODO: mutation bad!
     setting.value = newValue;
     try {
+      if (setting.onBeforeChanged) {
+        await setting.onBeforeChanged(
+          oldValue,
+          newValue,
+          settingValues,
+          this.handleChangeSetting,
+        );
+      }
+
       await updateSetting(setting);
 
       if (setting.onChanged) {
@@ -82,11 +96,11 @@ export default class SettingsEditorApp extends Component {
         );
       }
 
-      this.layout.setSaved();
+      this.saveStatusRef.current.setSaved();
 
       const value = prepareAnalyticsValue(setting);
 
-      MetabaseAnalytics.trackEvent(
+      MetabaseAnalytics.trackStructEvent(
         "General Settings",
         setting.display_name || setting.key,
         value,
@@ -96,8 +110,8 @@ export default class SettingsEditorApp extends Component {
     } catch (error) {
       const message =
         error && (error.message || (error.data && error.data.message));
-      this.layout.setSaveError(message);
-      MetabaseAnalytics.trackEvent(
+      this.saveStatusRef.current.setSaveError(message);
+      MetabaseAnalytics.trackStructEvent(
         "General Settings",
         setting.display_name,
         "error",
@@ -179,17 +193,19 @@ export default class SettingsEditorApp extends Component {
         );
 
         // if this is the Updates section && there is a new version then lets add a little indicator
-        let newVersionIndicator;
-        if (slug === "updates" && newVersionAvailable) {
-          newVersionIndicator = (
-            <span
-              style={{ padding: "4px 8px 4px 8px" }}
-              className="bg-brand rounded text-white text-bold h6"
-            >
-              1
-            </span>
-          );
-        }
+        const shouldDisplayNewVersionIndicator =
+          slug === "updates" &&
+          newVersionAvailable &&
+          !MetabaseSettings.isHosted();
+
+        const newVersionIndicator = shouldDisplayNewVersionIndicator ? (
+          <span
+            style={{ padding: "4px 8px 4px 8px" }}
+            className="bg-brand rounded text-white text-bold h6"
+          >
+            1
+          </span>
+        ) : null;
 
         return (
           <li key={slug}>
@@ -212,7 +228,7 @@ export default class SettingsEditorApp extends Component {
   render() {
     return (
       <AdminLayout
-        ref={layout => (this.layout = layout)}
+        saveStatusRef={this.saveStatusRef}
         title={t`Settings`}
         sidebar={this.renderSettingsSections()}
       >

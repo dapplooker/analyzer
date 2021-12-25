@@ -1,26 +1,23 @@
 import {
-  signInAsNormalUser,
-  signInAsAdmin,
   restore,
   popover,
   visitQuestionAdhoc,
-} from "__support__/cypress";
-import { SAMPLE_DATASET } from "__support__/cypress_sample_dataset";
+  openNativeEditor,
+} from "__support__/e2e/cypress";
+import { SAMPLE_DATASET } from "__support__/e2e/cypress_sample_dataset";
 
 const { PEOPLE, PEOPLE_ID } = SAMPLE_DATASET;
 
 describe("scenarios > visualizations > maps", () => {
   beforeEach(() => {
     restore();
-    signInAsAdmin();
+    cy.signInAsAdmin();
   });
 
   it("should display a pin map for a native query", () => {
-    signInAsNormalUser();
+    cy.signInAsNormalUser();
     // create a native query with lng/lat fields
-    cy.visit("/question/new");
-    cy.contains("Native query").click();
-    cy.get(".ace_content").type(
+    openNativeEditor().type(
       "select -80 as lng, 40 as lat union all select -120 as lng, 40 as lat",
     );
     cy.get(".NativeQueryEditor .Icon-play").click();
@@ -61,17 +58,13 @@ describe("scenarios > visualizations > maps", () => {
     cy.get(".leaflet-container");
   });
 
-  it.skip("should suggest map visualization regardless of the first column type (metabase#14254)", () => {
-    cy.request("POST", "/api/card", {
+  it("should suggest map visualization regardless of the first column type (metabase#14254)", () => {
+    cy.createNativeQuestion({
       name: "14254",
-      dataset_query: {
-        type: "native",
-        native: {
-          query:
-            'SELECT "PUBLIC"."PEOPLE"."LONGITUDE" AS "LONGITUDE", "PUBLIC"."PEOPLE"."LATITUDE" AS "LATITUDE", "PUBLIC"."PEOPLE"."CITY" AS "CITY"\nFROM "PUBLIC"."PEOPLE"\nLIMIT 10',
-          "template-tags": {},
-        },
-        database: 1,
+      native: {
+        query:
+          'SELECT "PUBLIC"."PEOPLE"."LONGITUDE" AS "LONGITUDE", "PUBLIC"."PEOPLE"."LATITUDE" AS "LATITUDE", "PUBLIC"."PEOPLE"."CITY" AS "CITY"\nFROM "PUBLIC"."PEOPLE"\nLIMIT 10',
+        "template-tags": {},
       },
       display: "map",
       visualization_settings: {
@@ -90,8 +83,8 @@ describe("scenarios > visualizations > maps", () => {
     cy.get("@vizButton").find(".Icon-pinmap");
     cy.get("@vizButton").click();
     cy.findByText("Choose a visualization");
-    // Sidebar should really have a distinct class name
-    cy.get(".scroll-y .scroll-y").as("vizSidebar");
+
+    cy.findByTestId("sidebar-left").as("vizSidebar");
 
     cy.get("@vizSidebar").within(() => {
       // There should be a unique class for "selected" viz type
@@ -146,5 +139,85 @@ describe("scenarios > visualizations > maps", () => {
     });
     cy.findByText("State is TX");
     cy.findByText("171 Olive Oyle Lane"); // Address in the first row
+  });
+
+  it("should display a tooltip for a grid map without a metric column (metabase#17940)", () => {
+    visitQuestionAdhoc({
+      display: "map",
+      dataset_query: {
+        database: 1,
+        type: "query",
+        query: {
+          "source-table": PEOPLE_ID,
+          breakout: [
+            [
+              "field",
+              PEOPLE.LONGITUDE,
+              {
+                binning: {
+                  strategy: "default",
+                },
+              },
+            ],
+            [
+              "field",
+              PEOPLE.LATITUDE,
+              {
+                binning: {
+                  strategy: "default",
+                },
+              },
+            ],
+          ],
+          limit: 1,
+        },
+      },
+      visualization_settings: {
+        "map.type": "grid",
+        "table.pivot_column": "LATITUDE",
+        "table.cell_column": "LONGITUDE",
+      },
+    });
+
+    cy.get(".leaflet-interactive").trigger("mousemove");
+
+    cy.findByText("Latitude:");
+    cy.findByText("Longitude:");
+    cy.findByText("1");
+  });
+
+  it("should render grid map visualization for native questions (metabase#8362)", () => {
+    visitQuestionAdhoc({
+      dataset_query: {
+        type: "native",
+        native: {
+          query: `
+              select 20 as "Latitude", -110 as "Longitude", 1 as "metric" union all
+              select 70 as "Latitude", -170 as "Longitude", 5 as "metric"
+            `,
+          "template-tags": {},
+        },
+        database: 1,
+      },
+      display: "map",
+      visualization_settings: {
+        "map.type": "grid",
+        "map.latitude_column": "Latitude",
+        "map.longitude_column": "Longitude",
+        "map.metric_column": "metric",
+      },
+    });
+
+    // Ensure chart is rendered
+    cy.get(".leaflet-interactive");
+
+    cy.findByText("Visualization").click();
+
+    // Ensure the Map visualization is sensible
+    cy.findByTestId("Map-button").should(
+      "have.attr",
+      "data-is-sensible",
+      "true",
+    );
   });
 });

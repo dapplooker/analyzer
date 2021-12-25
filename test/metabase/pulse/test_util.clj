@@ -1,5 +1,6 @@
 (ns metabase.pulse.test-util
   (:require [clojure.walk :as walk]
+            [medley.core :as m]
             [metabase.integrations.slack :as slack]
             [metabase.models.pulse :as models.pulse :refer [Pulse]]
             [metabase.models.pulse-card :refer [PulseCard]]
@@ -14,13 +15,12 @@
   "Create a Pulse with `:creator_id` of `user-kw`, and simulate sending it, executing it and returning the results."
   [user-kw card]
   (tt/with-temp* [Pulse      [pulse {:creator_id (users/user->id user-kw)}]
-                  PulseCard  [_ {:pulse_id (:id pulse), :card_id (u/get-id card)}]]
+                  PulseCard  [_ {:pulse_id (:id pulse), :card_id (u/the-id card)}]]
     (with-redefs [pulse/send-notifications!    identity
                   pulse/results->notifications (fn [_ results]
                                                  (vec results))]
       (let [[{:keys [result]}] (pulse/send-pulse! pulse)]
         (qp.test/rows result)))))
-
 
 (def card-name "Test card")
 
@@ -72,7 +72,6 @@
                  slack/files-channel                (constantly {:name "metabase_files"
                                                                  :id   "FOO"})]
      (do-with-site-url (fn [] ~@body))))
-
 
 (def png-attachment
   {:type         :inline
@@ -132,14 +131,33 @@
       (invoke [_ x1 x2 x3 x4 x5 x6]
         (invoke-with-wrapping input output func [x1 x2 x3 x4 x5 x6])))))
 
-(defn force-bytes-thunk
-  "Grabs the thunk that produces the image byte array and invokes it"
-  [results]
-  ((-> results
-       :attachments
-       first
-       :attachment-bytes-thunk)))
-
 (defn thunk->boolean [{:keys [attachments] :as result}]
   (assoc result :attachments (for [attachment-info attachments]
-                               (update attachment-info :attachment-bytes-thunk fn?))))
+                               (if (:rendered-info attachment-info)
+                                 (update attachment-info
+                                         :rendered-info
+                                         (fn [ri] (m/map-vals some? ri)))
+                                 attachment-info))))
+
+(def test-dashboard
+  "A test dashboard with only the :parameters field included, for testing that dashboard filters
+  render correctly in Slack messages and emails"
+  {:parameters
+   [{:name "State",
+     :slug "state",
+     :id "63e719d0",
+     :default ["CA", "NY"],
+     :type "string/=",
+     :sectionId "location"}
+    {:name "Quarter and Year",
+     :slug "quarter_and_year",
+     :id "a6db3d8b",
+     :default "Q1-2021"
+     :type "date/quarter-year",
+     :sectionId "date"}
+    ;; Filter without default, should not be included in subscription
+    {:name "Product title contains",
+     :slug "product_title_contains",
+     :id "acd0dfab",
+     :type "string/contains",
+     :sectionId "string"}]})

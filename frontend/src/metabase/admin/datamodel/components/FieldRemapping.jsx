@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React from "react";
 
 import { t } from "ttag";
@@ -14,7 +15,7 @@ import ButtonWithStatus from "metabase/components/ButtonWithStatus";
 
 import SelectSeparator from "../components/SelectSeparator";
 
-import MetabaseAnalytics from "metabase/lib/analytics";
+import * as MetabaseAnalytics from "metabase/lib/analytics";
 
 import Dimension, { FieldDimension } from "metabase-lib/lib/Dimension";
 import Question from "metabase-lib/lib/Question";
@@ -33,6 +34,8 @@ export default class FieldRemapping extends React.Component {
 
   constructor(props, context) {
     super(props, context);
+
+    this.fkPopover = React.createRef();
   }
 
   getMappingTypeForField = field => {
@@ -110,7 +113,7 @@ export default class FieldRemapping extends React.Component {
     this.clearEditingStates();
 
     if (mappingType.type === "original") {
-      MetabaseAnalytics.trackEvent(
+      MetabaseAnalytics.trackStructEvent(
         "Data Model",
         "Change Remapping Type",
         "No Remapping",
@@ -122,7 +125,7 @@ export default class FieldRemapping extends React.Component {
       const entityNameFieldId = this.getFKTargetTableEntityNameOrNull();
 
       if (entityNameFieldId) {
-        MetabaseAnalytics.trackEvent(
+        MetabaseAnalytics.trackStructEvent(
           "Data Model",
           "Change Remapping Type",
           "Foreign Key",
@@ -143,7 +146,7 @@ export default class FieldRemapping extends React.Component {
         });
       }
     } else if (mappingType.type === "custom") {
-      MetabaseAnalytics.trackEvent(
+      MetabaseAnalytics.trackStructEvent(
         "Data Model",
         "Change Remapping Type",
         "Custom Remappings",
@@ -179,7 +182,10 @@ export default class FieldRemapping extends React.Component {
     // TODO Atte Keinänen 7/10/17: Use Dimension class when migrating to metabase-lib
     const dimension = Dimension.parseMBQL(foreignKeyClause);
     if (dimension && dimension instanceof FieldDimension && dimension.fk()) {
-      MetabaseAnalytics.trackEvent("Data Model", "Update FK Remapping Target");
+      MetabaseAnalytics.trackStructEvent(
+        "Data Model",
+        "Update FK Remapping Target",
+      );
       await updateFieldDimension(
         { id: field.id },
         {
@@ -191,7 +197,7 @@ export default class FieldRemapping extends React.Component {
 
       await fetchTableMetadata({ id: table.id }, { reload: true });
 
-      this.refs.fkPopover.close();
+      this.fkPopover.current.close();
     } else {
       throw new Error(t`The selected field isn't a foreign key`);
     }
@@ -268,7 +274,8 @@ export default class FieldRemapping extends React.Component {
           {mappingType === MAP_OPTIONS.foreign && [
             <SelectSeparator classname="flex" key="foreignKeySeparator" />,
             <PopoverWithTrigger
-              ref="fkPopover"
+              key="foreignKeyName"
+              ref={this.fkPopover}
               triggerElement={
                 <SelectButton
                   hasValue={hasFKMappingValue}
@@ -326,19 +333,21 @@ export class ValueRemappings extends React.Component {
     editingRemappings: new Map(),
   };
 
-  UNSAFE_componentWillMount() {
+  componentDidMount() {
     this._updateEditingRemappings(this.props.remappings);
   }
 
   componentDidUpdate(prevProps) {
     const { remappings } = this.props;
     if (
-      !// check if the Maps are different
-      (
-        prevProps.remappings &&
-        remappings &&
-        prevProps.remappings.size === remappings.size &&
-        [...remappings].every(([k, v]) => prevProps.remappings.get(k) === v)
+      !(
+        // check if the Maps are different
+        (
+          prevProps.remappings &&
+          remappings &&
+          prevProps.remappings.size === remappings.size &&
+          [...remappings].every(([k, v]) => prevProps.remappings.get(k) === v)
+        )
       )
     ) {
       this._updateEditingRemappings(remappings);
@@ -386,7 +395,10 @@ export class ValueRemappings extends React.Component {
   }
 
   onSaveClick = () => {
-    MetabaseAnalytics.trackEvent("Data Model", "Update Custom Remappings");
+    MetabaseAnalytics.trackStructEvent(
+      "Data Model",
+      "Update Custom Remappings",
+    );
     // Returns the promise so that ButtonWithStatus can show the saving status
     return this.props.updateRemappings(this.state.editingRemappings);
   };
@@ -408,7 +420,7 @@ export class ValueRemappings extends React.Component {
         </div>
         <ol>
           {[...editingRemappings].map(([original, mapped]) => (
-            <li className="mb1">
+            <li key={original} className="mb1">
               <FieldValueMapping
                 original={original}
                 mapped={mapped}

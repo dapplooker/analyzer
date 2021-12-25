@@ -1,5 +1,4 @@
-/* @flow */
-
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
 import PropTypes from "prop-types";
 import { t } from "ttag";
@@ -11,29 +10,8 @@ import { createMultiwordSearchRegex } from "metabase/lib/string";
 
 import cx from "classnames";
 
-type SelectOption = {
-  name: string,
-  key: string,
-};
-
-type Props = {
-  options: Array<SelectOption>,
-  values: Array<string>,
-  onValuesChange: (values: any[]) => void,
-  placeholder?: string,
-  multi?: boolean,
-};
-
-type State = {
-  searchText: string,
-  searchRegex: ?RegExp,
-};
-
 export default class SelectPicker extends Component {
-  state: State;
-  props: Props;
-
-  constructor(props: Props) {
+  constructor(props) {
     super(props);
 
     this.state = {
@@ -50,7 +28,7 @@ export default class SelectPicker extends Component {
     multi: PropTypes.bool,
   };
 
-  updateSearchText = (value: string) => {
+  updateSearchText = value => {
     let regex = null;
 
     if (value) {
@@ -63,7 +41,7 @@ export default class SelectPicker extends Component {
     });
   };
 
-  selectValue(key: string, selected: boolean) {
+  selectValue(key, selected) {
     let values;
     if (this.props.multi) {
       values = this.props.values.slice().filter(v => v != null);
@@ -78,7 +56,7 @@ export default class SelectPicker extends Component {
     this.props.onValuesChange(values);
   }
 
-  nameForOption(option: SelectOption) {
+  nameForOption(option) {
     if (option.name === "") {
       return t`Empty`;
     } else if (
@@ -114,15 +92,16 @@ export default class SelectPicker extends Component {
         {validOptions.length <= 10 && !regex ? null : (
           <div className="px1 pt1">
             <ListSearchField
+              hasClearButton
               onChange={this.updateSearchText}
-              searchText={this.state.searchText}
+              value={this.state.searchText}
               placeholder={t`Find a value`}
               autoFocus={true}
             />
           </div>
         )}
         <div
-          className="px1 pt1"
+          className="px1 pt1 PopoverBody--marginBottom"
           style={{ maxHeight: "400px", overflowY: "scroll" }}
         >
           {placeholder ? <h5>{placeholder}</h5> : null}
@@ -138,7 +117,7 @@ export default class SelectPicker extends Component {
                   >
                     <CheckBox
                       checked={checked.has(option.key)}
-                      color="purple"
+                      checkedColor="accent2"
                     />
                     <h4 className="ml1">{this.nameForOption(option)}</h4>
                   </label>
@@ -147,8 +126,12 @@ export default class SelectPicker extends Component {
             </ul>
           ) : (
             <div className="flex flex-wrap py1">
-              {validOptions.map((option, index) => (
-                <div className="half" style={{ padding: "0.15em" }}>
+              {validOptions.map(option => (
+                <div
+                  key={option.key}
+                  className="half"
+                  style={{ padding: "0.15em" }}
+                >
                   <button
                     style={{ height: "95px" }}
                     className={cx(

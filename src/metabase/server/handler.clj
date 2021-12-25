@@ -3,10 +3,12 @@
   (:require [metabase.config :as config]
             [metabase.plugins.classloader :as classloader]
             [metabase.server.middleware.auth :as mw.auth]
+            [metabase.server.middleware.browser-cookie :as mw.browser]
             [metabase.server.middleware.exceptions :as mw.exceptions]
             [metabase.server.middleware.json :as mw.json]
             [metabase.server.middleware.log :as mw.log]
             [metabase.server.middleware.misc :as mw.misc]
+            [metabase.server.middleware.offset-paging :as mw.offset-paging]
             [metabase.server.middleware.security :as mw.security]
             [metabase.server.middleware.session :as mw.session]
             [metabase.server.middleware.ssl :as mw.ssl]
@@ -25,9 +27,11 @@
   [#'mw.exceptions/catch-uncaught-exceptions ; catch any Exceptions that weren't passed to `raise`
    #'mw.exceptions/catch-api-exceptions      ; catch exceptions and return them in our expected format
    #'mw.log/log-api-call
+   #'mw.browser/ensure-browser-id-cookie     ; add cookie to identify browser; add `:browser-id` to the request
    #'mw.security/add-security-headers        ; Add HTTP headers to API responses to prevent them from being cached
    #'mw.json/wrap-json-body                  ; extracts json POST body and makes it avaliable on request
    #'mw.json/wrap-streamed-json-response     ; middleware to automatically serialize suitable objects as JSON in responses
+   #'mw.offset-paging/handle-paging          ; binds per-request parameters to handle paging
    #'wrap-keyword-params                     ; converts string keys in :params to keyword keys
    #'wrap-params                             ; parses GET and POST params as :query-params/:form-params and both as :params
    #'mw.misc/maybe-set-site-url              ; set the value of `site-url` if it hasn't been set yet

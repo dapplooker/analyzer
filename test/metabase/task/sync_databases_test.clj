@@ -6,16 +6,12 @@
             [clojure.test :refer :all]
             [java-time :as t]
             [metabase.models.database :refer [Database]]
-            [metabase.sync.analyze :as sync.analyze]
-            [metabase.sync.field-values :as sync.field-values]
             [metabase.sync.schedules :as sync.schedules]
-            [metabase.sync.sync-metadata :as sync.metadata]
             [metabase.task.sync-databases :as sync-db]
             [metabase.test :as mt]
             [metabase.test.util :as tu]
             [metabase.util :as u]
             [metabase.util.cron :as cron-util]
-            [metabase.util.date-2 :as u.date]
             [toucan.db :as db])
   (:import [metabase.task.sync_databases SyncAndAnalyzeDatabase UpdateFieldValues]))
 
@@ -43,10 +39,10 @@
    (for [job   (tu/scheduler-current-tasks)
          :when (#{"metabase.task.sync-and-analyze.job" "metabase.task.update-field-values.job"} (:key job))]
      (-> job
-         (update :triggers (partial filter #(str/ends-with? (:key %) (str \. (u/get-id db-or-id)))))
+         (update :triggers (partial filter #(str/ends-with? (:key %) (str \. (u/the-id db-or-id)))))
          (dissoc :class)))))
 
-(defmacro ^:private with-scheduler-setup [& body]
+(defmacro with-scheduler-setup [& body]
   `(tu/with-temp-scheduler
      (#'sync-db/job-init)
      ~@body))
@@ -90,7 +86,7 @@
           (update fv-job   :triggers empty)]
         (with-scheduler-setup
           (mt/with-temp Database [database {:engine :postgres}]
-            (db/delete! Database :id (u/get-id database))
+            (db/delete! Database :id (u/the-id database))
             (current-tasks-for-db database))))))
 
 ;; Check that changing the schedule column(s) for a DB properly updates the scheduled tasks
@@ -99,7 +95,7 @@
           (assoc-in fv-job   [:triggers 0 :cron-schedule] "0 11 11 11 11 ?")]
          (with-scheduler-setup
            (mt/with-temp Database [database {:engine :postgres}]
-             (db/update! Database (u/get-id database)
+             (db/update! Database (u/the-id database)
                :metadata_sync_schedule      "0 15 10 ? * MON-FRI" ; 10:15 AM every weekday
                :cache_field_values_schedule "0 11 11 11 11 ?")    ; Every November 11th at 11:11 AM
              (current-tasks-for-db database))))))
@@ -108,18 +104,18 @@
 (deftest schedule-changes-only-expected-test
   (is (= [sync-job
           (assoc-in fv-job [:triggers 0 :cron-schedule] "0 15 10 ? * MON-FRI")]
-        (with-scheduler-setup
-          (mt/with-temp Database [database {:engine :postgres}]
-            (db/update! Database (u/get-id database)
-              :cache_field_values_schedule "0 15 10 ? * MON-FRI")
-            (current-tasks-for-db database)))))
+         (with-scheduler-setup
+           (mt/with-temp Database [database {:engine :postgres}]
+             (db/update! Database (u/the-id database)
+                         :cache_field_values_schedule "0 15 10 ? * MON-FRI")
+             (current-tasks-for-db database)))))
 
   (is (= [(assoc-in sync-job [:triggers 0 :cron-schedule] "0 15 10 ? * MON-FRI")
           fv-job]
          (with-scheduler-setup
            (mt/with-temp Database [database {:engine :postgres}]
-             (db/update! Database (u/get-id database)
-               :metadata_sync_schedule "0 15 10 ? * MON-FRI")
+             (db/update! Database (u/the-id database)
+                         :metadata_sync_schedule "0 15 10 ? * MON-FRI")
              (current-tasks-for-db database))))))
 
 (deftest validate-schedules-test
@@ -136,7 +132,7 @@
         (testing (format "Update %s" k)
           (is (thrown?
                Exception
-               (db/update! Database (u/get-id database)
+               (db/update! Database (u/the-id database)
                  k "2 CANS PER DAY"))))))))
 
 ;; this is a deftype due to an issue with Clojure. The `org.quartz.JobExecutionContext` interface has a put method and
@@ -173,7 +169,7 @@
 ;;; |                                    CHECKING THAT SYNC TASKS RUN CORRECT FNS                                    |
 ;;; +----------------------------------------------------------------------------------------------------------------+
 
-(defn- check-if-sync-processes-ran-for-db {:style/indent 0} [waits db-info]
+#_(defn- check-if-sync-processes-ran-for-db {:style/indent 0} [waits db-info]
   (let [sync-db-metadata-ran?    (promise)
         analyze-db-ran?          (promise)
         update-field-values-ran? (promise)]
@@ -191,7 +187,7 @@
                           :ran-analyze?             analyze-db-ran?
                           :ran-update-field-values? update-field-values-ran?})))))))
 
-(defn- cron-schedule-for-next-year []
+#_(defn- cron-schedule-for-next-year []
   (format "0 15 10 * * ? %d" (inc (u.date/extract :year))))
 
 ;; this test fails all the time -- disabled for now until I figure out how to fix it - Cam

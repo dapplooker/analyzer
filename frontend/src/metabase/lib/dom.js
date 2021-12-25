@@ -1,4 +1,6 @@
 import _ from "underscore";
+import { isCypressActive } from "metabase/env";
+
 // IE doesn't support scrollX/scrollY:
 export const getScrollX = () =>
   typeof window.scrollX === "undefined" ? window.pageXOffset : window.scrollX;
@@ -6,9 +8,10 @@ export const getScrollY = () =>
   typeof window.scrollY === "undefined" ? window.pageYOffset : window.scrollY;
 
 // denotes whether the current page is loaded in an iframe or not
+// Cypress renders the whole app within an iframe, but we want to exlude it from this check to avoid certain components (like Nav bar) not rendering
 export const IFRAMED = (function() {
   try {
-    return window.self !== window.top;
+    return !isCypressActive && window.self !== window.top;
   } catch (e) {
     return true;
   }
@@ -262,13 +265,15 @@ export function moveToFront(element) {
   }
 }
 
-// need to keep track of the latest click's metaKey state because sometimes
+// need to keep track of the latest click's state because sometimes
 // `open` is called asynchronously, thus window.event isn't the click event
 let metaKey;
+let ctrlKey;
 window.addEventListener(
   "mouseup",
   e => {
     metaKey = e.metaKey;
+    ctrlKey = e.ctrlKey;
   },
   true,
 );
@@ -317,17 +322,17 @@ export function shouldOpenInBlankWindow(
     // always open in new window
     blank = false,
     // open in new window if command-click
-    blankOnMetaKey = true,
+    blankOnMetaOrCtrlKey = true,
     // open in new window for different origin
     blankOnDifferentOrigin = true,
   } = {},
 ) {
+  const isMetaKey = event && event.metaKey != null ? event.metaKey : metaKey;
+  const isCtrlKey = event && event.ctrlKey != null ? event.ctrlKey : ctrlKey;
+
   if (blank) {
     return true;
-  } else if (
-    blankOnMetaKey &&
-    (event && event.metaKey != null ? event.metaKey : metaKey)
-  ) {
+  } else if (blankOnMetaOrCtrlKey && (isMetaKey || isCtrlKey)) {
     return true;
   } else if (blankOnDifferentOrigin && !isSameOrigin(url)) {
     return true;
@@ -342,12 +347,7 @@ export function isSameOrigin(url) {
 }
 
 export function getUrlTarget(url) {
-  if (IFRAMED) {
-    return isSameOrigin(url) ? "_self" : "_top";
-  } else {
-    // if not iframed then _top and _self are equivalent so don't bother checking origin
-    return "_top";
-  }
+  return isSameOrigin(url) ? "_self" : "_blank";
 }
 
 export function removeAllChildren(element) {
@@ -378,7 +378,7 @@ export function parseDataUri(url) {
 /**
  * @returns the clip-path CSS property referencing the clip path in the current document, taking into account the <base> tag.
  */
-export function clipPathReference(id: string): string {
+export function clipPathReference(id) {
   // add the current page URL (with fragment removed) to support pages with <base> tag.
   // https://stackoverflow.com/questions/18259032/using-base-tag-on-a-page-that-contains-svg-marker-elements-fails-to-render-marke
   const url = window.location.href.replace(/#.*$/, "") + "#" + id;
@@ -398,7 +398,7 @@ export function initializeIframeResizer(readyCallback = () => {}) {
   } else {
     window.iFrameResizer = {
       autoResize: true,
-      heightCalculationMethod: "bodyScroll",
+      heightCalculationMethod: "max",
       readyCallback: readyCallback,
     };
 
@@ -410,7 +410,6 @@ export function initializeIframeResizer(readyCallback = () => {}) {
     // Ideally that should happen in the test config, but it doesn't
     // seem to want to play nice when messing with require
     if (typeof require.ensure !== "function") {
-      // $FlowFixMe: flow doesn't seem to like returning false here
       return false;
     }
 
@@ -428,4 +427,9 @@ export function isEventOverElement(event, element) {
   const { top, bottom, left, right } = element.getBoundingClientRect();
 
   return y >= top && y <= bottom && x >= left && x <= right;
+}
+
+export function isReducedMotionPreferred() {
+  const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+  return mediaQuery && mediaQuery.matches;
 }

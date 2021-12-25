@@ -8,7 +8,8 @@
             [metabase.sync :as sync]
             [metabase.test :as mt]
             [metabase.test.data.bigquery :as bigquery.tx]
-            [metabase.test.util :as tu]))
+            [metabase.test.util :as tu]
+            [metabase.util :as u]))
 
 (deftest table-rows-sample-test
   (mt/test-driver
@@ -32,8 +33,8 @@
    (testing "with pagination"
      (let [pages-retrieved (atom 0)
            page-callback   (fn [] (swap! pages-retrieved inc))]
-       (with-bindings {#'bigquery/max-results-per-page 25
-                       #'bigquery/page-callback        page-callback}
+       (binding [bigquery/*max-results-per-page* 25
+                 bigquery/*page-callback*        page-callback]
          (let [actual (->> (metadata-queries/table-rows-sample (Table (mt/id :venues))
                              [(Field (mt/id :venues :id))
                               (Field (mt/id :venues :name))]
@@ -57,7 +58,7 @@
 
 (defn- do-with-view [f]
   (driver/with-driver :bigquery
-    (let [view-name (name (munge (gensym "view_")))]
+    (let [view-name (format "view_%s" (tu/random-name))]
       (mt/with-temp-copy-of-db
         (try
           (bigquery.tx/execute!
@@ -98,14 +99,27 @@
                 [2 "Stout Burgers & Beers" "Burger"]
                 [3 "The Apple Pan" "Burger"]]
                (mt/rows
-                 (qp/process-query
-                  {:database (mt/id)
-                   :type     :query
-                   :query    {:source-table (mt/id view-name)
-                              :order-by     [[:asc (mt/id view-name :id)]]}}))))))))
+                 (mt/run-mbql-query nil
+                   {:source-table (mt/id view-name)
+                    :order-by     [[:asc (mt/id view-name :id)]]}))))))))
 
 (deftest query-integer-pk-or-fk-test
   (mt/test-driver :bigquery
     (testing "We should be able to query a Table that has a :type/Integer column marked as a PK or FK"
       (is (= [["1" "Plato Yeshua" "2014-04-01T08:30:00Z"]]
              (mt/rows (mt/user-http-request :rasta :post 202 "dataset" (mt/mbql-query users {:limit 1, :order-by [[:asc $id]]}))))))))
+
+(deftest return-errors-test
+  (mt/test-driver :bigquery
+    (testing "If a Query fails, we should return the error right away (#14918)"
+      (let [before-ms (System/currentTimeMillis)]
+        (is (thrown-with-msg?
+             clojure.lang.ExceptionInfo
+             #"Error executing query"
+             (qp/process-query
+              {:database (mt/id)
+               :type     :native
+               :native   {:query "SELECT abc FROM 123;"}})))
+        (testing "Should return the error *before* the query timeout"
+          (let [duration-ms (- (System/currentTimeMillis) before-ms)]
+            (is (< duration-ms (u/seconds->ms @#'bigquery/query-timeout-seconds)))))))))

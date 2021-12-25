@@ -1,7 +1,7 @@
-/* @flow */
-
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
 import { connect } from "react-redux";
+import { t } from "ttag";
 
 import { Link } from "react-router";
 import Icon from "metabase/components/Icon";
@@ -10,14 +10,9 @@ import Tooltip from "metabase/components/Tooltip";
 
 import "./ChartClickActions.css";
 
-import MetabaseAnalytics from "metabase/lib/analytics";
+import * as MetabaseAnalytics from "metabase/lib/analytics";
 
 import { performAction } from "metabase/visualizations/lib/action";
-
-import type {
-  ClickObject,
-  ClickAction,
-} from "metabase-types/types/Visualization";
 
 import cx from "classnames";
 import _ from "underscore";
@@ -70,28 +65,15 @@ const SECTIONS = {
 };
 // give them indexes so we can sort the sections by the above ordering (JS objects are ordered)
 Object.values(SECTIONS).map((section, index) => {
-  // $FlowFixMe
   section.index = index;
 });
 
 const getGALabelForAction = action =>
   action ? `${action.section || ""}:${action.name || ""}` : null;
 
-type Props = {
-  clicked: ?ClickObject,
-  clickActions: ?(ClickAction[]),
-  onChangeCardAndRun: Object => void,
-  onClose: () => void,
-};
-
-type State = {
-  popoverAction: ?ClickAction,
-};
-
 @connect()
 export default class ChartClickActions extends Component {
-  props: Props;
-  state: State = {
+  state = {
     popoverAction: null,
   };
 
@@ -102,11 +84,10 @@ export default class ChartClickActions extends Component {
     }
   };
 
-  handleClickAction = (action: ClickAction) => {
-    // $FlowFixMe: dispatch provided by @connect
+  handleClickAction = action => {
     const { dispatch, onChangeCardAndRun } = this.props;
     if (action.popover) {
-      MetabaseAnalytics.trackEvent(
+      MetabaseAnalytics.trackStructEvent(
         "Actions",
         "Open Click Action Popover",
         getGALabelForAction(action),
@@ -118,7 +99,7 @@ export default class ChartClickActions extends Component {
         onChangeCardAndRun,
       });
       if (didPerform) {
-        MetabaseAnalytics.trackEvent(
+        MetabaseAnalytics.trackStructEvent(
           "Actions",
           "Executed Click Action",
           getGALabelForAction(action),
@@ -145,7 +126,7 @@ export default class ChartClickActions extends Component {
         <PopoverContent
           onChangeCardAndRun={({ nextCard }) => {
             if (popoverAction) {
-              MetabaseAnalytics.trackEvent(
+              MetabaseAnalytics.trackStructEvent(
                 "Action",
                 "Executed Click Action",
                 getGALabelForAction(popoverAction),
@@ -154,7 +135,7 @@ export default class ChartClickActions extends Component {
             onChangeCardAndRun({ nextCard });
           }}
           onClose={() => {
-            MetabaseAnalytics.trackEvent(
+            MetabaseAnalytics.trackStructEvent(
               "Action",
               "Dismissed Click Action Menu",
               getGALabelForAction(popoverAction),
@@ -196,7 +177,10 @@ export default class ChartClickActions extends Component {
         target={clicked.element}
         targetEvent={clicked.event}
         onClose={() => {
-          MetabaseAnalytics.trackEvent("Action", "Dismissed Click Action Menu");
+          MetabaseAnalytics.trackStructEvent(
+            "Action",
+            "Dismissed Click Action Menu",
+          );
           this.close();
         }}
         verticalAttachments={["top", "bottom"]}
@@ -210,6 +194,7 @@ export default class ChartClickActions extends Component {
           <div className="text-bold px2 pt2 pb1">
             {sections.map(([key, actions]) => (
               <div
+                key={key}
                 className={cx(
                   "pb1",
                   { pb2: SECTIONS[key].icon === "bolt" },
@@ -222,24 +207,23 @@ export default class ChartClickActions extends Component {
                 )}
               >
                 {SECTIONS[key].icon === "sum" && (
-                  <p className="mt0 text-medium text-small">Summarize</p>
+                  <p className="mt0 text-medium text-small">{t`Summarize`}</p>
                 )}
                 {SECTIONS[key].icon === "breakout" && (
-                  <p className="my1 text-medium text-small">Break out by a…</p>
+                  <p className="my1 text-medium text-small">{t`Break out by a…`}</p>
                 )}
                 {SECTIONS[key].icon === "bolt" && (
                   <p className="mt2 text-medium text-small">
-                    Automatic explorations
+                    {t`Automatic explorations`}
                   </p>
                 )}
                 {SECTIONS[key].icon === "funnel_outline" && (
                   <p className="mt0 text-dark text-small">
-                    Filter by this value
+                    {t`Filter by this value`}
                   </p>
                 )}
 
                 <div
-                  key={key}
                   className={cx(
                     "flex",
                     {
@@ -254,7 +238,7 @@ export default class ChartClickActions extends Component {
                 >
                   {actions.map((action, index) => (
                     <ChartClickAction
-                      index={index}
+                      key={index}
                       action={action}
                       isLastItem={index === actions.length - 1}
                       handleClickAction={this.handleClickAction}
@@ -270,15 +254,7 @@ export default class ChartClickActions extends Component {
   }
 }
 
-export const ChartClickAction = ({
-  action,
-  isLastItem,
-  handleClickAction,
-}: {
-  action: any,
-  isLastItem: any,
-  handleClickAction: any,
-}) => {
+export const ChartClickAction = ({ action, isLastItem, handleClickAction }) => {
   // This is where all the different action button styles get applied.
   // Some of them have bespoke classes defined in ChartClickActions.css,
   // like for cases when we needed to really dial in the spacing.
@@ -312,7 +288,7 @@ export const ChartClickAction = ({
           to={action.url()}
           className={className}
           onClick={() =>
-            MetabaseAnalytics.trackEvent(
+            MetabaseAnalytics.trackStructEvent(
               "Actions",
               "Executed Click Action",
               getGALabelForAction(action),

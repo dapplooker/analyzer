@@ -1,5 +1,4 @@
-/* @flow */
-
+/* eslint-disable react/prop-types */
 import React from "react";
 
 import ColumnItem from "./ColumnItem";
@@ -7,12 +6,8 @@ import ColumnItem from "./ColumnItem";
 const displayNameForColumn = column =>
   column ? column.display_name || column.name : "[Unknown]";
 
-import type { NestedSettingComponentProps } from "./ChartSettingNestedSettings";
-
 // various props injected by chartSettingNestedSettings HOC
 export default class ChartNestedSettingColumns extends React.Component {
-  props: NestedSettingComponentProps;
-
   render() {
     const { object, objects, onChangeEditingObject } = this.props;
     if (object) {
@@ -20,8 +15,9 @@ export default class ChartNestedSettingColumns extends React.Component {
     } else {
       return (
         <div>
-          {objects.map(column => (
+          {objects.map((column, index) => (
             <ColumnItem
+              key={index}
               title={displayNameForColumn(column)}
               onEdit={() => onChangeEditingObject(column)}
               onClick={() => onChangeEditingObject(column)}
@@ -53,6 +49,27 @@ class ColumnWidgets extends React.Component {
         title: displayNameForColumn(object),
         onBack: onEndShowWidget,
       });
+    }
+  }
+
+  componentDidUpdate(prevProps) {
+    const {
+      setSidebarPropsOverride,
+      object,
+      onEndShowWidget,
+      currentSectionHasColumnSettings,
+    } = this.props;
+
+    if (
+      displayNameForColumn(object) !== displayNameForColumn(prevProps.object) ||
+      onEndShowWidget !== prevProps.onEndShowWidget
+    ) {
+      if (setSidebarPropsOverride && !currentSectionHasColumnSettings) {
+        setSidebarPropsOverride({
+          title: displayNameForColumn(object),
+          onBack: onEndShowWidget,
+        });
+      }
     }
   }
 

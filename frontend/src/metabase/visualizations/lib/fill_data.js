@@ -8,6 +8,8 @@ import {
   isQuantitative,
   isHistogram,
   isHistogramBar,
+  isLine,
+  isArea,
 } from "./renderer_utils";
 import timeseriesScale from "./timeseriesScale";
 
@@ -20,9 +22,20 @@ function fillMissingValues(rows, xValues, fillValue, getKey = v => v) {
     const fillValues = rows[0].slice(1).map(d => fillValue);
 
     const map = new Map();
+
     for (const row of rows) {
-      map.set(getKey(row[0]), row);
+      const key = getKey(row[0]);
+      const oldRow = map.get(key);
+
+      if (oldRow) {
+        const newRow = row.map((_, i) => row[i] ?? oldRow[i]);
+        newRow._origin = row._origin;
+        map.set(key, newRow);
+      } else {
+        map.set(key, row);
+      }
     }
+
     const newRows = xValues.map(value => {
       const key = getKey(value);
       const row = map.get(key);
@@ -52,12 +65,17 @@ function fillMissingValuesInData(
   rows,
 ) {
   const { settings } = props;
-  const { "line.missing": lineMissing } = settings.series(singleSeries);
+  const seriesSettings = settings.series(singleSeries);
+  const lineMissing = seriesSettings["line.missing"];
 
-  // return now if we're not filling with either 0 or null
   if (!(lineMissing === "zero" || lineMissing === "none")) {
-    return rows;
+    const shouldRemoveNulls =
+      lineMissing === "interpolate" &&
+      (isLine(seriesSettings) || isArea(seriesSettings));
+
+    return shouldRemoveNulls ? rows.filter(([_x, y]) => y !== null) : rows;
   }
+
   let getKey;
   const fillValue = lineMissing === "zero" ? 0 : null;
   if (isTimeseries(settings)) {

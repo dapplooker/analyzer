@@ -1,9 +1,5 @@
-/* @flow */
+/* eslint-disable react/prop-types */
 import { t } from "ttag";
-import type {
-  ClickAction,
-  ClickActionProps,
-} from "metabase-types/types/Visualization";
 
 // NOTE: cyclical dependency
 // import { showChartSettings } from "metabase/query_builder/actions";
@@ -13,7 +9,7 @@ function showChartSettings(...args) {
 
 import { keyForColumn } from "metabase/lib/dataset";
 
-export default ({ question, clicked }: ClickActionProps): ClickAction[] => {
+export default ({ question, clicked }) => {
   if (!clicked || clicked.value !== undefined || !clicked.column) {
     return [];
   }

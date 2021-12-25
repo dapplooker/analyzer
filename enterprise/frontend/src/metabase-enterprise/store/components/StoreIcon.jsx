@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React from "react";
 import { Flex } from "grid-styled";
 import Icon from "metabase/components/Icon";
@@ -13,7 +14,7 @@ const StoreIconWrapper = ({ children, color }) => (
     p={2}
     bg={color || colors["brand"]}
     color="white"
-    w={WRAPPER_SIZE}
+    width={WRAPPER_SIZE}
     style={{ borderRadius: 99, height: WRAPPER_SIZE }}
   >
     {children}

@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React from "react";
 
 import { t, ngettext, msgid } from "ttag";
@@ -6,7 +7,11 @@ import QuestionDataSource from "./QuestionDataSource";
 
 import StructuredQuery from "metabase-lib/lib/queries/StructuredQuery";
 
-const QuestionDescription = ({ question }) => {
+const QuestionDescription = ({
+  question,
+  originalQuestion,
+  isObjectDetail,
+}) => {
   const query = question.query();
   if (query instanceof StructuredQuery) {
     const topQuery = query.topLevelQuery();
@@ -45,7 +50,13 @@ const QuestionDescription = ({ question }) => {
     }
   }
   if (question.database()) {
-    return <QuestionDataSource question={question} />;
+    return (
+      <QuestionDataSource
+        question={question}
+        originalQuestion={originalQuestion}
+        isObjectDetail={isObjectDetail}
+      />
+    );
   } else {
     return <span>{t`New chart`}</span>;
   }

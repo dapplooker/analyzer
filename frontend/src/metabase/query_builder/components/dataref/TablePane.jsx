@@ -26,10 +26,7 @@ const mapDispatchToProps = {
   fetchMetadata: Table.actions.fetchMetadata,
 };
 
-@connect(
-  mapStateToProps,
-  mapDispatchToProps,
-)
+@connect(mapStateToProps, mapDispatchToProps)
 export default class TablePane extends React.Component {
   state = {
     pane: "fields",
@@ -105,10 +102,9 @@ export default class TablePane extends React.Component {
                   b.origin.table.display_name,
                 ),
               )
-              .map((fk, index) => (
-                <li>
+              .map(fk => (
+                <li key={fk.id}>
                   <a
-                    key={fk.id}
                     onClick={() => this.props.show("field", fk.origin)}
                     className="flex-full flex p1 text-bold text-brand text-wrap no-decoration bg-medium-hover"
                   >
@@ -129,9 +125,8 @@ export default class TablePane extends React.Component {
         content = (
           <ul>
             {table[pane].map((item, index) => (
-              <li>
+              <li key={item.id}>
                 <a
-                  key={item.id}
                   onClick={() => this.props.show(itemType, item)}
                   className="flex-full flex p1 text-bold text-brand text-wrap no-decoration bg-medium-hover"
                 >

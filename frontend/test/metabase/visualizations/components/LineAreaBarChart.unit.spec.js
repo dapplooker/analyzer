@@ -13,9 +13,10 @@ const millisecondCard = {
     result_metadata: [
       {
         base_type: "type/BigInteger",
+        coercion_strategy: "Coercion/UNIXMilliSeconds->DateTime",
+        effective_type: "type/DateTime",
         display_name: "Timestamp",
         name: "timestamp",
-        semantic_type: "type/UNIXTimestampMilliseconds",
         unit: "week",
       },
       {
@@ -26,7 +27,7 @@ const millisecondCard = {
       },
     ],
     creator: {
-      email: "atte@metabase.com",
+      email: "atte@metabase.test",
       first_name: "Atte",
       last_login: "2017-07-21T17:51:23.181Z",
       is_qbnewb: false,
@@ -84,7 +85,6 @@ const millisecondCard = {
         description: null,
         table_id: 1784,
         schema_name: "schema_126",
-        semantic_type: "type/UNIXTimestampMilliseconds",
         unit: "week",
         name: "timestamp",
         source: "breakout",
@@ -96,6 +96,8 @@ const millisecondCard = {
         target: null,
         display_name: "Timestamp",
         base_type: "type/BigInteger",
+        coercion_strategy: "Coercion/UNIXSeconds->DateTime",
+        effective_type: "type/DateTime",
       },
       {
         description: null,
@@ -116,9 +118,10 @@ const millisecondCard = {
       columns: [
         {
           base_type: "type/BigInteger",
+          coercion_strategy: "Coercion/UNIXSeconds->DateTime",
+          effective_type: "type/DateTime",
           display_name: "Timestamp",
           name: "timestamp",
-          semantic_type: "type/UNIXTimestampMilliseconds",
           unit: "week",
         },
         {
@@ -140,6 +143,7 @@ const dateTimeCard = {
     result_metadata: [
       {
         base_type: "type/DateTime",
+        effective_type: "type/DateTime",
         display_name: "Created At",
         name: "CREATED_AT",
         description: "The date and time an order was submitted.",
@@ -153,7 +157,7 @@ const dateTimeCard = {
       },
     ],
     creator: {
-      email: "atte@metabase.com",
+      email: "atte@metabase.test",
       first_name: "Atte",
       last_login: "2017-07-21T17:51:23.181Z",
       is_qbnewb: false,
@@ -330,7 +334,7 @@ const numberCard = {
       },
     ],
     creator: {
-      email: "atte@metabase.com",
+      email: "atte@metabase.test",
       first_name: "Atte",
       last_login: "2017-07-21T17:51:23.181Z",
       is_qbnewb: false,
@@ -375,7 +379,13 @@ const numberCard = {
     public_uuid: null,
   },
   data: {
-    rows: [[1, 59], [2, 77], [3, 64], [4, 550], [5, 328]],
+    rows: [
+      [1, 59],
+      [2, 77],
+      [3, 64],
+      [4, 550],
+      [5, 328],
+    ],
     columns: ["RATING", "count"],
     native_form: {
       query:
@@ -433,6 +443,14 @@ const numberCard = {
     },
   },
 };
+
+// jsdom doesn't support layout methods like getBBox, so we need to mock it.
+window.SVGElement.prototype.getBBox = () => ({
+  x: 0,
+  y: 0,
+  width: 1000,
+  height: 1000,
+});
 
 describe("LineAreaBarChart", () => {
   it("should let you combine series with datetimes only", () => {

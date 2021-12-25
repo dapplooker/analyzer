@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React from "react";
 import cx from "classnames";
 
@@ -16,7 +17,11 @@ export default function FilterPopoverHeader({
   const field = dimension.field();
   const operator = filter.operatorName();
 
-  const showOperatorSelector = !(field.isTime() || field.isDate());
+  const showOperatorSelector = !(
+    field.isTime() ||
+    field.isDate() ||
+    field.isBoolean()
+  );
   const showHeader = showFieldPicker || showOperatorSelector;
   const showOperatorSelectorOnOwnRow = isSidebar || !showFieldPicker;
 

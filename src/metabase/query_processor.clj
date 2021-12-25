@@ -13,6 +13,7 @@
             [metabase.plugins.classloader :as classloader]
             [metabase.query-processor.context :as context]
             [metabase.query-processor.error-type :as error-type]
+            [metabase.query-processor.middleware.add-default-temporal-unit :as add-default-temporal-unit]
             [metabase.query-processor.middleware.add-dimension-projections :as add-dim]
             [metabase.query-processor.middleware.add-implicit-clauses :as implicit-clauses]
             [metabase.query-processor.middleware.add-implicit-joins :as add-implicit-joins]
@@ -54,6 +55,7 @@
             [metabase.query-processor.middleware.upgrade-field-literals :as upgrade-field-literals]
             [metabase.query-processor.middleware.validate :as validate]
             [metabase.query-processor.middleware.validate-temporal-bucketing :as validate-temporal-bucketing]
+            [metabase.query-processor.middleware.visualization-settings :as viz-settings]
             [metabase.query-processor.middleware.wrap-value-literals :as wrap-value-literals]
             [metabase.query-processor.reducible :as qp.reducible]
             [metabase.query-processor.store :as qp.store]
@@ -66,7 +68,7 @@
 ;;; +----------------------------------------------------------------------------------------------------------------+
 
 (u/ignore-exceptions
-  (classloader/require '[metabase-enterprise.audit.query-processor.middleware.handle-audit-queries :as ee.audit]
+  (classloader/require '[metabase-enterprise.audit-app.query-processor.middleware.handle-audit-queries :as ee.audit]
                        '[metabase-enterprise.sandbox.query-processor.middleware
                          [column-level-perms-check :as ee.sandbox.columns]
                          [row-level-restrictions :as ee.sandbox.rows]]))
@@ -88,11 +90,13 @@
    #'cumulative-ags/handle-cumulative-aggregations
    ;; yes, this is called a second time, because we need to handle any joins that got added
    (resolve 'ee.sandbox.rows/apply-row-level-permissions)
+   #'viz-settings/update-viz-settings
    #'resolve-joined-fields/resolve-joined-fields
    #'resolve-joins/resolve-joins
    #'add-implicit-joins/add-implicit-joins
    #'large-int-id/convert-id-to-string
    #'format-rows/format-rows
+   #'add-default-temporal-unit/add-default-temporal-unit
    #'desugar/desugar
    #'binning/update-binning-strategy
    #'resolve-fields/resolve-fields
@@ -153,8 +157,6 @@
 
 (def ^:private ^:const max-preprocessing-level 20)
 
-(def ^:private ^:const preprocessing-timeout-ms 10000)
-
 (defn- preprocess-query [query context]
   (binding [*preprocessing-level* (inc *preprocessing-level*)]
     ;; record the number of recursive preprocesses taking place to prevent infinite preprocessing loops.
@@ -169,9 +171,11 @@
   "Return the fully preprocessed form for `query`, the way it would look immediately before `mbql->native` is called.
   Especially helpful for debugging or testing driver QP implementations."
   [query]
-  (preprocess-query query {:preprocessedf
-                           (fn [query context]
-                             (context/raisef (qp.reducible/quit query) context))}))
+  ;; Make sure the caching middleware doesn't try to return any cached results. That will totally break things
+  (preprocess-query (assoc-in query [:middleware :ignore-cached-results?] true)
+                    {:preprocessedf
+                     (fn [query context]
+                       (context/raisef (qp.reducible/quit query) context))}))
 
 (defn query->expected-cols
   "Return the `:cols` you would normally see in MBQL query results by preprocessing the query and calling `annotate` on

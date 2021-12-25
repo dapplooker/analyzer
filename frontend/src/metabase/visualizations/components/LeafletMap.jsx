@@ -1,5 +1,5 @@
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
-import ReactDOM from "react-dom";
 
 import MetabaseSettings from "metabase/lib/settings";
 
@@ -15,9 +15,15 @@ import Question from "metabase-lib/lib/Question";
 import { updateLatLonFilter } from "metabase/modes/lib/actions";
 
 export default class LeafletMap extends Component {
+  constructor(props) {
+    super(props);
+
+    this.mapRef = React.createRef();
+  }
+
   componentDidMount() {
     try {
-      const element = ReactDOM.findDOMNode(this.refs.map);
+      const element = this.mapRef.current;
 
       const map = (this.map = L.map(element, {
         scrollWheelZoom: false,
@@ -94,10 +100,16 @@ export default class LeafletMap extends Component {
       } else {
         // compute ideal lat and lon zoom separately and use the lesser zoom to ensure the bounds are visible
         const latZoom = this.map.getBoundsZoom(
-          L.latLngBounds([[bounds.getSouth(), 0], [bounds.getNorth(), 0]]),
+          L.latLngBounds([
+            [bounds.getSouth(), 0],
+            [bounds.getNorth(), 0],
+          ]),
         );
         const lonZoom = this.map.getBoundsZoom(
-          L.latLngBounds([[0, bounds.getWest()], [0, bounds.getEast()]]),
+          L.latLngBounds([
+            [0, bounds.getWest()],
+            [0, bounds.getEast()],
+          ]),
         );
         const zoom = Math.min(latZoom, lonZoom);
         // NOTE: unclear why calling `fitBounds` twice is sometimes required to get it to work
@@ -163,7 +175,7 @@ export default class LeafletMap extends Component {
 
   render() {
     const { className } = this.props;
-    return <div className={className} ref="map" />;
+    return <div className={className} ref={this.mapRef} />;
   }
 
   _getLatLonIndexes() {

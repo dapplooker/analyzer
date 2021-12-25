@@ -1,18 +1,13 @@
-/* @flow */
-
+/* eslint-disable react/prop-types */
 import React from "react";
 
 import ColorPicker from "metabase/components/ColorPicker";
-import ButtonGroup from "metabase/components/ButtonGroup";
+import { SegmentedControl } from "metabase/components/SegmentedControl";
 import Icon from "metabase/components/Icon";
 import IconWrapper from "metabase/components/IconWrapper";
 
-import type { NestedSettingComponentProps } from "./ChartSettingNestedSettings";
-
 // various props injected by chartSettingNestedSettings HOC
 export default class ChartNestedSettingSeries extends React.Component {
-  props: NestedSettingComponentProps;
-
   render() {
     const {
       objects,
@@ -61,15 +56,18 @@ export default class ChartNestedSettingSeries extends React.Component {
                     }
                   />
                   {isLineAreaBar && !isStacked ? (
-                    <ButtonGroup
+                    <SegmentedControl
                       className="ml1 align-self-stretch"
                       value={settings.display}
-                      options={["line", "area", "bar"]}
-                      optionValueFn={o => o}
-                      optionNameFn={o => <Icon name={o} />}
+                      options={[
+                        { value: "line", icon: "line" },
+                        { value: "area", icon: "area" },
+                        { value: "bar", icon: "bar" },
+                      ]}
                       onChange={value =>
                         onChangeObjectSettings(single, { display: value })
                       }
+                      fullWidth
                     />
                   ) : null}
                   {objects.length > 1 ? (

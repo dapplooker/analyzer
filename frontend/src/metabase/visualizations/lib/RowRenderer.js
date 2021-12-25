@@ -3,6 +3,7 @@
 import crossfilter from "crossfilter";
 import d3 from "d3";
 import dc from "dc";
+import { t } from "ttag";
 
 import { formatValue } from "metabase/lib/formatting";
 
@@ -21,12 +22,8 @@ const ROW_MAX_HEIGHT = 30;
 export default function rowRenderer(
   element,
   { settings, series, onHoverChange, onVisualizationClick, height },
-): DeregisterFunction {
+) {
   const { cols } = series[0].data;
-
-  if (series.length > 1) {
-    throw new Error("Row chart does not support multiple series");
-  }
 
   const chart = dc.rowChart(element);
 
@@ -115,10 +112,17 @@ export default function rowRenderer(
     .elasticX(true)
     .dimension(dimension)
     .group(group)
-    .ordering(d => d.index);
+    .ordering(d => d.index)
+    .othersLabel(t`Others`);
+
+  chart.xAxis().tickFormat(value => {
+    return formatValue(value, {
+      ...settings.column(cols[1]),
+      type: "axis",
+    });
+  });
 
   const labelPadHorizontal = 5;
-  const labelPadVertical = 1;
   let labelsOutside = false;
 
   chart.on("renderlet.bar-labels", chart => {
@@ -157,24 +161,16 @@ export default function rowRenderer(
     chart.margins().bottom += axisLabelHeight;
   }
 
-  // cap number of rows to fit
-  const rects = chart.selectAll(".row rect")[0];
-  const containerHeight =
-    rects[rects.length - 1].getBoundingClientRect().bottom -
-    rects[0].getBoundingClientRect().top;
-  const maxTextHeight = Math.max(
-    ...chart
-      .selectAll("g.row text")[0]
-      .map(e => e.getBoundingClientRect().height),
-  );
-  const rowHeight = maxTextHeight + chart.gap() + labelPadVertical * 2;
-  const cap = Math.max(1, Math.floor(containerHeight / rowHeight));
+  const { top, bottom } = chart.margins();
+  const boundsHeight = chart.height() - top - bottom;
+  const rowHeight = (boundsHeight - chart.gap()) / group.size();
+  const barHeight = rowHeight - chart.gap();
+  const cap = Math.max(1, Math.floor(boundsHeight / ROW_MAX_HEIGHT));
   chart.cap(cap);
 
-  // assume all bars are same height?
-  const barHeight = chart.select("g.row")[0][0].getBoundingClientRect().height;
   if (barHeight > ROW_MAX_HEIGHT) {
-    chart.fixedBarHeight(ROW_MAX_HEIGHT);
+    const reasonableMaxGap = boundsHeight / 3;
+    chart.gap(Math.min(barHeight / 2, reasonableMaxGap));
   }
 
   chart.render();

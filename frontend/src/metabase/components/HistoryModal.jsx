@@ -3,6 +3,10 @@ import PropTypes from "prop-types";
 import { t } from "ttag";
 import ActionButton from "metabase/components/ActionButton";
 import ModalContent from "metabase/components/ModalContent";
+import {
+  isValidRevision,
+  getRevisionDescription,
+} from "metabase/lib/revisions";
 
 import moment from "moment";
 
@@ -20,19 +24,9 @@ function formatDate(date) {
 export default class HistoryModal extends Component {
   static propTypes = {
     revisions: PropTypes.array,
-    onRevert: PropTypes.func.isRequired,
+    onRevert: PropTypes.func,
     onClose: PropTypes.func.isRequired,
   };
-
-  revisionDescription(revision) {
-    if (revision.is_creation) {
-      return t`First revision.`;
-    } else if (revision.is_reversion) {
-      return t`Reverted to an earlier revision and ${revision.description}`;
-    } else {
-      return revision.description;
-    }
-  }
 
   render() {
     const { revisions, onRevert, onClose } = this.props;
@@ -50,14 +44,14 @@ export default class HistoryModal extends Component {
             </tr>
           </thead>
           <tbody>
-            {revisions.map((revision, index) => (
-              <tr key={revision.id}>
+            {revisions.filter(isValidRevision).map((revision, index) => (
+              <tr key={revision.id} data-testid="revision-history-row">
                 <td className={cellClassName}>
                   {formatDate(revision.timestamp)}
                 </td>
                 <td className={cellClassName}>{revision.user.common_name}</td>
                 <td className={cellClassName}>
-                  <span>{this.revisionDescription(revision)}</span>
+                  <span>{getRevisionDescription(revision)}</span>
                 </td>
                 <td className={cellClassName}>
                   {index !== 0 && (

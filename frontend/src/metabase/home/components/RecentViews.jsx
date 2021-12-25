@@ -29,6 +29,10 @@ export default class RecentViews extends Component {
       return model_object.display;
     } else if (model === "dashboard") {
       return "dashboard";
+    } else if (model === "dataset") {
+      return "dataset";
+    } else if (model === "table") {
+      return "database";
     } else {
       return null;
     }
@@ -55,7 +59,7 @@ export default class RecentViews extends Component {
                     }}
                   />
                   <Link
-                    to={Urls.modelToUrl(item.model, item.model_id)}
+                    to={Urls.modelToUrl(item)}
                     data-metabase-event={
                       "Recent Views;" + item.model + ";" + item.cnt
                     }

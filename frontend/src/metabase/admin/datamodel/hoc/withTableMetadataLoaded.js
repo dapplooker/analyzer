@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
 
 export default ComposedComponent => {
@@ -19,7 +20,6 @@ export default ComposedComponent => {
     fetch() {
       this.props.table.fetchMetadataAndForeignTables({
         params: { include_sensitive_fields: true },
-        selectorName: "getObjectUnfiltered",
       });
     }
 

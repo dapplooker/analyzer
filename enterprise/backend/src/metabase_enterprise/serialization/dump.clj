@@ -34,17 +34,25 @@
 (def ^:private as-file?
   (comp (set (map type [Pulse Dashboard Metric Segment Field User])) type))
 
+(defn- spit-entity
+  [path entity]
+  (let [filename (if (as-file? entity)
+                   (format "%s%s.yaml" path (fully-qualified-name entity))
+                   (format "%s%s/%s.yaml" path (fully-qualified-name entity) (safe-name entity)))]
+    (when (.exists (io/as-file filename))
+      (log/warn (str filename " is about to be overwritten."))
+      (log/debug (str "With object: " (pr-str entity))))
+
+      (spit-yaml filename (serialize entity))))
+
 (defn dump
   "Serialize entities into a directory structure of YAMLs at `path`."
   [path & entities]
   (doseq [entity (flatten entities)]
     (try
-      (spit-yaml (if (as-file? entity)
-                   (format "%s%s.yaml" path (fully-qualified-name entity))
-                   (format "%s%s/%s.yaml" path (fully-qualified-name entity) (safe-name entity)))
-                 (serialize entity))
-      (catch Throwable _
-        (log/error (trs "Error dumping {0}" (name-for-logging entity))))))
+      (spit-entity path entity)
+      (catch Throwable e
+        (log/error e (trs "Error dumping {0}" (name-for-logging entity))))))
   (spit-yaml (str path "/manifest.yaml")
              {:serialization-version serialize/serialization-protocol-version
               :metabase-version      config/mb-version-info}))
@@ -58,7 +66,7 @@
   "Combine all settings into a map and dump it into YAML at `path`."
   [path]
   (spit-yaml (str path "/settings.yaml")
-             (into {} (for [{:keys [key value]} (setting/all :getter setting/get-string)]
+             (into {} (for [{:keys [key value]} (setting/admin-writable-settings :getter setting/get-string)]
                         [key value]))))
 
 (defn dump-dimensions

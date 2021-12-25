@@ -35,6 +35,7 @@
   env-or-throw]
 
  [files
+  absolute?
   assert-file-exists
   copy-file!
   create-directory-unless-exists!
@@ -46,7 +47,8 @@
   filename
   find-files
   nio-path
-  project-root-directory]
+  project-root-directory
+  temporary-file]
 
  [input
   interactive?
@@ -55,12 +57,12 @@
   yes-or-no-prompt]
 
  [misc
+  parse-as-keyword
   varargs]
 
  [output
   announce
   error
-  format-bytes
   pretty-print-exception
   safe-println]
 

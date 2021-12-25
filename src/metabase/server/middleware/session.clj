@@ -1,7 +1,6 @@
 (ns metabase.server.middleware.session
   "Ring middleware related to session (binding current user and permissions)."
   (:require [clojure.java.jdbc :as jdbc]
-            [clojure.string :as str]
             [clojure.tools.logging :as log]
             [honeysql.core :as hsql]
             [metabase.api.common :refer [*current-user* *current-user-id* *current-user-permissions-set* *is-superuser?*]]
@@ -11,6 +10,8 @@
             [metabase.driver.sql.query-processor :as sql.qp]
             [metabase.models.session :refer [Session]]
             [metabase.models.user :as user :refer [User]]
+            [metabase.public-settings :as public-settings]
+            [metabase.server.request.util :as request.u]
             [metabase.util :as u]
             [metabase.util.i18n :as i18n :refer [deferred-trs tru]]
             [ring.util.response :as resp]
@@ -46,39 +47,19 @@
     response
     {:body response, :status 200}))
 
-(defn https-request?
-  "True if the original request made by the frontend client (i.e., browser) was made over HTTPS.
-
-  In many production instances, a reverse proxy such as an ELB or nginx will handle SSL termination, and the actual
-  request handled by Jetty will be over HTTP."
-  [{{:strs [x-forwarded-proto x-forwarded-protocol x-url-scheme x-forwarded-ssl front-end-https origin]} :headers
-    :keys                                                                                                [scheme]}]
-  (cond
-    ;; If `X-Forwarded-Proto` is present use that. There are several alternate headers that mean the same thing. See
-    ;; https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-Proto
-    (or x-forwarded-proto x-forwarded-protocol x-url-scheme)
-    (= "https" (str/lower-case (or x-forwarded-proto x-forwarded-protocol x-url-scheme)))
-
-    ;; If none of those headers are present, look for presence of `X-Forwarded-Ssl` or `Frontend-End-Https`, which
-    ;; will be set to `on` if the original request was over HTTPS.
-    (or x-forwarded-ssl front-end-https)
-    (= "on" (str/lower-case (or x-forwarded-ssl front-end-https)))
-
-    ;; If none of the above are present, we are most not likely being accessed over a reverse proxy. Still, there's a
-    ;; good chance `Origin` will be present because it should be sent with `POST` requests, and most auth requests are
-    ;; `POST`. See https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Origin
-    origin
-    (str/starts-with? (str/lower-case origin) "https")
-
-    ;; Last but not least, if none of the above are set (meaning there are no proxy servers such as ELBs or nginx in
-    ;; front of us), we can look directly at the scheme of the request sent to Jetty.
-    scheme
-    (= scheme :https)))
-
 (defn clear-session-cookie
   "Add a header to `response` to clear the current Metabase session cookie."
   [response]
   (reduce clear-cookie (wrap-body-if-needed response) [metabase-session-cookie metabase-embedded-session-cookie]))
+
+(defn- use-permanent-cookies?
+  "Check if we should use permanent cookies for a given request, which are not cleared when a browser sesion ends."
+  [request]
+  (if (public-settings/session-cookies)
+    ;; Disallow permanent cookies if MB_SESSION_COOKIES is set
+    false
+    ;; Otherwise check whether the user selected "remember me" during login
+    (get-in request [:body :remember])))
 
 (defmulti set-session-cookie
   "Add an appropriate cookie to persist a newly created Session to `response`."
@@ -93,30 +74,29 @@
 (s/defmethod set-session-cookie :normal
   [request response {session-uuid :id} :- {:id (s/cond-pre UUID u/uuid-regex), s/Keyword s/Any}]
   (let [response       (wrap-body-if-needed response)
+        is-https?      (request.u/https? request)
         cookie-options (merge
                         {:same-site config/mb-session-cookie-samesite
                          :http-only true
                          ;; TODO - we should set `site-path` as well. Don't want to enable this yet so we don't end
                          ;; up breaking things
                          :path      "/" #_ (site-path)}
-                        ;; If the env var `MB_SESSION_COOKIES=true`, do not set the `Max-Age` directive; cookies
-                        ;; with no `Max-Age` and no `Expires` directives are session cookies, and are deleted when
-                        ;; the browser is closed
-                        ;;
-                        ;; See https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#Session_cookies
-                        (when-not (config/config-bool :mb-session-cookies)
+                        ;; If permanent cookies should be used, set the `Max-Age` directive; cookies with no
+                        ;; `Max-Age` and no `Expires` directives are session cookies, and are deleted when the
+                        ;; browser is closed.
+                        ;; See https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#define_the_lifetime_of_a_cookie
+                        (when (use-permanent-cookies? request)
                           ;; max-session age-is in minutes; Max-Age= directive should be in seconds
                           {:max-age (* 60 (config/config-int :max-session-age))})
                         ;; If the authentication request request was made over HTTPS (hopefully always except for
                         ;; local dev instances) add `Secure` attribute so the cookie is only sent over HTTPS.
-                        (when (https-request? request)
-                          {:secure true})
-                        (when (= config/mb-session-cookie-samesite :none)
-                          (log/warn
-                           (str (deferred-trs "Session cookie's SameSite is configured to \"None\", but site is")
-                                (deferred-trs "served over an insecure connection. Some browsers will reject ")
-                                (deferred-trs "cookies under these conditions. ")
-                                (deferred-trs "https://www.chromestatus.com/feature/5633521622188032")))))]
+                        (when is-https?
+                          {:secure true}))]
+    (when (and (= config/mb-session-cookie-samesite :none) (not is-https?))
+      (log/warn
+       (str (deferred-trs "Session cookie's SameSite is configured to \"None\", but site is served over an insecure connection. Some browsers will reject cookies under these conditions.")
+            " "
+            "https://www.chromestatus.com/feature/5633521622188032")))
     (resp/set-cookie response metabase-session-cookie (str session-uuid) cookie-options)))
 
 (s/defmethod set-session-cookie :full-app-embed
@@ -126,8 +106,13 @@
         cookie-options (merge
                         {:http-only true
                          :path      "/"}
-                        (when (https-request? request)
-                          {:secure true}))]
+                        (when (request.u/https? request)
+                          ;; SameSite=None is required for cross-domain full-app embedding. This is safe because
+                          ;; security is provided via anti-CSRF token. Note that most browsers will only accept
+                          ;; SameSite=None with secure cookies, thus we are setting it only over HTTPS to prevent
+                          ;; the cookie from being rejected in case of same-domain embedding.
+                          {:same-site :none
+                           :secure    true}))]
     (-> response
         (resp/set-cookie metabase-embedded-session-cookie (str session-uuid) cookie-options)
         (assoc-in [:headers anti-csrf-token-header] anti-csrf-token))))

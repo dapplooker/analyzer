@@ -1,5 +1,4 @@
-/* @flow weak */
-
+/* eslint-disable react/prop-types */
 import React from "react";
 import PropTypes from "prop-types";
 import { connect } from "react-redux";
@@ -25,26 +24,6 @@ import SnippetCollections from "metabase/entities/snippet-collections";
 import { canonicalCollectionId } from "metabase/entities/collections";
 import Search from "metabase/entities/search";
 
-import type { Snippet } from "metabase-types/types/Snippet";
-
-type Props = {
-  onClose: () => void,
-  setModalSnippet: () => void,
-  openSnippetModalWithSelectedText: () => void,
-  insertSnippet: () => void,
-  snippets: Snippet[],
-  snippetCollection: any,
-  snippetCollections: any[],
-  search: any[],
-  setSnippetCollectionId: () => void,
-};
-
-type State = {
-  showSearch: boolean,
-  searchString: string,
-  showArchived: boolean,
-};
-
 const ICON_SIZE = 16;
 const HEADER_ICON_SIZE = 18;
 const MIN_SNIPPETS_FOR_SEARCH = 15;
@@ -64,13 +43,11 @@ const MIN_SNIPPETS_FOR_SEARCH = 15;
   }),
 })
 export default class SnippetSidebar extends React.Component {
-  props: Props;
-  state: State = {
+  state = {
     showSearch: false,
     searchString: "",
     showArchived: false,
   };
-  searchBox: ?HTMLInputElement;
 
   static propTypes = {
     onClose: PropTypes.func.isRequired,
@@ -250,6 +227,7 @@ export default class SnippetSidebar extends React.Component {
                           ),
                         ].map(({ icon, name, onClick }) => (
                           <div
+                            key={name}
                             className="p2 bg-medium-hover flex cursor-pointer text-brand-hover"
                             onClick={() => {
                               onClick();

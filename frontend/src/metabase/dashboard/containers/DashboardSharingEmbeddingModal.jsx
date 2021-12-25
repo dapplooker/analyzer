@@ -1,5 +1,4 @@
-/* @flow */
-
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
 import { connect } from "react-redux";
 import cx from "classnames";
@@ -9,14 +8,18 @@ import ModalWithTrigger from "metabase/components/ModalWithTrigger";
 import EmbedModalContent from "metabase/public/components/widgets/EmbedModalContent";
 
 import * as Urls from "metabase/lib/urls";
-import MetabaseAnalytics from "metabase/lib/analytics";
+import * as MetabaseAnalytics from "metabase/lib/analytics";
 
 import {
   createPublicLink,
   deletePublicLink,
   updateEnableEmbedding,
   updateEmbeddingParams,
-} from "../dashboard";
+} from "../actions";
+
+const defaultProps = {
+  isLinkEnabled: true,
+};
 
 const mapDispatchToProps = {
   createPublicLink,
@@ -25,12 +28,8 @@ const mapDispatchToProps = {
   updateEmbeddingParams,
 };
 
-@connect(
-  null,
-  mapDispatchToProps,
-)
-export default class DashboardSharingEmbeddingModal extends Component {
-  _modal: ?ModalWithTrigger;
+class DashboardSharingEmbeddingModal extends Component {
+  _modal;
 
   render() {
     const {
@@ -42,6 +41,7 @@ export default class DashboardSharingEmbeddingModal extends Component {
       enabled,
       linkClassNames,
       linkText,
+      isLinkEnabled,
       updateEnableEmbedding,
       updateEmbeddingParams,
       ...props
@@ -53,15 +53,19 @@ export default class DashboardSharingEmbeddingModal extends Component {
       <ModalWithTrigger
         ref={m => (this._modal = m)}
         full
+        disabled={!isLinkEnabled}
         triggerElement={
           <a
             className={linkClassNames}
+            aria-disabled={!isLinkEnabled}
             onClick={() => {
-              MetabaseAnalytics.trackEvent(
-                "Sharing / Embedding",
-                "dashboard",
-                "Sharing Link Clicked",
-              );
+              if (isLinkEnabled) {
+                MetabaseAnalytics.trackStructEvent(
+                  "Sharing / Embedding",
+                  "dashboard",
+                  "Sharing Link Clicked",
+                );
+              }
             }}
           >
             {linkText}
@@ -94,3 +98,10 @@ export default class DashboardSharingEmbeddingModal extends Component {
     );
   }
 }
+
+DashboardSharingEmbeddingModal.defaultProps = defaultProps;
+
+export default connect(
+  null,
+  mapDispatchToProps,
+)(DashboardSharingEmbeddingModal);

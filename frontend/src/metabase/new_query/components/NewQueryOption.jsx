@@ -1,16 +1,10 @@
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
 import cx from "classnames";
 import { Link } from "react-router";
 import { color } from "metabase/lib/colors";
 
 export default class NewQueryOption extends Component {
-  props: {
-    image: string,
-    title: string,
-    description: string,
-    to: string,
-  };
-
   state = {
     hover: false,
   };
@@ -22,13 +16,13 @@ export default class NewQueryOption extends Component {
     return (
       <Link
         {...props}
-        className="block no-decoration bg-white px3 pt4 align-center bordered rounded cursor-pointer transition-all text-centered"
+        className="block no-decoration bg-white px3 py4 align-center bordered rounded cursor-pointer transition-all full-height text-centered"
         style={{
           boxSizing: "border-box",
           boxShadow: hover
             ? `0 3px 8px 0 ${color("text-light")}`
             : `0 1px 3px 0 ${color("text-light")}`,
-          height: 340,
+          minHeight: 340,
         }}
         onMouseOver={() => this.setState({ hover: true })}
         onMouseLeave={() => this.setState({ hover: false })}

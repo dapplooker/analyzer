@@ -16,6 +16,7 @@
             [metabase.models.table :refer [Table]]
             [metabase.plugins.classloader :as classloader]
             [metabase.query-processor :as qp]
+            [metabase.test-runner.init :as test-runner.init]
             [metabase.test.initialize :as initialize]
             [metabase.util :as u]
             [metabase.util.date-2 :as u.date]
@@ -29,19 +30,27 @@
 ;;; |                                   Dataset Definition Record Types & Protocol                                   |
 ;;; +----------------------------------------------------------------------------------------------------------------+
 
-(p.types/defrecord+ FieldDefinition [field-name base-type semantic-type visibility-type fk field-comment])
+(p.types/defrecord+ FieldDefinition [field-name base-type effective-type coercion-strategy semantic-type visibility-type fk field-comment])
 
 (p.types/defrecord+ TableDefinition [table-name field-definitions rows table-comment])
 
 (p.types/defrecord+ DatabaseDefinition [database-name table-definitions])
 
 (def ^:private FieldDefinitionSchema
-  {:field-name                       su/NonBlankString
-   :base-type                        (s/cond-pre {:native su/NonBlankString} su/FieldType)
-   (s/optional-key :semantic-type)   (s/maybe su/FieldType)
-   (s/optional-key :visibility-type) (s/maybe (apply s/enum field/visibility-types))
-   (s/optional-key :fk)              (s/maybe su/KeywordOrString)
-   (s/optional-key :field-comment)   (s/maybe su/NonBlankString)})
+  {:field-name                         su/NonBlankString
+   :base-type                          (s/conditional
+                                        #(and (map? %) (contains? % :natives))
+                                        {:natives {s/Keyword su/NonBlankString}}
+                                        #(and (map? %) (contains? % :native))
+                                        {:native su/NonBlankString}
+                                        :else
+                                        su/FieldType)
+   (s/optional-key :semantic-type)     (s/maybe su/FieldSemanticOrRelationType)
+   (s/optional-key :effective-type)    (s/maybe su/FieldType)
+   (s/optional-key :coercion-strategy) (s/maybe su/CoercionStrategy)
+   (s/optional-key :visibility-type)   (s/maybe (apply s/enum field/visibility-types))
+   (s/optional-key :fk)                (s/maybe su/KeywordOrString)
+   (s/optional-key :field-comment)     (s/maybe su/NonBlankString)})
 
 (def ^:private ValidFieldDefinition
   (s/constrained FieldDefinitionSchema (partial instance? FieldDefinition)))
@@ -145,6 +154,7 @@
   "Like `driver/the-driver`, but guaranteed to return a driver with test extensions loaded, throwing an Exception
   otherwise. Loads driver and test extensions automatically if not already done."
   [driver]
+  (test-runner.init/assert-tests-are-not-initializing (pr-str (list 'the-driver-with-test-extensions driver)))
   (initialize/initialize-if-needed! :plugins)
   (let [driver (driver/the-initialized-driver driver)]
     (load-test-extensions-namespace-if-needed driver)
@@ -172,6 +182,14 @@
   {:pre [(string? database-name)]}
   (str/replace database-name #"\s+" "_"))
 
+(def ^:dynamic *database-name-override*
+  "Bind this to a string to override the database name, for the purpose of calculating the qualified table name. The
+  purpose of this is to allow for a new Database to clone an existing one with the same details (ex: to test different
+  connection methods with syncing, etc.).
+
+  Currently, this only affects `db-qualified-table-name`."
+  nil)
+
 (defn db-qualified-table-name
   "Return a combined table name qualified with the name of its database, suitable for use as an identifier.
   Provided for drivers where testing wackiness makes it hard to actually create separate Databases, such as Oracle,
@@ -180,7 +198,13 @@
   ^String [^String database-name, ^String table-name]
   {:pre [(string? database-name) (string? table-name)]}
   ;; take up to last 30 characters because databases like Oracle have limits on the lengths of identifiers
-  (apply str (take-last 30 (str/replace (str/lower-case (str database-name \_ table-name)) #"-" "_"))))
+  (-> (or *database-name-override* database-name)
+      (str \_ table-name)
+      str/lower-case
+      (str/replace #"-" "_")
+      (->>
+        (take-last 30)
+        (apply str))))
 
 (defn single-db-qualified-name-components
   "Implementation of `qualified-name-components` for drivers like Oracle and Redshift that must use a single existing
@@ -313,12 +337,15 @@
 
 
 (defmulti sorts-nil-first?
-  "Whether this database will sort nil values before or after non-nil values. Defaults to `true`."
-  {:arglists '([driver])}
+  "Whether this database will sort nil values (of type `base-type`) before or after non-nil values. Defaults to `true`.
+  Of course, in real queries, multiple sort columns can be specified, so considering only one `base-type` isn't 100%
+  correct. However, it is good enough for our test cases, which currently don't sort nulls across multiple columns
+  having different types."
+  {:arglists '([driver base-type])}
   dispatch-on-driver-with-test-extensions
   :hierarchy #'driver/hierarchy)
 
-(defmethod sorts-nil-first? ::test-extensions [_] true)
+(defmethod sorts-nil-first? ::test-extensions [_ _] true)
 
 
 (defmulti aggregate-column-info
@@ -333,7 +360,7 @@
    ;; TODO - Can `:cum-count` be used without args as well ??
    (assert (= aggregation-type :count))
    {:base_type     :type/BigInteger
-    :semantic_type :type/Number
+    :semantic_type :type/Quantity
     :name          "count"
     :display_name  "Count"
     :source        :aggregation
@@ -381,9 +408,10 @@
 ;; TODO - not sure everything below belongs in this namespace
 
 (s/defn ^:private dataset-field-definition :- ValidFieldDefinition
-  [field-definition-map :- DatasetFieldDefinition]
+  [{:keys [coercion-strategy base-type] :as field-definition-map} :- DatasetFieldDefinition]
   "Parse a Field definition (from a `defdatset` form or EDN file) and return a FieldDefinition instance for
   comsumption by various test-data-loading methods."
+  ;; if definition uses a coercion strategy they need to provide the effective-type
   (map->FieldDefinition field-definition-map))
 
 (s/defn ^:private dataset-table-definition :- ValidTableDefinition

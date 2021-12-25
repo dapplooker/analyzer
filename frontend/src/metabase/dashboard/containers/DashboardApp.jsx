@@ -1,5 +1,4 @@
-/* @flow */
-
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
 import { connect } from "react-redux";
 import { push } from "react-router-redux";
@@ -7,7 +6,7 @@ import fitViewport from "metabase/hoc/FitViewPort";
 import title from "metabase/hoc/Title";
 import titleWithLoadingTime from "metabase/hoc/TitleWithLoadingTime";
 
-import Dashboard from "metabase/dashboard/components/Dashboard";
+import Dashboard from "metabase/dashboard/components/Dashboard/Dashboard";
 
 import { fetchDatabaseMetadata } from "metabase/redux/metadata";
 import { setErrorPage } from "metabase/redux/app";
@@ -27,18 +26,21 @@ import {
   getLoadingStartTime,
   getClickBehaviorSidebarDashcard,
   getIsAddParameterPopoverOpen,
+  getSidebar,
+  getShowAddQuestionSidebar,
 } from "../selectors";
 import { getDatabases, getMetadata } from "metabase/selectors/metadata";
 import { getUserIsAdmin } from "metabase/selectors/user";
 
-import * as dashboardActions from "../dashboard";
+import * as dashboardActions from "../actions";
 import { parseHashOptions } from "metabase/lib/browser";
+import * as Urls from "metabase/lib/urls";
 
 import Dashboards from "metabase/entities/dashboards";
 
 const mapStateToProps = (state, props) => {
   return {
-    dashboardId: props.dashboardId || props.params.dashboardId,
+    dashboardId: props.dashboardId || Urls.extractEntityId(props.params.slug),
 
     isAdmin: getUserIsAdmin(state, props),
     isEditing: getIsEditing(state, props),
@@ -57,6 +59,8 @@ const mapStateToProps = (state, props) => {
     loadingStartTime: getLoadingStartTime(state),
     clickBehaviorSidebarDashcard: getClickBehaviorSidebarDashcard(state),
     isAddParameterPopoverOpen: getIsAddParameterPopoverOpen(state),
+    sidebar: getSidebar(state),
+    showAddQuestionSidebar: getShowAddQuestionSidebar(state),
   };
 };
 
@@ -68,34 +72,37 @@ const mapDispatchToProps = {
   onChangeLocation: push,
 };
 
-type DashboardAppState = {
-  addCardOnLoad: number | null,
-};
-
-@connect(
-  mapStateToProps,
-  mapDispatchToProps,
-)
+@connect(mapStateToProps, mapDispatchToProps)
 @fitViewport
 @title(({ dashboard }) => dashboard && dashboard.name)
 @titleWithLoadingTime("loadingStartTime")
 // NOTE: should use DashboardControls and DashboardData HoCs here?
 export default class DashboardApp extends Component {
-  state: DashboardAppState = {
+  state = {
     addCardOnLoad: null,
   };
 
   UNSAFE_componentWillMount() {
     const options = parseHashOptions(window.location.hash);
-    if (options.add) {
-      this.setState({ addCardOnLoad: parseInt(options.add) });
+
+    if (options) {
+      this.setState({
+        editingOnLoad: options.edit,
+        addCardOnLoad: options.add && parseInt(options.add),
+      });
     }
   }
 
   render() {
+    const { editingOnLoad, addCardOnLoad } = this.state;
+
     return (
       <div className="shrink-below-content-size full-height">
-        <Dashboard addCardOnLoad={this.state.addCardOnLoad} {...this.props} />
+        <Dashboard
+          editingOnLoad={editingOnLoad}
+          addCardOnLoad={addCardOnLoad}
+          {...this.props}
+        />
         {/* For rendering modal urls */}
         {this.props.children}
       </div>

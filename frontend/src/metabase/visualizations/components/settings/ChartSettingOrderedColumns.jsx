@@ -1,15 +1,17 @@
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
 import { t } from "ttag";
+import _ from "underscore";
 
-import ColumnItem from "./ColumnItem";
-
-import { SortableContainer, SortableElement } from "react-sortable-hoc";
-
+import {
+  SortableContainer,
+  SortableElement,
+} from "metabase/components/sortable";
 import StructuredQuery from "metabase-lib/lib/queries/StructuredQuery";
 import { keyForColumn, findColumnForColumnSetting } from "metabase/lib/dataset";
 import { getFriendlyName } from "metabase/visualizations/lib/utils";
 
-import _ from "underscore";
+import ColumnItem from "./ColumnItem";
 
 const SortableColumn = SortableElement(
   ({ columnSetting, getColumnName, onEdit, onRemove }) => (
@@ -123,7 +125,6 @@ export default class ChartSettingOrderedColumns extends Component {
             onRemove={this.handleDisable}
             onSortEnd={this.handleSortEnd}
             distance={5}
-            helperClass="z5"
           />
         ) : (
           <div className="my2 p2 flex layout-centered bg-grey-0 text-light text-bold rounded">
@@ -150,8 +151,8 @@ export default class ChartSettingOrderedColumns extends Component {
                 onAdd={() => this.handleAddNewField(dimension.mbql())}
               />
             ))}
-            {additionalFieldOptions.fks.map(fk => (
-              <div>
+            {additionalFieldOptions.fks.map((fk, index) => (
+              <div key={fk.id}>
                 <div className="my2 text-medium text-bold text-uppercase text-small">
                   {fk.name ||
                     (fk.field.target

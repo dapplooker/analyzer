@@ -1,11 +1,14 @@
 (ns metabase.driver.bigquery.query-processor
-  (:require [clojure.string :as str]
+  (:require [buddy.core.codecs :as codecs]
+            [buddy.core.hash :as hash]
+            [clojure.string :as str]
             [clojure.tools.logging :as log]
             [honeysql.core :as hsql]
             [honeysql.format :as hformat]
             [honeysql.helpers :as h]
             [java-time :as t]
             [metabase.driver :as driver]
+            [metabase.driver.common :as driver.common]
             [metabase.driver.sql :as sql]
             [metabase.driver.sql.parameters.substitution :as sql.params.substitution]
             [metabase.driver.sql.query-processor :as sql.qp]
@@ -26,13 +29,17 @@
            metabase.driver.common.parameters.FieldFilter
            metabase.util.honeysql_extensions.Identifier))
 
+;; TODO -- I think this only applied to Fields now -- see
+;; https://cloud.google.com/bigquery/docs/reference/standard-sql/data-definition-language. It definitely doesn't apply
+;; to Tables. Datasets can be passed as `dataset-id` or `project-id`.`dataset-id`.
+;; TODO -- Needs to change frontend too
 (defn- valid-bigquery-identifier?
   "Is String `s` a valid BigQuery identifier? Identifiers are only allowed to contain letters, numbers, and underscores;
-  cannot start with a number; and can be at most 128 characters long."
+  cannot start with a number; and can be at most 1054 characters long (30 for maximum lenght of project names and 1024 for dataset)."
   [s]
   (boolean
    (and (string? s)
-        (re-matches #"^([a-zA-Z_][a-zA-Z_0-9]*){1,128}$" s))))
+        (re-matches #"^[a-zA-Z_0-9\.\-]{1,1054}$" s))))
 
 (def ^:private BigQueryIdentifierString
   (s/pred valid-bigquery-identifier? "Valid BigQuery identifier"))
@@ -141,13 +148,13 @@
     nil))
 
 (defmethod temporal-type (class Field)
-  [{base-type :base_type, database-type :database_type}]
+  [{base-type :base_type, effective-type :effective_type, database-type :database_type}]
   (case database-type
     "TIMESTAMP" :timestamp
     "DATETIME"  :datetime
     "DATE"      :date
     "TIME"      :time
-    (base-type->temporal-type base-type)))
+    (base-type->temporal-type (or effective-type base-type))))
 
 (defmethod temporal-type :absolute-datetime
   [[_ t _]]
@@ -252,7 +259,7 @@
         bigquery-type
         (do
           (log/tracef "Coercing %s (temporal type = %s) to %s" (binding [*print-meta* true] (pr-str x)) (pr-str (temporal-type x)) bigquery-type)
-          (with-temporal-type (hx/cast bigquery-type (sql.qp/->honeysql :bigquery x)) target-type))
+          (with-temporal-type (hsql/call :cast (sql.qp/->honeysql :bigquery x) (hsql/raw (name bigquery-type))) target-type))
 
         :else
         x))))
@@ -347,9 +354,18 @@
 (defmethod sql.qp/date [:bigquery :quarter-of-year] [_ _ expr] (extract :quarter   expr))
 (defmethod sql.qp/date [:bigquery :year]            [_ _ expr] (trunc   :year      expr))
 
+;; BigQuery mod is a function like mod(x, y) rather than an operator like x mod y
+(defmethod hformat/fn-handler (u/qualified-name ::mod)
+  [_ x y]
+  (format "mod(%s, %s)" (hformat/to-sql x) (hformat/to-sql y)))
+
 (defmethod sql.qp/date [:bigquery :day-of-week]
-  [_ _ expr]
-  (sql.qp/adjust-day-of-week :bigquery (extract :dayofweek expr)))
+  [driver _ expr]
+  (sql.qp/adjust-day-of-week
+   driver
+   (extract :dayofweek expr)
+   (driver.common/start-of-week-offset driver)
+   (partial hsql/call (u/qualified-name ::mod))))
 
 (defmethod sql.qp/date [:bigquery :week]
   [_ _ expr]
@@ -421,6 +437,10 @@
          (>= (count components) 2))
     true))
 
+(defmethod sql.qp/cast-temporal-string [:bigquery :Coercion/YYYYMMDDHHMMSSString->Temporal]
+  [_driver _coercion-strategy expr]
+  (hsql/call :parse_datetime (hx/literal "%Y%m%d%H%M%S") expr))
+
 (defmethod sql.qp/->honeysql [:bigquery (class Field)]
   [driver field]
   (let [parent-method (get-method sql.qp/->honeysql [:sql (class Field)])
@@ -449,14 +469,46 @@
     (cond->> ((get-method sql.qp/->honeysql [:sql :relative-datetime]) driver clause)
       t (->temporal-type t))))
 
-;; From the dox: Fields must contain only letters, numbers, and underscores, start with a letter or underscore, and be
-;; at most 128 characters long.
+(defn- short-string-hash
+  "Create a 8-character hash of string `s` to be used as a unique suffix for Field identifiers that could otherwise be
+  ambiguous. For example, `résumé` and `resume` are both valid *table* names, but after converting these to valid
+  *field* identifiers for use as field aliases, we'd end up with `resume_id` for `id` regardless of which table it
+  came from. By appending a unique hash to the generated identifier, we can distinguish the two."
+  [s]
+  (str/join (take 8 (codecs/bytes->hex (hash/md5 s)))))
+
+(defn- substring-first-n-characters
+  "Return substring of `s` with just the first `n` characters."
+  [s n]
+  (subs s 0 (min n (count s))))
+
+(defn- ->valid-field-identifier
+  "Convert field alias `s` to a valid BigQuery field identifier. From the dox: Fields must contain only letters,
+  numbers, and underscores, start with a letter or underscore, and be at most 128 characters long."
+  [s]
+  (let [replaced-str (-> (str/trim s)
+                         u/remove-diacritical-marks
+                         (str/replace #"[^\w\d_]" "_")
+                         (str/replace #"(^\d)" "_$1")
+                         (substring-first-n-characters 128))]
+    (if (= s replaced-str)
+      s
+      ;; if we've done any sort of transformations to the string, append a short hash to the string so it's unique
+      ;; when compared to other strings that may have normalized to the same thing.
+      (str (substring-first-n-characters replaced-str 119) \_ (short-string-hash s)))))
+
 (defmethod driver/format-custom-field-name :bigquery
   [_ custom-field-name]
-  (let [replaced-str (-> (str/trim custom-field-name)
-                         (str/replace #"[^\w\d_]" "_")
-                         (str/replace #"(^\d)" "_$1"))]
-    (subs replaced-str 0 (min 128 (count replaced-str)))))
+  (->valid-field-identifier custom-field-name))
+
+(defmethod sql.qp/escape-alias :bigquery
+  [_ alias-name]
+  (->valid-field-identifier alias-name))
+
+(defmethod sql.qp/prefix-field-alias :bigquery
+  [driver prefix field-alias]
+  (let [s ((get-method sql.qp/prefix-field-alias :sql) driver prefix field-alias)]
+    (->valid-field-identifier s)))
 
 ;; See:
 ;;

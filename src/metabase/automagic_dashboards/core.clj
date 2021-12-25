@@ -7,6 +7,7 @@
             [clojure.string :as str]
             [clojure.tools.logging :as log]
             [clojure.walk :as walk]
+            [clojure.zip :as zip]
             [java-time :as t]
             [kixi.stats.core :as stats]
             [kixi.stats.math :as math]
@@ -17,6 +18,7 @@
             [metabase.automagic-dashboards.visualization-macros :as visualization]
             [metabase.driver :as driver]
             [metabase.mbql.normalize :as normalize]
+            [metabase.mbql.schema :as mbql.s]
             [metabase.mbql.util :as mbql.u]
             [metabase.models.card :as card :refer [Card]]
             [metabase.models.database :refer [Database]]
@@ -32,6 +34,7 @@
             [metabase.util :as u]
             [metabase.util.date-2 :as u.date]
             [metabase.util.i18n :as ui18n :refer [deferred-tru trs tru]]
+            [metabase.util.schema :as su]
             [ring.util.codec :as codec]
             [schema.core :as s]
             [toucan.db :as db]))
@@ -41,9 +44,9 @@
 (def ^:private ^{:arglists '([field])} id-or-name
   (some-fn :id :name))
 
-(defn ->field
+(s/defn ->field
   "Return `Field` instance for a given ID or name in the context of root."
-  [root id-or-name]
+  [root id-or-name :- (s/cond-pre su/IntGreaterThanZero su/NonBlankString mbql.s/Field)]
   (let [id-or-name (if (sequential? id-or-name)
                      (filters/field-reference->id id-or-name)
                      id-or-name)]
@@ -454,7 +457,7 @@
                   (hash-map (name identifier))))))
 
 (def ^:private ^{:arglists '([definitions])} most-specific-definition
-  "Return the most specific defintion among `definitions`.
+  "Return the most specific definition among `definitions`.
    Specificity is determined based on:
    1) how many ancestors `field_type` has (if field_type has a table prefix,
       ancestors for both table and field are counted);
@@ -473,7 +476,7 @@
   "Bind fields to dimensions and resolve overloading.
    Each field will be bound to only one dimension. If multiple dimension definitions
    match a single field, the field is bound to the most specific definition used
-   (see `most-specific-defintion` for details)."
+   (see `most-specific-definition` for details)."
   [context dimensions]
   (->> dimensions
        (mapcat (comp (partial make-binding context) first))
@@ -867,7 +870,7 @@
                                        :query    {:source-table (->> root
                                                                      :source
                                                                      u/the-id
-                                                                     (str "card__" ))}})))
+                                                                     (str "card__"))}})))
                  :title       (tru "Compare with entire dataset")
                  :description ""}]))})
 
@@ -968,50 +971,46 @@
        (fill-related max-related (related-selectors (-> root :entity type)))))
 
 (defn- filter-referenced-fields
-  "Return a map of fields referenced in filter cluase."
+  "Return a map of fields referenced in filter clause."
   [root filter-clause]
   (->> filter-clause
        filters/collect-field-references
-       (mapcat (fn [[_ & ids]]
-                 (for [id ids]
-                   [id (->field root id)])))
+       (map (fn [[_ id-or-name _options]]
+              [id-or-name (->field root id-or-name)]))
        (remove (comp nil? second))
        (into {})))
 
 (defn- automagic-dashboard
   "Create dashboards for table `root` using the best matching heuristics."
   [{:keys [rule show rules-prefix full-name] :as root}]
-  (if-let [[dashboard rule context] (if rule
-                                      (apply-rule root (rules/get-rule rule))
-                                      (->> root
-                                           (matching-rules (rules/get-rules rules-prefix))
-                                           (keep (partial apply-rule root))
-                                           ;; `matching-rules` returns an `ArraySeq` (via `sort-by`)
-                                           ;; so `first` realises one element at a time
-                                           ;; (no chunking).
-                                           first))]
-    (let [show (or show max-cards)]
-      (log/debug (trs "Applying heuristic {0} to {1}." (:rule rule) full-name))
-      (log/debug (trs "Dimensions bindings:\n{0}"
-                      (->> context
-                           :dimensions
-                           (m/map-vals #(update % :matches (partial map :name)))
-                           u/pprint-to-str)))
-      (log/debug (trs "Using definitions:\nMetrics:\n{0}\nFilters:\n{1}"
-                      (->> context :metrics (m/map-vals :metric) u/pprint-to-str)
-                      (-> context :filters u/pprint-to-str)))
-      (-> dashboard
-          (populate/create-dashboard show)
-          (assoc :related           (related context rule)
-                 :more              (when (and (not= show :all)
-                                               (-> dashboard :cards count (> show)))
-                                      (format "%s#show=all" (:url root)))
-                 :transient_filters (:query-filter context)
-                 :param_fields      (->> context :query-filter (filter-referenced-fields root)))))
-    (throw (ex-info (trs "Can''t create dashboard for {0}" full-name)
-             {:root            root
-              :available-rules (map :rule (or (some-> rule rules/get-rule vector)
-                                              (rules/get-rules rules-prefix)))}))))
+  (let [[dashboard rule context] (or (when rule
+                                       (apply-rule root (rules/get-rule rule)))
+                                     (some
+                                      (fn [rule]
+                                        (apply-rule root rule))
+                                      (matching-rules (rules/get-rules rules-prefix) root))
+                                     (throw (ex-info (trs "Can''t create dashboard for {0}" (pr-str full-name))
+                                                     {:root            root
+                                                      :available-rules (map :rule (or (some-> rule rules/get-rule vector)
+                                                                                      (rules/get-rules rules-prefix)))})))
+        show                     (or show max-cards)]
+    (log/debug (trs "Applying heuristic {0} to {1}." (:rule rule) full-name))
+    (log/debug (trs "Dimensions bindings:\n{0}"
+                    (->> context
+                         :dimensions
+                         (m/map-vals #(update % :matches (partial map :name)))
+                         u/pprint-to-str)))
+    (log/debug (trs "Using definitions:\nMetrics:\n{0}\nFilters:\n{1}"
+                    (->> context :metrics (m/map-vals :metric) u/pprint-to-str)
+                    (-> context :filters u/pprint-to-str)))
+    (-> dashboard
+        (populate/create-dashboard show)
+        (assoc :related           (related context rule)
+               :more              (when (and (not= show :all)
+                                             (-> dashboard :cards count (> show)))
+                                    (format "%s#show=all" (:url root)))
+               :transient_filters (:query-filter context)
+               :param_fields      (->> context :query-filter (filter-referenced-fields root))))))
 
 (defmulti
   ^{:doc "Create a transient dashboard analyzing given entity."
@@ -1098,10 +1097,11 @@
 
 (defn- field-reference->field
   [root field-reference]
-  (let [temporal-unit (mbql.u/match-one (normalize/normalize field-reference)
-                        [:field _ (opts :guard :temporal-unit)]
-                        (:temporal-unit opts))]
-    (cond-> (->> field-reference
+  (let [normalized-field-reference (normalize/normalize field-reference)
+        temporal-unit              (mbql.u/match-one normalized-field-reference
+                                     [:field _ (opts :guard :temporal-unit)]
+                                     (:temporal-unit opts))]
+    (cond-> (->> normalized-field-reference
                  filters/collect-field-references
                  first
                  (->field root))
@@ -1135,8 +1135,7 @@
   [root [_ field-reference value]]
   (let [field      (field-reference->field root field-reference)
         field-name (field-name field)]
-    (if (or (isa? (:base_type field) :type/Temporal)
-            (field/unix-timestamp? field))
+    (if (isa? ((some-fn :effective_type :base_type) field) :type/Temporal)
       (tru "{0} is {1}" field-name (humanize-datetime value (:unit field)))
       (tru "{0} is {1}" field-name value))))
 
@@ -1164,51 +1163,81 @@
                    (:full-name root))
                  (tru "where {0}" (humanize-filter-value root cell-query))]))
 
+(defn- key-in?
+  "Recursively finds key in coll, returns true or false"
+  [coll k]
+  (boolean (let [coll-zip (zip/zipper coll? #(if (map? %) (vals %) %) nil coll)]
+            (loop [x coll-zip]
+              (when-not (zip/end? x)
+                (if-let [v (k (zip/node x))] true (recur (zip/next x))))))))
+
+(defn- splice-in
+  [join-statement card-member]
+  (let [query (get-in card-member [:card :dataset_query :query])]
+    (if (key-in? query :join-alias)
+      ;; Always in the top level even if the join-alias is found deep in there
+      (assoc-in card-member [:card :dataset_query :query :joins] join-statement)
+      card-member)))
+
+(defn- maybe-enrich-joins
+  "Hack to shove back in joins when they get automagically stripped out by the question decomposition into metrics"
+  [entity dashboard]
+  (if-let [join-statement (get-in entity [:dataset_query :query :joins])]
+    (update dashboard :ordered_cards #(map (partial splice-in join-statement) %))
+    dashboard))
+
 (defmethod automagic-analysis (type Card)
   [card {:keys [cell-query] :as opts}]
   (let [root     (->root card)
         cell-url (format "%squestion/%s/cell/%s" public-endpoint
                          (u/the-id card)
                          (encode-base64-json cell-query))]
-    (if (table-like? card)
-      (automagic-dashboard
-       (merge (cond-> root
-                cell-query (merge {:url          cell-url
-                                   :entity       (:source root)
-                                   :rules-prefix ["table"]}))
-              opts))
-      (let [opts (assoc opts :show :all)]
-        (cond-> (reduce populate/merge-dashboards
-                        (automagic-dashboard (merge (cond-> root
-                                                      cell-query (assoc :url cell-url))
-                                                    opts))
-                        (decompose-question root card opts))
-          cell-query (merge (let [title (tru "A closer look at {0}" (cell-title root cell-query))]
-                              {:transient_name  title
-                               :name            title})))))))
+    (maybe-enrich-joins
+     card
+     (if (table-like? card)
+       (automagic-dashboard
+        (merge (cond-> root
+                 cell-query (merge {:url          cell-url
+                                    :entity       (:source root)
+                                    :rules-prefix ["table"]}))
+               opts))
+       (let [opts (assoc opts :show :all)]
+         (cond-> (reduce populate/merge-dashboards
+                         (automagic-dashboard (merge (cond-> root
+                                                       cell-query (assoc :url cell-url))
+                                                     opts))
+                         (decompose-question root card opts))
+           cell-query (merge (let [title (tru "A closer look at {0}" (cell-title root cell-query))]
+                               {:transient_name title
+                                :name           title}))))))))
 
 (defmethod automagic-analysis (type Query)
   [query {:keys [cell-query] :as opts}]
   (let [root     (->root query)
+        cell-query (when cell-query (normalize/normalize-fragment [:query :filter] cell-query))
+        opts       (cond-> opts
+                     cell-query (assoc :cell-query cell-query))
         cell-url (format "%sadhoc/%s/cell/%s" public-endpoint
                          (encode-base64-json (:dataset_query query))
                          (encode-base64-json cell-query))]
-    (if (table-like? query)
-      (automagic-dashboard
-       (merge (cond-> root
-                cell-query (merge {:url          cell-url
-                                   :entity       (:source root)
-                                   :rules-prefix ["table"]}))
-              opts))
-      (let [opts (assoc opts :show :all)]
-        (cond-> (reduce populate/merge-dashboards
-                        (automagic-dashboard (merge (cond-> root
-                                                      cell-query (assoc :url cell-url))
-                                                    opts))
-                       (decompose-question root query opts))
-          cell-query (merge (let [title (tru "A closer look at the {0}" (cell-title root cell-query))]
-                              {:transient_name  title
-                               :name            title})))))))
+    (maybe-enrich-joins
+     query
+     (if (table-like? query)
+       (automagic-dashboard
+        (merge (cond-> root
+                 cell-query (merge {:url          cell-url
+                                    :entity       (:source root)
+                                    :rules-prefix ["table"]}))
+               opts))
+       (let [opts (assoc opts :show :all)]
+         (cond-> (reduce populate/merge-dashboards
+                         (automagic-dashboard (merge (cond-> root
+                                                       cell-query (assoc :url cell-url))
+                                                     opts))
+                         (decompose-question root query opts))
+           cell-query (merge (let [title (tru "A closer look at the {0}" (cell-title root cell-query))]
+                               {:transient_name  title
+                                :name            title}))))))))
 
 (defmethod automagic-analysis (type Field)
   [field opts]
@@ -1299,7 +1328,8 @@
                  (let [tables (->> tables
                                    (sort-by :score >)
                                    (take max-candidate-tables))]
-                   {:tables tables
+                   {:id     (u/the-id database)
+                    :tables tables
                     :schema schema
                     :score  (+ (math/sq (transduce (m/distinct-by :rule)
                                                    stats/count

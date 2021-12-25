@@ -6,13 +6,12 @@ import { PLUGIN_ADMIN_USER_FORM_FIELDS } from "metabase/plugins";
 import validate from "metabase/lib/validate";
 import FormGroupsWidget from "metabase/components/form/widgets/FormGroupsWidget";
 
-import type { FormFieldDefinition } from "metabase/containers/Form";
-
-const DETAILS_FORM_FIELDS: () => FormFieldDefinition[] = () => [
+const DETAILS_FORM_FIELDS = () => [
   {
     name: "first_name",
     title: t`First name`,
     placeholder: "Johnny",
+    autoFocus: true,
     validate: validate.required().maxLength(100),
   },
   {
@@ -29,7 +28,7 @@ const DETAILS_FORM_FIELDS: () => FormFieldDefinition[] = () => [
   },
 ];
 
-const LOCALE_FIELD: FormFieldDefinition = {
+const LOCALE_FIELD = {
   name: "locale",
   title: t`Language`,
   type: "select",
@@ -42,7 +41,7 @@ const LOCALE_FIELD: FormFieldDefinition = {
   ].map(([code, name]) => ({ name, value: code })),
 };
 
-const PASSWORD_FORM_FIELDS: () => FormFieldDefinition[] = () => [
+const PASSWORD_FORM_FIELDS = () => [
   {
     name: "password",
     title: t`Create a password`,
@@ -75,17 +74,18 @@ export default {
   },
   user: {
     fields: [...DETAILS_FORM_FIELDS(), LOCALE_FIELD],
+    disablePristineSubmit: true,
   },
   setup: () => ({
     fields: [
       ...DETAILS_FORM_FIELDS(),
-      ...PASSWORD_FORM_FIELDS(),
       {
         name: "site_name",
-        title: t`Your company or team name`,
+        title: t`Company or team name`,
         placeholder: t`Department of Awesome`,
         validate: validate.required(),
       },
+      ...PASSWORD_FORM_FIELDS(),
     ],
   }),
   password: {

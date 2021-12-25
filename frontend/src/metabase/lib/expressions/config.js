@@ -81,7 +81,11 @@ export const MBQL_CLAUSES = {
     type: "aggregation",
     args: ["number"],
   },
-  distinct: { displayName: `Distinct`, type: "aggregation", args: ["number"] },
+  distinct: {
+    displayName: `Distinct`,
+    type: "aggregation",
+    args: ["expression"],
+  },
   stddev: {
     displayName: `StandardDeviation`,
     type: "aggregation",
@@ -89,8 +93,8 @@ export const MBQL_CLAUSES = {
     requiresFeature: "standard-deviation-aggregations",
   },
   avg: { displayName: `Average`, type: "aggregation", args: ["number"] },
-  min: { displayName: `Min`, type: "aggregation", args: ["number"] },
-  max: { displayName: `Max`, type: "aggregation", args: ["number"] },
+  min: { displayName: `Min`, type: "aggregation", args: ["expression"] },
+  max: { displayName: `Max`, type: "aggregation", args: ["expression"] },
   share: { displayName: `Share`, type: "aggregation", args: ["boolean"] },
   "count-where": {
     displayName: `CountIf`,
@@ -117,7 +121,7 @@ export const MBQL_CLAUSES = {
   percentile: {
     displayName: `Percentile`,
     type: "aggregation",
-    args: ["number"],
+    args: ["number", "number"],
     requiresFeature: "percentile-aggregations",
   },
   // string functions
@@ -203,16 +207,19 @@ export const MBQL_CLAUSES = {
     displayName: `contains`,
     type: "boolean",
     args: ["string", "string"],
+    hasOptions: true,
   },
   "starts-with": {
     displayName: `startsWith`,
     type: "boolean",
     args: ["string", "string"],
+    hasOptions: true,
   },
   "ends-with": {
     displayName: `endsWith`,
     type: "boolean",
     args: ["string", "string"],
+    hasOptions: true,
   },
   between: {
     displayName: `between`,
@@ -223,6 +230,7 @@ export const MBQL_CLAUSES = {
     displayName: `interval`,
     type: "boolean",
     args: ["expression", "number", "string"],
+    hasOptions: true,
   },
   "is-null": {
     displayName: `isnull`,

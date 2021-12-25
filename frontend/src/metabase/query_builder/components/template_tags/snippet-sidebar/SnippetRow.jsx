@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React from "react";
 import { t } from "ttag";
 
@@ -13,8 +14,6 @@ const ICON_SIZE = 16;
   wrapped: true,
 })
 class SnippetRow extends React.Component {
-  state: { isOpen: boolean };
-
   constructor(props) {
     super(props);
     this.state = { isOpen: false };

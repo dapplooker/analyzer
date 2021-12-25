@@ -3,18 +3,17 @@
   is a historical name, but is the same thing; both terms are used interchangeably in the backend codebase."
   (:require [clojure.set :as set]
             [clojure.tools.logging :as log]
-            [metabase.api.common :as api :refer [*current-user-id*]]
             [metabase.mbql.normalize :as normalize]
             [metabase.mbql.util :as mbql.u]
             [metabase.models.collection :as collection]
-            [metabase.models.dependency :as dependency]
+            [metabase.models.dependency :as dependency :refer [Dependency]]
             [metabase.models.field-values :as field-values]
             [metabase.models.interface :as i]
             [metabase.models.params :as params]
             [metabase.models.permissions :as perms]
             [metabase.models.query :as query]
-            [metabase.models.query.permissions :as query-perms]
             [metabase.models.revision :as revision]
+            [metabase.moderation :as moderation]
             [metabase.plugins.classloader :as classloader]
             [metabase.public-settings :as public-settings]
             [metabase.query-processor.util :as qputil]
@@ -35,6 +34,33 @@
   [{:keys [id]}]
   (db/count 'DashboardCard, :card_id id))
 
+(defn average-query-time
+  "Average query time of card, taken by query executions which didn't hit cache.
+  If it's nil we don't have any query executions on file"
+  {:hydrate :average_query_time}
+  [{:keys [id]}]
+  (-> (db/query {:select [:%avg.running_time]
+                 :from [:query_execution]
+                 :where [:and
+                         [:not= :running_time nil]
+                         [:not= :cache_hit true]
+                         [:= :card_id id]]})
+      first vals first))
+
+(defn last-query-start
+  "Timestamp for start of last query of this card."
+  {:hydrate :last_query_start}
+  [{:keys [id]}]
+  (-> (db/query {:select [:%max.started_at]
+                 :from [:query_execution]
+                 :where [:and
+                         [:not= :running_time nil]
+                         [:not= :cache_hit true]
+                         [:= :card_id id]]})
+      first vals first))
+
+;; There's more hydration in the shared metabase.moderation namespace, but it needs to be required:
+(comment moderation/keep-me)
 
 ;;; -------------------------------------------------- Dependencies --------------------------------------------------
 
@@ -54,6 +80,8 @@
    (when (= :query query-type)
      {:Metric  (extract-ids :metric inner-query)
       :Segment (extract-ids :segment inner-query)})))
+
+
 
 
 ;;; --------------------------------------------------- Revisions ----------------------------------------------------
@@ -126,7 +154,7 @@
   "Check that a `card`, if it is using another Card as its source, does not have circular references between source
   Cards. (e.g. Card A cannot use itself as a source, or if A uses Card B as a source, Card B cannot use Card A, and so
   forth.)"
-  [{query :dataset_query, id :id}]      ; don't use `u/get-id` here so that we can use this with `pre-insert` too
+  [{query :dataset_query, id :id}]      ; don't use `u/the-id` here so that we can use this with `pre-insert` too
   (loop [query query, ids-already-seen #{id}]
     (let [source-card-id (qputil/query->source-card-id query)]
       (cond
@@ -148,29 +176,9 @@
   (cond-> card
     (seq (:dataset_query card)) (update :dataset_query normalize/normalize)))
 
+;; TODO -- consider whether we should validate the Card query when you save/update it??
 (defn- pre-insert [{query :dataset_query, :as card}]
-  ;; TODO - we usually check permissions to save/update stuff in the API layer rather than here in the Toucan
-  ;; model-layer functions... Not saying one pattern is better than the other (although this one does make it harder
-  ;; to do the wrong thing) but we should try to be consistent
   (u/prog1 card
-    ;; Make sure the User saving the Card has the appropriate permissions to run its query. We don't want Users saving
-    ;; Cards with queries they wouldn't be allowed to run!
-    (when *current-user-id*
-      (when-not (query-perms/can-run-query? query)
-        (let [required-perms (try
-                               (query-perms/perms-set query :throw-exceptions? true)
-                               (catch Throwable e
-                                 e))]
-          (throw (ex-info (tru "You do not have permissions to run ad-hoc native queries against Database {0}."
-                               (:database query))
-                          {:status-code    403
-                           :query          query
-                           :required-perms (if (instance? Throwable required-perms)
-                                             :error
-                                             required-perms)
-                           :actual-perms   @api/*current-user-permissions-set*}
-                          (when (instance? Throwable required-perms)
-                            required-perms))))))
     ;; make sure this Card doesn't have circular source query references
     (check-for-circular-source-query-references card)
     (collection/check-collection-namespace Card (:collection_id card))))
@@ -184,11 +192,12 @@
       (field-values/update-field-values-for-on-demand-dbs! field-ids))))
 
 (defonce
-  ^{:doc "Atom containing a function used to check additional sandboxing constraints for Metabase Enterprise Edition. This is called as part of the `pre-update` method for a Card.
+  ^{:doc "Atom containing a function used to check additional sandboxing constraints for Metabase Enterprise Edition.
+  This is called as part of the `pre-update` method for a Card.
 
   For the OSS edition, there is no implementation for this function -- it is a no-op. For Metabase Enterprise Edition,
   the implementation of this function is
-  `metabase-enterprise.sandbox.models.group-table-access-policy/update-card-check-gtaps` and is installed by that
+  [[metabase-enterprise.sandbox.models.group-table-access-policy/update-card-check-gtaps]] and is installed by that
   namespace."} pre-update-check-sandbox-constraints
   (atom identity))
 
@@ -221,7 +230,9 @@
 
 ;; Cards don't normally get deleted (they get archived instead) so this mostly affects tests
 (defn- pre-delete [{:keys [id]}]
-  (db/delete! 'Revision :model "Card", :model_id id))
+  (db/delete! 'ModerationReview :moderated_item_type "card", :moderated_item_id id)
+  (db/delete! 'Revision :model "Card", :model_id id)
+  (db/delete! 'Dependency :model "Card", :model_id id))
 
 (defn- result-metadata-out
   "Transform the Card result metadata as it comes out of the DB. Convert columns to keywords where appropriate."

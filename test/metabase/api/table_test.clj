@@ -13,7 +13,6 @@
             [metabase.models.permissions-group :as perms-group]
             [metabase.models.table :as table]
             [metabase.server.middleware.util :as middleware.u]
-            [metabase.sync :as sync]
             [metabase.test :as mt]
             [metabase.test.mock.util :as mutil]
             [metabase.test.util :as tu]
@@ -33,7 +32,7 @@
 
 (defn- db-details []
   (merge
-   (select-keys (mt/db) [:id :created_at :updated_at :timezone])
+   (select-keys (mt/db) [:id :created_at :updated_at :timezone :creator_id :initial_sync_status])
    {:engine                      "h2"
     :name                        "test-data"
     :is_sample                   false
@@ -42,12 +41,13 @@
     :description                 nil
     :caveats                     nil
     :points_of_interest          nil
-    :features                    (mapv u/qualified-name (driver.u/features :h2))
+    :features                    (mapv u/qualified-name (driver.u/features :h2 (mt/db)))
     :cache_field_values_schedule "0 50 0 * * ? *"
     :metadata_sync_schedule      "0 50 * * * ? *"
     :options                     nil
     :refingerprint               nil
-    :auto_run_queries            true}))
+    :auto_run_queries            true
+    :cache_ttl                   nil}))
 
 (defn- table-defaults []
   (merge
@@ -108,7 +108,7 @@
   (testing "GET /api/table/:id"
     (is (= (merge
             (dissoc (table-defaults) :segments :field_values :metrics)
-            (db/select-one [Table :created_at :updated_at] :id (mt/id :venues))
+            (db/select-one [Table :created_at :updated_at :initial_sync_status] :id (mt/id :venues))
             {:schema       "PUBLIC"
              :name         "VENUES"
              :display_name "Venues"
@@ -120,7 +120,7 @@
     (testing " should return a 403 for a user that doesn't have read permissions for the table"
       (mt/with-temp* [Database [{database-id :id}]
                       Table    [{table-id :id}    {:db_id database-id}]]
-        (perms/revoke-permissions! (perms-group/all-users) database-id)
+        (perms/revoke-data-perms! (perms-group/all-users) database-id)
         (is (= "You don't have permissions to do that."
                (mt/user-http-request :rasta :get 403 (str "table/" table-id))))))))
 
@@ -140,7 +140,7 @@
     (testing "Sensitive fields are included"
       (is (= (merge
               (query-metadata-defaults)
-              (db/select-one [Table :created_at :updated_at] :id (mt/id :users))
+              (db/select-one [Table :created_at :updated_at :initial_sync_status] :id (mt/id :users))
               {:schema       "PUBLIC"
                :name         "USERS"
                :display_name "Users"
@@ -152,6 +152,7 @@
                                      :display_name     "ID"
                                      :database_type    "BIGINT"
                                      :base_type        "type/BigInteger"
+                                     :effective_type   "type/BigInteger"
                                      :visibility_type  "normal"
                                      :has_field_values "none")
                               (assoc (field-details (Field (mt/id :users :name)))
@@ -161,6 +162,7 @@
                                      :display_name             "Name"
                                      :database_type            "VARCHAR"
                                      :base_type                "type/Text"
+                                     :effective_type           "type/Text"
                                      :visibility_type          "normal"
                                      :dimension_options        []
                                      :default_dimension_option nil
@@ -173,6 +175,7 @@
                                      :display_name             "Last Login"
                                      :database_type            "TIMESTAMP"
                                      :base_type                "type/DateTime"
+                                     :effective_type           "type/DateTime"
                                      :visibility_type          "normal"
                                      :dimension_options        (var-get #'table-api/datetime-dimension-indexes)
                                      :default_dimension_option (var-get #'table-api/date-default-index)
@@ -186,6 +189,7 @@
                                      :display_name     "Password"
                                      :database_type    "VARCHAR"
                                      :base_type        "type/Text"
+                                     :effective_type   "type/Text"
                                      :visibility_type  "sensitive"
                                      :has_field_values "list"
                                      :position          3
@@ -199,7 +203,7 @@
     (testing "Sensitive fields should not be included"
       (is (= (merge
               (query-metadata-defaults)
-              (db/select-one [Table :created_at :updated_at] :id (mt/id :users))
+              (db/select-one [Table :created_at :updated_at :initial_sync_status] :id (mt/id :users))
               {:schema       "PUBLIC"
                :name         "USERS"
                :display_name "Users"
@@ -211,6 +215,7 @@
                                      :display_name     "ID"
                                      :database_type    "BIGINT"
                                      :base_type        "type/BigInteger"
+                                     :effective_type   "type/BigInteger"
                                      :has_field_values "none")
                               (assoc (field-details (Field (mt/id :users :name)))
                                      :table_id         (mt/id :users)
@@ -219,6 +224,7 @@
                                      :display_name     "Name"
                                      :database_type    "VARCHAR"
                                      :base_type        "type/Text"
+                                     :effective_type   "type/Text"
                                      :has_field_values "list"
                                      :position          1
                                      :database_position 1)
@@ -228,6 +234,7 @@
                                      :display_name             "Last Login"
                                      :database_type            "TIMESTAMP"
                                      :base_type                "type/DateTime"
+                                     :effective_type           "type/DateTime"
                                      :dimension_options        (var-get #'table-api/datetime-dimension-indexes)
                                      :default_dimension_option (var-get #'table-api/date-default-index)
                                      :has_field_values         "none"
@@ -249,7 +256,7 @@
                       Field    [table-2-id {:table_id (u/the-id table-2), :name "id", :base_type :type/Integer, :semantic_type :type/PK}]
                       Field    [table-2-fk {:table_id (u/the-id table-2), :name "fk", :base_type :type/Integer, :semantic_type :type/FK, :fk_target_field_id (u/the-id table-1-id)}]]
         ;; grant permissions only to table-2
-        (perms/revoke-permissions! (perms-group/all-users) (u/the-id db))
+        (perms/revoke-data-perms! (perms-group/all-users) (u/the-id db))
         (perms/grant-permissions! (perms-group/all-users) (u/the-id db) (:schema table-2) (u/the-id table-2))
         ;; metadata for table-2 should show all fields for table-2, but the FK target info shouldn't be hydrated
         (is (= #{{:name "id", :target false}
@@ -269,7 +276,7 @@
               (-> (table-defaults)
                   (dissoc :segments :field_values :metrics :updated_at)
                   (assoc-in [:db :details] (:details (mt/db))))
-              (db/select-one [Table :id :schema :name :created_at] :id (u/the-id table))
+              (db/select-one [Table :id :schema :name :created_at :initial_sync_status] :id (u/the-id table))
               {:description     "What a nice table!"
                :entity_type     nil
                :visibility_type "hidden"
@@ -284,28 +291,54 @@
   (testing "PUT /api/table/:id"
     (testing "Table should get synced when it gets unhidden"
       (mt/with-temp Table [table]
-        (let [original-sync-table! sync/sync-table!
-              called               (atom 0)
-              test-fun             (fn [state]
-                                     (with-redefs [sync/sync-table! (fn [& args] (swap! called inc)
-                                                                      (apply original-sync-table! args))]
-                                       (mt/user-http-request :crowberto :put 200 (format "table/%d" (:id table))
-                                                             {:display_name    "Userz"
-                                                              :visibility_type state
-                                                              :description     "What a nice table!"})))]
-          (test-fun "hidden")
-          (test-fun nil)                ; <- should get synced
-          (is (= 1
-                 @called))
-          (test-fun "hidden")
-          (test-fun "cruft")
-          (test-fun "technical")
-          (test-fun nil)                ; <- should get synced again
-          (is (= 2
-                 @called))
-          (test-fun "technical")
-          (is (= 2
-                 @called)))))))
+        (let [called (atom 0)
+              ;; original is private so a var will pick up the redef'd. need contents of var before
+              original (var-get #'table-api/sync-unhidden-tables)]
+          (with-redefs [table-api/sync-unhidden-tables
+                        (fn [unhidden]
+                          (when (seq unhidden)
+                            (is (= (:id table)
+                                   (:id (first unhidden)))
+                                "Unhidden callback did not get correct tables.")
+                            (swap! called inc)
+                            (let [fut (original unhidden)]
+                              (when (future? fut)
+                                (deref fut)))))]
+            (let [set-visibility (fn [state]
+                                   (mt/user-http-request :crowberto :put 200 (format "table/%d" (:id table))
+                                                         {:display_name    "Userz"
+                                                          :visibility_type state
+                                                          :description     "What a nice table!"}))]
+              (set-visibility "hidden")
+              (set-visibility nil)        ; <- should get synced
+              (is (= 1
+                     @called))
+              (set-visibility "hidden")
+              (set-visibility "cruft")
+              (set-visibility "technical")
+              (set-visibility nil)        ; <- should get synced again
+              (is (= 2
+                     @called))
+              (set-visibility "technical")
+              (is (= 2
+                     @called))))))))
+  (testing "Bulk updating visibility"
+    (let [unhidden-ids (atom #{})]
+      (mt/with-temp* [Table [{id-1 :id} {}]
+                      Table [{id-2 :id} {:visibility_type "hidden"}]]
+        (with-redefs [table-api/sync-unhidden-tables (fn [unhidden] (reset! unhidden-ids (set (map :id unhidden))))]
+          (let [set-many-vis (fn [ids state]
+                               (reset! unhidden-ids #{})
+                               (mt/user-http-request :crowberto :put 200 "table/"
+                                                     {:ids ids :visibility_type state}))]
+            (set-many-vis [id-1 id-2] nil) ;; unhides only 2
+            (is (= @unhidden-ids #{id-2}))
+
+            (set-many-vis [id-1 id-2] "hidden")
+            (is (= @unhidden-ids #{})) ;; no syncing when they are hidden
+
+            (set-many-vis [id-1 id-2] nil) ;; both are made unhidden so both synced
+            (is (= @unhidden-ids #{id-1 id-2}))))))))
 
 (deftest get-fks-test
   (testing "GET /api/table/:id/fks"
@@ -323,12 +356,13 @@
                                             :display_name  "User ID"
                                             :database_type "INTEGER"
                                             :base_type     "type/Integer"
+                                            :effective_type "type/Integer"
                                             :semantic_type  "type/FK"
                                             :database_position 2
                                             :position          2
                                             :table         (merge
                                                             (dissoc (table-defaults) :segments :field_values :metrics)
-                                                            (db/select-one [Table :id :created_at :updated_at]
+                                                            (db/select-one [Table :id :created_at :updated_at :initial_sync_status]
                                                               :id (mt/id :checkins))
                                                             {:schema       "PUBLIC"
                                                              :name         "CHECKINS"
@@ -340,11 +374,12 @@
                                             :name          "ID"
                                             :display_name  "ID"
                                             :base_type     "type/BigInteger"
+                                            :effective_type "type/BigInteger"
                                             :database_type "BIGINT"
                                             :semantic_type  "type/PK"
                                             :table         (merge
                                                             (dissoc (table-defaults) :db :segments :field_values :metrics)
-                                                            (db/select-one [Table :id :created_at :updated_at]
+                                                            (db/select-one [Table :id :created_at :updated_at :initial_sync_status]
                                                               :id (mt/id :users))
                                                             {:schema       "PUBLIC"
                                                              :name         "USERS"
@@ -360,7 +395,7 @@
   (testing "GET /api/table/:id/query_metadata"
     (is (= (merge
             (query-metadata-defaults)
-            (db/select-one [Table :created_at :updated_at] :id (mt/id :categories))
+            (db/select-one [Table :created_at :updated_at :initial_sync_status] :id (mt/id :categories))
             {:schema       "PUBLIC"
              :name         "CATEGORIES"
              :display_name "Categories"
@@ -372,6 +407,7 @@
                               :display_name     "ID"
                               :database_type    "BIGINT"
                               :base_type        "type/BigInteger"
+                              :effective_type   "type/BigInteger"
                               :has_field_values "none"})
                             (merge
                              (field-details (Field (mt/id :categories :name)))
@@ -381,6 +417,7 @@
                               :display_name             "Name"
                               :database_type            "VARCHAR"
                               :base_type                "type/Text"
+                              :effective_type           "type/Text"
                               :dimension_options        []
                               :default_dimension_option nil
                               :has_field_values         "list"
@@ -425,6 +462,7 @@
                   :schema            "Everything else"
                   :db_id             (:database_id card)
                   :id                card-virtual-table-id
+                  :moderated_status  nil
                   :description       nil
                   :dimension_options (default-dimension-options)
                   :fields            (map (comp #(merge (default-card-field-for-venues card-virtual-table-id) %)
@@ -432,12 +470,14 @@
                                           [{:name         "NAME"
                                             :display_name "NAME"
                                             :base_type    "type/Text"
+                                            :effective_type "type/Text"
                                             :semantic_type "type/Name"
                                             :fingerprint  (:name mutil/venue-fingerprints)
                                             :field_ref    ["field" "NAME" {:base-type "type/Text"}]}
                                            {:name         "ID"
                                             :display_name "ID"
                                             :base_type    "type/BigInteger"
+                                            :effective_type "type/BigInteger"
                                             :semantic_type nil
                                             :fingerprint  (:id mutil/venue-fingerprints)
                                             :field_ref    ["field" "ID" {:base-type "type/BigInteger"}]}
@@ -445,6 +485,7 @@
                                              {:name         "PRICE"
                                               :display_name "PRICE"
                                               :base_type    "type/Integer"
+                                              :effective_type "type/Integer"
                                               :semantic_type nil
                                               :fingerprint  (:price mutil/venue-fingerprints)
                                               :field_ref    ["field" "PRICE" {:base-type "type/Integer"}]})
@@ -452,6 +493,7 @@
                                              {:name         "LATITUDE"
                                               :display_name "LATITUDE"
                                               :base_type    "type/Float"
+                                              :effective_type "type/Float"
                                               :semantic_type "type/Latitude"
                                               :fingerprint  (:latitude mutil/venue-fingerprints)
                                               :field_ref    ["field" "LATITUDE" {:base-type "type/Float"}]})])})
@@ -480,10 +522,12 @@
                     :db_id             (:database_id card)
                     :id                card-virtual-table-id
                     :description       nil
+                    :moderated_status  nil
                     :dimension_options (default-dimension-options)
                     :fields            [{:name                     "NAME"
                                          :display_name             "NAME"
                                          :base_type                "type/Text"
+                                         :effective_type           "type/Text"
                                          :table_id                 card-virtual-table-id
                                          :id                       ["field" "NAME" {:base-type "type/Text"}]
                                          :semantic_type            "type/Name"
@@ -494,6 +538,7 @@
                                         {:name                     "LAST_LOGIN"
                                          :display_name             "LAST_LOGIN"
                                          :base_type                "type/DateTime"
+                                         :effective_type           "type/DateTime"
                                          :table_id                 card-virtual-table-id
                                          :id                       ["field" "LAST_LOGIN" {:base-type "type/DateTime"}]
                                          :semantic_type            nil
@@ -620,8 +665,14 @@
                      ["field" nil {:binning {:strategy "num-bins", :num-bins 10}}]}
                    (extract-dimension-options response "price"))))))
 
+      (testing "Number columns with a relationship semantic type should not have binning options"
+        (mt/with-temp-vals-in-db Field (mt/id :venues :price) {:semantic_type "type/PK"}
+          (let [response (mt/user-http-request :rasta :get 200 (format "table/%d/query_metadata" (mt/id :venues)))]
+            (is (= #{}
+                   (extract-dimension-options response "price"))))))
+
       (testing "Numeric fields without min/max values should not have binning options"
-        (let [fingerprint      (db/select-one-field :fingerprint Field {:id (mt/id :venues :latitude)})
+        (let [fingerprint      (db/select-one-field :fingerprint Field :id (mt/id :venues :latitude))
               temp-fingerprint (-> fingerprint
                                    (assoc-in [:type :type/Number :max] nil)
                                    (assoc-in [:type :type/Number :min] nil))]

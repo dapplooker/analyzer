@@ -14,9 +14,9 @@
     (let [{:keys [replacement-snippet prepared-statement-args]} (substitution/->replacement-snippet-info driver/*driver* v)]
       [(str sql replacement-snippet) (concat args prepared-statement-args) missing])))
 
-(defn- subsistute-card-query [[sql args missing] v]
-  (let [{:keys [replacement-snippet]} (substitution/->replacement-snippet-info driver/*driver* v)]
-    [(str sql replacement-snippet) args missing]))
+(defn- substitute-card-query [[sql args missing] v]
+  (let [{:keys [replacement-snippet prepared-statement-args]} (substitution/->replacement-snippet-info driver/*driver* v)]
+    [(str sql replacement-snippet) (concat args prepared-statement-args) missing]))
 
 (defn- substitute-native-query-snippet [[sql args missing] v]
    (let [{:keys [replacement-snippet]} (substitution/->replacement-snippet-info driver/*driver* v)]
@@ -31,7 +31,7 @@
         (substitute-field-filter [sql args missing] in-optional? k v)
 
         (i/ReferencedCardQuery? v)
-        (subsistute-card-query [sql args missing] v)
+        (substitute-card-query [sql args missing] v)
 
         (i/ReferencedQuerySnippet? v)
         (substitute-native-query-snippet [sql args missing] v)
@@ -80,7 +80,7 @@
   (let [[sql args missing] (try
                              (substitute* param->value parsed-query false)
                              (catch Throwable e
-                               (throw (ex-info (tru "Unable to substitute parameters")
+                               (throw (ex-info (tru "Unable to substitute parameters: {0}" (ex-message e))
                                         {:type         (or (:type (ex-data e)) error-type/qp)
                                          :params       param->value
                                          :parsed-query parsed-query}

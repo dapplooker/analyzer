@@ -1,5 +1,4 @@
-/* @flow */
-
+/* eslint-disable react/prop-types */
 import React from "react";
 
 import AuditContent from "../components/AuditContent";
@@ -9,11 +8,7 @@ import EntityName from "metabase/entities/containers/EntityName";
 
 import * as DatabaseDetailCards from "../lib/cards/database_detail";
 
-type Props = {
-  params: { [key: string]: string },
-};
-
-const AuditDatabaseDetail = ({ params, ...props }: Props) => {
+const AuditDatabaseDetail = ({ params, ...props }) => {
   const databaseId = parseInt(params.databaseId);
   return (
     <AuditContent

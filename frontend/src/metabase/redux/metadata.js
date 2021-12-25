@@ -1,11 +1,11 @@
-import { createThunkAction, fetchData, updateData } from "metabase/lib/redux";
+import { createThunkAction, fetchData } from "metabase/lib/redux";
 
 import { getIn } from "icepick";
 import _ from "underscore";
 
 import { getMetadata } from "metabase/selectors/metadata";
 
-import { MetabaseApi, MetricApi, RevisionsApi } from "metabase/services";
+import { MetabaseApi, RevisionsApi } from "metabase/services";
 
 import Databases from "metabase/entities/databases";
 import Tables from "metabase/entities/tables";
@@ -27,39 +27,6 @@ export const updateMetric = metric => {
   deprecated("metabase/redux/metadata updateMetric");
   return Metrics.actions.update(metric);
 };
-
-const UPDATE_METRIC_IMPORTANT_FIELDS =
-  "metabase/guide/UPDATE_METRIC_IMPORTANT_FIELDS";
-export const updateMetricImportantFields = createThunkAction(
-  UPDATE_METRIC_IMPORTANT_FIELDS,
-  function(metricId, importantFieldIds) {
-    return async (dispatch, getState) => {
-      const requestStatePath = [
-        "reference",
-        "guide",
-        "metric_important_fields",
-        metricId,
-      ];
-      const existingStatePath = requestStatePath;
-      const dependentRequestStatePaths = [["reference", "guide"]];
-      const putData = async () => {
-        await MetricApi.update_important_fields({
-          metricId,
-          important_field_ids: importantFieldIds,
-        });
-      };
-
-      return await updateData({
-        dispatch,
-        getState,
-        requestStatePath,
-        existingStatePath,
-        dependentRequestStatePaths,
-        putData,
-      });
-    };
-  },
-);
 
 export const FETCH_SEGMENTS = Segments.actions.fetchList.toString();
 export const fetchSegments = (reload = false) => {
@@ -114,10 +81,25 @@ export const fetchTableMetadata = (id, reload = false) => {
   return Tables.actions.fetchMetadataAndForeignTables({ id }, { reload });
 };
 
-export const fetchField = (id, reload = false) => {
-  deprecated("metabase/redux/metadata fetchField");
-  return Fields.actions.fetch({ id }, { reload });
-};
+export const METADATA_FETCH_FIELD = "metabase/metadata/FETCH_FIELD";
+export const fetchField = createThunkAction(
+  METADATA_FETCH_FIELD,
+  (id, reload = false) => {
+    deprecated("metabase/redux/metadata fetchField");
+    return async dispatch => {
+      const action = await dispatch(Fields.actions.fetch({ id }, { reload }));
+      const field = Fields.HACK_getObjectFromAction(action);
+      if (field?.dimensions?.human_readable_field_id != null) {
+        await dispatch(
+          Fields.actions.fetch(
+            { id: field.dimensions.human_readable_field_id },
+            { reload },
+          ),
+        );
+      }
+    };
+  },
+);
 
 export const FETCH_FIELD_VALUES = Fields.actions.fetchFieldValues.toString();
 export const fetchFieldValues = (id, reload = false) => {
@@ -336,6 +318,8 @@ export const loadMetadataForQueries = queries => dispatch =>
           return (foreignTables
             ? Tables.actions.fetchMetadataAndForeignTables
             : Tables.actions.fetchMetadata)({ id });
+        } else if (type === "field") {
+          return Fields.actions.fetch({ id });
         } else {
           console.warn(`loadMetadataForQueries: type ${type} not implemented`);
         }

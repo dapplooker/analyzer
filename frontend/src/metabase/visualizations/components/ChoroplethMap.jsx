@@ -1,10 +1,9 @@
-/* eslint-disable no-color-literals */
-
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
 import { t } from "ttag";
 import LoadingSpinner from "metabase/components/LoadingSpinner";
 
-import { isString } from "metabase/lib/schema_metadata";
+import { isMetric, isString } from "metabase/lib/schema_metadata";
 import { MinColumnsError } from "metabase/visualizations/lib/errors";
 import MetabaseSettings from "metabase/lib/settings";
 
@@ -104,8 +103,8 @@ export default class ChoroplethMap extends Component {
 
   static minSize = { width: 4, height: 4 };
 
-  static isSensible({ cols, rows }) {
-    return cols.length > 1 && isString(cols[0]);
+  static isSensible({ cols }) {
+    return cols.filter(isString).length > 0 && cols.filter(isMetric).length > 0;
   }
 
   static checkRenderable([
@@ -184,10 +183,16 @@ export default class ChoroplethMap extends Component {
     // projectionFrame is the lng/lat of the top left and bottom right corners
     if (settings["map.region"] === "us_states") {
       projection = d3.geo.albersUsa();
-      projectionFrame = [[-135.0, 46.6], [-69.1, 21.7]];
+      projectionFrame = [
+        [-135.0, 46.6],
+        [-69.1, 21.7],
+      ];
     } else if (settings["map.region"] === "world_countries") {
       projection = d3.geo.mercator();
-      projectionFrame = [[-170, 78], [180, -60]];
+      projectionFrame = [
+        [-170, 78],
+        [180, -60],
+      ];
     } else {
       projection = null;
     }

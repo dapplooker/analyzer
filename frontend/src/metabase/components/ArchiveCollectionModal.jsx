@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React from "react";
 
 import { connect } from "react-redux";
@@ -16,30 +17,31 @@ const mapDispatchToProps = {
   push,
 };
 
-@connect(
-  null,
-  mapDispatchToProps,
-)
+@connect(null, mapDispatchToProps)
 @Collection.load({
-  id: (state, props) => props.params.collectionId,
+  id: (state, props) => Urls.extractCollectionId(props.params.slug),
 })
 @withRouter
 class ArchiveCollectionModal extends React.Component {
   archive = async () => {
     const { setCollectionArchived, params } = this.props;
-    await setCollectionArchived({ id: params.collectionId }, true);
+    const id = Urls.extractCollectionId(params.slug);
+    await setCollectionArchived({ id }, true);
   };
+
   close = () => {
     const { onClose, object, push } = this.props;
-    // close the modal
     onClose();
-    const parentId =
-      object.effective_ancestors.length > 0
-        ? object.effective_ancestors.pop().id
-        : null;
-    // redirect to the proper parent collection
-    push(Urls.collection(parentId));
+
+    if (object.archived) {
+      const parent =
+        object.effective_ancestors.length > 0
+          ? object.effective_ancestors.pop()
+          : null;
+      push(Urls.collection(parent));
+    }
   };
+
   render() {
     return (
       <ArchiveModal

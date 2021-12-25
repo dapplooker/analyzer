@@ -54,10 +54,7 @@ const mapDispatchToProps = {
   ...metadataActions,
 };
 
-@connect(
-  mapStateToProps,
-  mapDispatchToProps,
-)
+@connect(mapStateToProps, mapDispatchToProps)
 export default class MetricQuestions extends Component {
   static propTypes = {
     style: PropTypes.object.isRequired,
@@ -99,7 +96,7 @@ export default class MetricQuestions extends Component {
                             description={t`Created ${moment(
                               entity.created_at,
                             ).fromNow()} by ${entity.creator.common_name}`}
-                            url={Urls.question(entity.id)}
+                            url={Urls.question(entity)}
                             icon={visualizations.get(entity.display).iconName}
                           />
                         </li>

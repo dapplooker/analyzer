@@ -1,5 +1,4 @@
-/* @flow weak */
-
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
 import PropTypes from "prop-types";
 import _ from "underscore";
@@ -12,29 +11,10 @@ import LimitWidget from "./LimitWidget";
 import SortWidget from "./SortWidget";
 import Popover from "metabase/components/Popover";
 
-import MetabaseAnalytics from "metabase/lib/analytics";
-
-import StructuredQuery from "metabase-lib/lib/queries/StructuredQuery";
-import type { DatasetQuery } from "metabase-types/types/Card";
-import type { GuiQueryEditorFeatures } from "./GuiQueryEditor";
-
-type Props = {
-  query: StructuredQuery,
-  setDatasetQuery: (
-    datasetQuery: DatasetQuery,
-    options: { run: boolean },
-  ) => void,
-  features: GuiQueryEditorFeatures,
-  onClose?: () => void,
-};
-
-type State = {
-  editExpression: any,
-};
+import * as MetabaseAnalytics from "metabase/lib/analytics";
 
 export class ExtendedOptionsPopover extends Component {
-  props: Props;
-  state: State = {
+  state = {
     editExpression: null,
   };
 
@@ -59,7 +39,7 @@ export class ExtendedOptionsPopover extends Component {
       .updateExpression(name, expression, previousName)
       .update(setDatasetQuery);
     this.setState({ editExpression: null });
-    MetabaseAnalytics.trackEvent(
+    MetabaseAnalytics.trackStructEvent(
       "QueryBuilder",
       "Set Expression",
       !_.isEmpty(previousName),
@@ -71,13 +51,13 @@ export class ExtendedOptionsPopover extends Component {
     query.removeExpression(name).update(setDatasetQuery);
     this.setState({ editExpression: null });
 
-    MetabaseAnalytics.trackEvent("QueryBuilder", "Remove Expression");
+    MetabaseAnalytics.trackStructEvent("QueryBuilder", "Remove Expression");
   }
 
   setLimit = limit => {
     const { query, setDatasetQuery } = this.props;
     query.updateLimit(limit).update(setDatasetQuery);
-    MetabaseAnalytics.trackEvent("QueryBuilder", "Set Limit", limit);
+    MetabaseAnalytics.trackStructEvent("QueryBuilder", "Set Limit", limit);
     if (this.props.onClose) {
       this.props.onClose();
     }
@@ -111,7 +91,6 @@ export class ExtendedOptionsPopover extends Component {
           <AddClauseButton
             text={t`Pick a field to sort by`}
             onClick={() => {
-              // $FlowFixMe: shouldn't be adding a sort with null field
               query.sort(["asc", null]).update(setDatasetQuery);
             }}
           />
@@ -148,7 +127,7 @@ export class ExtendedOptionsPopover extends Component {
         onAddExpression={() => this.setState({ editExpression: true })}
         onEditExpression={name => {
           this.setState({ editExpression: name });
-          MetabaseAnalytics.trackEvent(
+          MetabaseAnalytics.trackStructEvent(
             "QueryBuilder",
             "Show Edit Custom Field",
           );

@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React from "react";
 
 import { t, jt } from "ttag";
@@ -13,10 +14,12 @@ import ColorRangePicker, {
   ColorRangePreview,
 } from "metabase/components/ColorRangePicker";
 import NumericInput from "metabase/components/NumericInput";
+import {
+  SortableContainer,
+  SortableElement,
+} from "metabase/components/sortable";
 
-import { SortableContainer, SortableElement } from "react-sortable-hoc";
-
-import MetabaseAnalytics from "metabase/lib/analytics";
+import * as MetabaseAnalytics from "metabase/lib/analytics";
 import { isNumeric, isString } from "metabase/lib/schema_metadata";
 
 import _ from "underscore";
@@ -51,9 +54,13 @@ export const ALL_OPERATOR_NAMES = {
 
 import { color, desaturated } from "metabase/lib/colors";
 
+// TODO
 const COLORS = Object.values(desaturated);
 const COLOR_RANGES = [].concat(
-  ...COLORS.map(color => [["white", color], [color, "white"]]),
+  ...COLORS.map(color => [
+    ["white", color],
+    [color, "white"],
+  ]),
   [
     [color("error"), "white", color("success")],
     [color("success"), "white", color("error")],
@@ -141,7 +148,7 @@ export default class ChartSettingsTableFormatting extends React.Component {
           }}
           onRemove={index => {
             onChange([...value.slice(0, index), ...value.slice(index + 1)]);
-            MetabaseAnalytics.trackEvent(
+            MetabaseAnalytics.trackStructEvent(
               "Chart Settings",
               "Table Formatting",
               "Remove Rule",
@@ -151,7 +158,7 @@ export default class ChartSettingsTableFormatting extends React.Component {
             const newValue = [...value];
             newValue.splice(to, 0, newValue.splice(from, 1)[0]);
             onChange(newValue);
-            MetabaseAnalytics.trackEvent(
+            MetabaseAnalytics.trackStructEvent(
               "Chart Settings",
               "Table Formatting",
               "Move Rule",
@@ -214,7 +221,6 @@ const RuleListing = ({ rules, cols, onEdit, onAdd, onRemove, onMove }) => (
           onRemove={onRemove}
           onSortEnd={({ oldIndex, newIndex }) => onMove(oldIndex, newIndex)}
           distance={10}
-          helperClass="z5"
         />
       </div>
     ) : null}
@@ -320,6 +326,7 @@ const RuleEditor = ({ rule, cols, isNew, onChange, onDone, onRemove }) => {
       >
         {cols.map(col => (
           <Option
+            key={col.name}
             value={col.name}
             disabled={
               (isStringRule && !isString(col)) ||
@@ -356,7 +363,9 @@ const RuleEditor = ({ rule, cols, isNew, onChange, onDone, onRemove }) => {
             {Object.entries(
               isNumericRule ? NUMBER_OPERATOR_NAMES : STRING_OPERATOR_NAMES,
             ).map(([operator, operatorName]) => (
-              <Option value={operator}>{operatorName}</Option>
+              <Option key={operatorName} value={operator}>
+                {operatorName}
+              </Option>
             ))}
           </Select>
           {hasOperand && isNumericRule ? (
@@ -391,7 +400,7 @@ const RuleEditor = ({ rule, cols, isNew, onChange, onDone, onRemove }) => {
           <ColorRangePicker
             value={rule.colors}
             onChange={colors => {
-              MetabaseAnalytics.trackEvent(
+              MetabaseAnalytics.trackStructEvent(
                 "Chart Settings",
                 "Table Formatting",
                 "Select Range  Colors",

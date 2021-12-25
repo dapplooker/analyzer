@@ -1,18 +1,12 @@
-/* @flow */
-
+/* eslint-disable react/prop-types */
 import { ngettext, msgid } from "ttag";
 import { inflect } from "metabase/lib/formatting";
 
 import StructuredQuery from "metabase-lib/lib/queries/StructuredQuery";
 
-import type {
-  ClickAction,
-  ClickActionProps,
-} from "metabase-types/types/Visualization";
-
 import { AggregationDimension } from "metabase-lib/lib/Dimension";
 
-export default ({ question, clicked }: ClickActionProps): ClickAction[] => {
+export default ({ question, clicked }) => {
   // removes post-aggregation filter stage
   clicked = clicked && question.topLevelClicked(clicked);
   question = question.topLevelQuestion();
@@ -62,13 +56,10 @@ export default ({ question, clicked }: ClickActionProps): ClickAction[] => {
       question: () => {
         const q = question.drillUnderlyingRecords(dimensions);
         if (extraFilter) {
-          return (
-            q
-              .query()
-              // $FlowFixMe: we know this is a StructuredQuery but flow doesn't
-              .filter(extraFilter)
-              .question()
-          );
+          return q
+            .query()
+            .filter(extraFilter)
+            .question();
         } else {
           return q;
         }

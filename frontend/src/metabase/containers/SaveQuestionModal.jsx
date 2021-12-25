@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
 import PropTypes from "prop-types";
 
@@ -25,6 +26,14 @@ export default class SaveQuestionModal extends Component {
     onSave: PropTypes.func.isRequired,
     onClose: PropTypes.func.isRequired,
     multiStep: PropTypes.bool,
+  };
+
+  validateName = (name, context) => {
+    if (context.form.saveType.value !== "overwrite") {
+      // We don't care if the form is valid when overwrite mode is enabled,
+      // as original question's data will be submitted instead of the form values
+      return validate.required()(name);
+    }
   };
 
   handleSubmit = async details => {
@@ -85,14 +94,14 @@ export default class SaveQuestionModal extends Component {
         card.collection_id === undefined
           ? initialCollectionId
           : card.collection_id,
-      saveType: originalCard ? "overwrite" : "create",
+      saveType: originalCard && !originalCard.dataset ? "overwrite" : "create",
     };
 
     const title = this.props.multiStep
       ? t`First, save your chart`
       : t`Save chart`;
 
-    const showSaveType = !card.id && !!originalCard;
+    const showSaveType = !card.id && !!originalCard && !originalCard.dataset;
 
     return (
       <ModalContent
@@ -104,11 +113,15 @@ export default class SaveQuestionModal extends Component {
           initialValues={initialValues}
           fields={[
             { name: "saveType" },
-            { name: "name" },
+            {
+              name: "name",
+              validate: this.validateName,
+            },
             { name: "description" },
             { name: "collection_id" },
           ]}
           onSubmit={this.handleSubmit}
+          overwriteOnInitialValuesChange
         >
           {({ values, Form }) => (
             <Form>
@@ -127,14 +140,10 @@ export default class SaveQuestionModal extends Component {
                 {values.saveType === "create" && (
                   <div className="saveQuestionModalFields">
                     <FormField
+                      autoFocus
                       name="name"
                       title={t`Name`}
                       placeholder={t`What is the name of your card?`}
-                      validate={
-                        values.saveType === "create"
-                          ? validate.required()
-                          : null
-                      }
                     />
                     <FormField
                       name="description"

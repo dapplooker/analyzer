@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
 import { connect } from "react-redux";
 import PropTypes from "prop-types";
@@ -124,6 +125,7 @@ export default class PartialQueryBuilder extends Component {
             <a
               data-metabase-event={"Data Model;Preview Click"}
               target={window.OSX ? null : "_blank"}
+              rel="noopener noreferrer"
               className={cx("Button Button--primary")}
               href={previewUrl}
             >{t`Preview`}</a>

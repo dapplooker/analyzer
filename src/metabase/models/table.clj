@@ -16,12 +16,12 @@
 
 ;;; ----------------------------------------------- Constants + Entity -----------------------------------------------
 
-(def ^:const visibility-types
+(def visibility-types
   "Valid values for `Table.visibility_type` (field may also be `nil`).
    (Basically any non-nil value is a reason for hiding the table.)"
   #{:hidden :technical :cruft})
 
-(def ^:const field-orderings
+(def field-orderings
   "Valid values for `Table.field_order`.
   `:database`     - use the same order as in the table definition in the DB;
   `:alphabetical` - order alphabetically by name;
@@ -37,19 +37,20 @@
 ;;; --------------------------------------------------- Lifecycle ----------------------------------------------------
 
 (defn- pre-insert [table]
-  (let [defaults {:display_name (humanization/name->human-readable-name (:name table))
-                  :field_order  (driver/default-field-order (-> table :db_id Database :engine))}]
+  (let [defaults {:display_name        (humanization/name->human-readable-name (:name table))
+                  :field_order         (driver/default-field-order (-> table :db_id Database :engine))
+                  :initial_sync_status "incomplete"}]
     (merge defaults table)))
 
 (defn- pre-delete [{:keys [db_id schema id]}]
-  (db/delete! Permissions :object [:like (str (perms/object-path db_id schema id) "%")]))
+  (db/delete! Permissions :object [:like (str (perms/data-perms-path db_id schema id) "%")]))
 
 (defn- perms-objects-set [table read-or-write]
   ;; To read (e.g., fetch metadata) a Table you (predictably) have read permissions; to write a Table (e.g. update its
   ;; metadata) you must have *full* permissions.
   #{(case read-or-write
       :read  (perms/table-read-path table)
-      :write (perms/object-path (:db_id table) (:schema table) (:id table)))})
+      :write (perms/data-perms-path (:db_id table) (:schema table) (:id table)))})
 
 (u/strict-extend (class Table)
   models/IModel
@@ -79,10 +80,10 @@
   [table]
   (doall
    (map-indexed (fn [new-position field]
-                  (db/update! Field (u/get-id field) :position new-position))
+                  (db/update! Field (u/the-id field) :position new-position))
                 ;; Can't use `select-field` as that returns a set while we need an ordered list
                 (db/select [Field :id]
-                  :table_id  (u/get-id table)
+                  :table_id  (u/the-id table)
                   {:order-by (case (:field_order table)
                                :custom       [[:custom_position :asc]]
                                :smart        [[(hsql/call :case
@@ -99,7 +100,7 @@
   "Field ordering is valid if all the fields from a given table are present and only from that table."
   [table field-ordering]
   (= (db/select-ids Field
-       :table_id (u/get-id table)
+       :table_id (u/the-id table)
        :active   true)
      (set field-ordering)))
 
@@ -107,7 +108,7 @@
   "Set field order to `field-order`."
   [table field-order]
   {:pre [(valid-field-order? table field-order)]}
-  (db/update! Table (u/get-id table) :field_order :custom)
+  (db/update! Table (u/the-id table) :field_order :custom)
   (doall
    (map-indexed (fn [position field-id]
                   (db/update! Field field-id {:position        position

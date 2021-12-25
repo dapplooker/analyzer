@@ -1,6 +1,8 @@
-/* @flow */
-
+/* eslint-disable react/prop-types */
 import React from "react";
+import PropTypes from "prop-types";
+import cx from "classnames";
+import { t } from "ttag";
 
 import NumberPicker from "./NumberPicker";
 import SelectPicker from "./SelectPicker";
@@ -8,19 +10,31 @@ import TextPicker from "./TextPicker";
 
 import FieldValuesWidget from "metabase/components/FieldValuesWidget";
 
-import { getFilterArgumentFormatOptions } from "metabase/lib/schema_metadata";
+import {
+  getFilterArgumentFormatOptions,
+  isFuzzyOperator,
+} from "metabase/lib/schema_metadata";
 
-import type Filter from "metabase-lib/lib/queries/structured/Filter";
+import {
+  BetweenLayoutContainer,
+  BetweenLayoutFieldSeparator,
+  BetweenLayoutFieldContainer,
+} from "./DefaultPicker.styled";
 
-type Props = {
-  filter: Filter,
-  setValue: (index: number, value: any) => void,
-  setValues: (value: any[]) => void,
-  onCommit: () => void,
-  className?: string,
-  isSidebar?: boolean,
-  minWidth?: number,
-  maxWidth?: number,
+const defaultPickerPropTypes = {
+  filter: PropTypes.object,
+  setValue: PropTypes.func,
+  setValues: PropTypes.func,
+  onCommit: PropTypes.func,
+  className: PropTypes.string,
+  isSidebar: PropTypes.bool,
+  minWidth: PropTypes.number,
+  maxWidth: PropTypes.number,
+};
+
+const defaultLayoutPropTypes = {
+  className: PropTypes.string,
+  fieldWidgets: PropTypes.array,
 };
 
 export default function DefaultPicker({
@@ -29,10 +43,9 @@ export default function DefaultPicker({
   setValues,
   onCommit,
   className,
-  isSidebar,
   minWidth,
   maxWidth,
-}: Props) {
+}) {
   const operator = filter.operator();
   if (!operator) {
     return <div className={className} />;
@@ -41,6 +54,11 @@ export default function DefaultPicker({
   const dimension = filter.dimension();
   const field = dimension && dimension.field();
   const operatorFields = operator.fields || [];
+  const disableSearch = isFuzzyOperator(operator);
+
+  const isBetweenLayout =
+    operator.name === "between" && operatorFields.length === 2;
+
   const fieldWidgets = operatorFields
     .map((operatorField, index) => {
       let values, onValuesChange;
@@ -60,14 +78,14 @@ export default function DefaultPicker({
           <SelectPicker
             key={index}
             options={operatorField.values}
-            values={(values: Array<string>)}
+            values={values}
             onValuesChange={onValuesChange}
             placeholder={placeholder}
             multi={operator.multi}
             onCommit={onCommit}
           />
         );
-      } else if (field && field.id != null) {
+      } else if (field && field.id != null && !isBetweenLayout) {
         // get the underling field if the query is nested
         let underlyingField = field;
         let sourceField;
@@ -77,7 +95,7 @@ export default function DefaultPicker({
         return (
           <FieldValuesWidget
             className="input"
-            value={(values: Array<string>)}
+            value={values}
             onChange={onValuesChange}
             multi={operator.multi}
             placeholder={placeholder}
@@ -86,16 +104,17 @@ export default function DefaultPicker({
             autoFocus={index === 0}
             alwaysShowOptions={operator.fields.length === 1}
             formatOptions={getFilterArgumentFormatOptions(operator, index)}
+            disableSearch={disableSearch}
             minWidth={minWidth}
             maxWidth={maxWidth}
-            optionsMaxHeight={isSidebar ? null : undefined}
           />
         );
       } else if (operatorField.type === "text") {
         return (
           <TextPicker
             key={index}
-            values={(values: Array<string>)}
+            autoFocus={index === 0}
+            values={values}
             onValuesChange={onValuesChange}
             placeholder={placeholder}
             multi={operator.multi}
@@ -106,7 +125,8 @@ export default function DefaultPicker({
         return (
           <NumberPicker
             key={index}
-            values={(values: Array<number | null>)}
+            autoFocus={index === 0}
+            values={values}
             onValuesChange={onValuesChange}
             placeholder={placeholder}
             multi={operator.multi}
@@ -117,14 +137,25 @@ export default function DefaultPicker({
       return null;
     })
     .filter(f => f);
-  if (fieldWidgets.length > 0) {
-    const Layout = DefaultLayout;
-    // TODO: custom layouts for different operators
-    return <Layout className={className} fieldWidgets={fieldWidgets} />;
-  } else {
-    return <div className={className} />;
+
+  let layout = null;
+
+  if (isBetweenLayout) {
+    layout = (
+      <BetweenLayout className={className} fieldWidgets={fieldWidgets} />
+    );
+  } else if (fieldWidgets.length > 0) {
+    layout = (
+      <DefaultLayout className={className} fieldWidgets={fieldWidgets} />
+    );
   }
+
+  return (
+    <div className={cx(className, "PopoverBody--marginBottom")}>{layout}</div>
+  );
 }
+
+DefaultPicker.propTypes = defaultPickerPropTypes;
 
 const DefaultLayout = ({ className, fieldWidgets }) => (
   <div className={className}>
@@ -138,3 +169,17 @@ const DefaultLayout = ({ className, fieldWidgets }) => (
     ))}
   </div>
 );
+
+DefaultLayout.propTypes = defaultLayoutPropTypes;
+
+const BetweenLayout = ({ className, fieldWidgets }) => {
+  const [left, right] = fieldWidgets;
+
+  return (
+    <BetweenLayoutContainer>
+      <BetweenLayoutFieldContainer>{left}</BetweenLayoutFieldContainer>{" "}
+      <BetweenLayoutFieldSeparator>{t`and`}</BetweenLayoutFieldSeparator>
+      <BetweenLayoutFieldContainer>{right}</BetweenLayoutFieldContainer>
+    </BetweenLayoutContainer>
+  );
+};

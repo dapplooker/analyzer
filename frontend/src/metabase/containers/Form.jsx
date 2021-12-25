@@ -1,5 +1,4 @@
-/* @flow */
-
+/* eslint-disable react/prop-types */
 import React from "react";
 import PropTypes from "prop-types";
 
@@ -20,76 +19,6 @@ export {
   CustomFormFooter as FormFooter,
   CustomFormSection as FormSection,
 } from "metabase/components/form/CustomForm";
-
-type FormFieldName = string;
-type FormFieldTitle = string;
-type FormFieldDescription = string;
-type FormFieldType =
-  | "input"
-  | "password"
-  | "select"
-  | "text"
-  | "color"
-  | "hidden"
-  | "collection"
-  | "snippetCollection";
-
-type FormValue = any;
-type FormError = string;
-type FormValues = { [name: FormFieldName]: FormValue };
-type FormErrors = { [name: FormFieldName]: FormError };
-
-export type FormFieldDefinition = {
-  name: FormFieldName,
-  type?: FormFieldType,
-  title?: FormFieldTitle,
-  description?: FormFieldDescription,
-  initial?: FormValue | (() => FormValue),
-  normalize?: (value: FormValue) => FormValue,
-  validate?: (value: FormValue, props: FormProps) => ?FormError | boolean,
-  readOnly?: boolean,
-};
-
-export type FormDefinition = {
-  fields:
-    | ((values: FormValues) => FormFieldDefinition[])
-    // $FlowFixMe
-    | FormFieldDefinition[],
-  // $FlowFixMe
-  initial?: FormValues | (() => FormValues),
-  normalize?: (values: FormValues) => FormValues,
-  validate?: (values: FormValues, props: FormProps) => FormErrors,
-};
-
-type FormObject = {
-  fields: (values: FormValues) => FormFieldDefinition[],
-  fieldNames: (values: FormValues) => FormFieldName[],
-  initial: () => FormValues,
-  normalize: (values: FormValues) => FormValues,
-  validate: (values: FormValues, props: FormProps) => FormErrors,
-};
-
-type FormProps = {
-  values?: FormValues,
-};
-
-type Props = {
-  form: FormDefinition,
-  initialValues?: ?FormValues,
-  formName?: string,
-  onSubmit: (values: FormValues) => Promise<any>,
-  formComponent?: React$Component<any, any, any>,
-};
-
-type State = {
-  inlineFields: { [name: FormFieldName]: FormFieldDefinition },
-};
-
-type SubmitState = {
-  submitting: boolean,
-  failed: boolean,
-  result: any,
-};
 
 let FORM_ID = 0;
 // use makeMapStateToProps so each component gets it's own unique formId
@@ -127,21 +56,13 @@ const ReduxFormComponent = reduxForm()(
 
 @connect(makeMapStateToProps)
 export default class Form extends React.Component {
-  props: Props;
-  state: State;
-
-  _state: SubmitState = {
+  _state = {
     submitting: false,
     failed: false,
     result: undefined,
   };
 
-  _getFormDefinition: () => FormDefinition;
-  _getFormObject: () => FormObject;
-  _getInitialValues: () => FormValues;
-  _getFieldNames: () => FormFieldName[];
-
-  constructor(props: Props) {
+  constructor(props) {
     super(props);
 
     this.state = {
@@ -178,9 +99,8 @@ export default class Form extends React.Component {
         };
       },
     );
-    const getFormObject = createSelector(
-      [getFormDefinition],
-      formDef => makeFormObject(formDef),
+    const getFormObject = createSelector([getFormDefinition], formDef =>
+      makeFormObject(formDef),
     );
     const getInitialValues = createSelector(
       [
@@ -226,6 +146,11 @@ export default class Form extends React.Component {
     onSubmit: PropTypes.func.isRequired,
     initialValues: PropTypes.object,
     formName: PropTypes.string,
+    overwriteOnInitialValuesChange: PropTypes.bool,
+  };
+
+  static defaultProps = {
+    overwriteOnInitialValuesChange: false,
   };
 
   static childContextTypes = {
@@ -234,32 +159,29 @@ export default class Form extends React.Component {
     fieldNames: PropTypes.array,
   };
 
-  componentDidUpdate(prevProps: Props, prevState: State) {
+  componentDidUpdate(prevProps, prevState) {
     // HACK: when new fields are added they aren't initialized with their intialValues, so we have to force it here:
     const newFields = _.difference(
       Object.keys(this.state.inlineFields),
       Object.keys(prevState.inlineFields),
     );
     if (newFields.length > 0) {
-      // $FlowFixMe: dispatch provided by connect
       this.props.dispatch(
         initialize(this.props.formName, this._getInitialValues(), newFields),
       );
     }
   }
 
-  _registerFormField = (field: FormFieldDefinition) => {
+  _registerFormField = field => {
     if (!_.isEqual(this.state.inlineFields[field.name], field)) {
-      // console.log("_registerFormField", field.name);
       this.setState(prevState =>
         assocIn(prevState, ["inlineFields", field.name], field),
       );
     }
   };
 
-  _unregisterFormField = (field: FormFieldDefinition) => {
+  _unregisterFormField = field => {
     if (this.state.inlineFields[field.name]) {
-      // console.log("_unregisterFormField", field.name);
       // this.setState(prevState =>
       //   dissocIn(prevState, ["inlineFields", field.name]),
       // );
@@ -273,7 +195,7 @@ export default class Form extends React.Component {
     };
   }
 
-  _validate = (values: FormValues, props: any) => {
+  _validate = (values, props) => {
     // HACK: clears failed state for global error
     if (!this._state.submitting && this._state.failed) {
       this._state.failed = false;
@@ -283,7 +205,7 @@ export default class Form extends React.Component {
     return formObject.validate(values, props);
   };
 
-  _onSubmit = async (values: FormValues) => {
+  _onSubmit = async values => {
     const formObject = this._getFormObject();
     // HACK: clears failed state for global error
     this._state.submitting = true;
@@ -318,21 +240,29 @@ export default class Form extends React.Component {
     }
   };
 
-  _handleChangeField = (fieldName: FormFieldName, value: FormValue) => {
-    // $FlowFixMe: dispatch provided by @connect
+  _handleSubmitSuccess = async action => {
+    if (this.props.onSubmitSuccess) {
+      await this.props.onSubmitSuccess(action);
+    }
+    this.props.dispatch(
+      initialize(this.props.formName, this.props.values, this._getFieldNames()),
+    );
+  };
+
+  _handleChangeField = (fieldName, value) => {
     return this.props.dispatch(change(this.props.formName, fieldName, value));
   };
 
   render() {
     // eslint-disable-next-line
-    const { formName } = this.props;
+    const { formName, overwriteOnInitialValuesChange } = this.props;
     const formObject = this._getFormObject();
     const initialValues = this._getInitialValues();
     const fieldNames = this._getFieldNames();
     return (
       <ReduxFormComponent
         {...this.props}
-        overwriteOnInitialValuesChange={false}
+        overwriteOnInitialValuesChange={overwriteOnInitialValuesChange}
         formObject={formObject}
         // redux-form props:
         form={formName}
@@ -340,6 +270,7 @@ export default class Form extends React.Component {
         initialValues={initialValues}
         validate={this._validate}
         onSubmit={this._onSubmit}
+        onSubmitSuccess={this._handleSubmitSuccess}
         onChangeField={this._handleChangeField}
         // HACK: _state is a mutable object so we can pass by reference into the ReduxFormComponent
         submitState={this._state}
@@ -359,12 +290,7 @@ export default class Form extends React.Component {
 // form.fields[0] is { name: "foo", initial: "bar" }
 // form.fields[0] is { name: "foo", initial: () => "bar" }
 //
-function makeFormMethod(
-  form: FormObject,
-  methodName: string,
-  defaultValues: any = {},
-  mergeFn,
-) {
+function makeFormMethod(form, methodName, defaultValues = {}, mergeFn) {
   const originalMethod = form[methodName];
   form[methodName] = (object, ...args) => {
     // make a copy
@@ -386,10 +312,10 @@ function makeFormMethod(
   };
 }
 // if the first arg is a function, call it, otherwise return it.
-function getValue(fnOrValue, ...args): any {
+function getValue(fnOrValue, ...args) {
   return typeof fnOrValue === "function" ? fnOrValue(...args) : fnOrValue;
 }
-function makeFormObject(formDef: FormDefinition): FormObject {
+function makeFormObject(formDef) {
   const form = {
     ...formDef,
     fields: values => getValue(formDef.fields, values),
