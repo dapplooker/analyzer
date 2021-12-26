@@ -192,11 +192,11 @@ export default class AddSeriesModal extends Component {
               >
                 {this.state.state === "loading" ? (
                   <div className="h3 rounded bordered p3 bg-white shadowed">
-                    {t`Applying Question`}
+                    {t`Applying Chart`}
                   </div>
                 ) : this.state.state === "incompatible" ? (
                   <div className="h3 rounded bordered p3 bg-error border-error text-white">
-                    {t`That question isn't compatible`}
+                    {t`That chart isn't compatible`}
                   </div>
                 ) : null}
               </div>

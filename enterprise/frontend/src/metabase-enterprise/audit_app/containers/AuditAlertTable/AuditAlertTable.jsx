@@ -6,7 +6,7 @@ import * as AlertCards from "../../lib/cards/alerts";
 
 const mapStateToProps = (state, props) => ({
   table: AlertCards.table(),
-  placeholder: t`Filter by question name`,
+  placeholder: t`Filter by chart name`,
   getExtraDataForClick: () => ({ type: "alert" }),
   entities: state.entities.alerts,
 });

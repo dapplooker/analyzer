@@ -1,7 +1,7 @@
 import { t } from "ttag";
 
 const TRANSLATED_NAME_BY_MODEL_TYPE = {
-  card: t`Question`,
+  card: t`Chart`,
   dataset: t`Dataset`,
   dashboard: t`Dashboard`,
   table: t`Table`,

@@ -158,10 +158,13 @@ export const getRoutes = store => (
       <Route path="dashboard/:uuid" component={PublicDashboard} />
     </Route>
 
-    <Route path='/dapplooker' component={() => {
-     window.location.href = 'https://dapplooker.com/dashboard';
-     return null;
-}}/>
+    <Route
+      path="/dapplooker"
+      component={() => {
+        window.location.href = "https://dapplooker.com/dashboard";
+        return null;
+      }}
+    />
 
     {/* APP */}
     <Route
@@ -178,22 +181,32 @@ export const getRoutes = store => (
       <Route path="/auth" component={AuthApp}>
         <IndexRedirect to="/auth/login" />
         <Route component={IsNotAuthenticated}>
-         <Route path='login' component={() => {
-            window.location.href = 'https://dapplooker.com/login?ref=analyzer';
-            return null;
-          }}/>
+          <Route
+            path="login"
+            component={() => {
+              window.location.href =
+                "https://dapplooker.com/login?source=dlooker";
+              return null;
+            }}
+          />
           {/* { <Route path="login" title={t`Login`} component={LoginApp} />}
           { <Route path="login/:provider" title={t`Login`} component={LoginApp} />} */}
         </Route>
         <Route path="logout" component={LogoutApp} />
-        <Route path="forgot_password" component={() => {
-            window.location.href = 'https://dapplooker.com/login?ref=analyzer';
+        <Route
+          path="forgot_password"
+          component={() => {
+            window.location.href = "https://dapplooker.com/login?source=dlooker";
             return null;
-          }} />
-        <Route path="reset_password/:token" component={() => {
-            window.location.href = 'https://dapplooker.com/login?ref=analyzer';
+          }}
+        />
+        <Route
+          path="reset_password/:token"
+          component={() => {
+            window.location.href = "https://dapplooker.com/login?source=dlooker";
             return null;
-          }} />
+          }}
+        />
         {/* <Route path="google_no_mb_account" component={GoogleNoAccount} /> */}
       </Route>
 
@@ -246,11 +259,7 @@ export const getRoutes = store => (
         <Route path="/question">
           <IndexRoute component={QueryBuilder} />
           {/* NEW QUESTION FLOW */}
-          <Route
-            path="new"
-            title={t`New Chart`}
-            component={NewQueryOptions}
-          />
+          <Route path="new" title={t`New Chart`} component={NewQueryOptions} />
           <Route path="notebook" component={QueryBuilder} />
           <Route path=":slug" component={QueryBuilder} />
           <Route path=":slug/notebook" component={QueryBuilder} />
@@ -344,8 +353,9 @@ export const getRoutes = store => (
       </Route>
 
       {/* PULSE */}
+      {/* NOTE: legacy route, not linked to in app */}
       <Route path="/pulse" title={t`Reports`}>
-        {/* NOTE: legacy route, not linked to in app */}
+        
         <IndexRedirect to="/search" query={{ type: "pulse" }} />
         <Route path="create" component={PulseEditApp} />
         <Route path=":pulseId">

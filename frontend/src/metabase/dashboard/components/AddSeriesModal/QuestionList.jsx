@@ -130,7 +130,7 @@ export const QuestionList = React.memo(function QuestionList({
           value={searchText}
           colorScheme="transparent"
           icon={<Icon name="search" size={16} pt="0.25rem" />}
-          placeholder={t`Search for a question`}
+          placeholder={t`Search for a chart`}
           onFocus={handleSearchFocus}
           onChange={value => setSearchText(value)}
         />

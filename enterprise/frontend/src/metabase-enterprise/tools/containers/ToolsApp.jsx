@@ -12,7 +12,7 @@ export default class ToolsApp extends Component {
     const { children } = this.props;
     return (
       <AdminLayout>
-        <h2>Questions that errored when last run</h2>
+        <h2>Charts that errored when last run</h2>
         {children}
       </AdminLayout>
     );

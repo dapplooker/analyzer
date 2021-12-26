@@ -58,7 +58,7 @@ const AuditAppSidebar = props => (
       <AuditSidebarItem title={t`Tables`} path="/admin/audit/tables" />
     </AuditSidebarSection>
     <AuditSidebarSection title={t`Items`}>
-      <AuditSidebarItem title={t`Questions`} path="/admin/audit/questions" />
+      <AuditSidebarItem title={t`Charts`} path="/admin/audit/questions" />
       <AuditSidebarItem title={t`Dashboards`} path="/admin/audit/dashboards" />
       <AuditSidebarItem title={t`Downloads`} path="/admin/audit/downloads" />
       <AuditSidebarItem

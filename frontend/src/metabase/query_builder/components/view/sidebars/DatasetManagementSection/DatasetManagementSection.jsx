@@ -46,7 +46,7 @@ function DatasetManagementSection({
         <Button
           icon="dataset_framed"
           onClick={turnDatasetIntoQuestion}
-        >{t`Turn back into a saved question`}</Button>
+        >{t`Turn back into a saved chart`}</Button>
       </SectionContent>
     </div>
   );

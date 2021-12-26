@@ -147,7 +147,7 @@ export default class DashboardHeader extends Component {
     if (isEditing) {
       const addQuestionButtonHint = showAddQuestionSidebar
         ? t`Close sidebar`
-        : t`Add questions`;
+        : t`Add charts`;
 
       buttons.push(
         <Tooltip tooltip={addQuestionButtonHint}>

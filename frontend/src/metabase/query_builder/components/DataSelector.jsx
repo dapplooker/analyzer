@@ -1152,7 +1152,7 @@ const DataBucketPicker = ({ onChangeDataBucket }) => {
       id: DATA_BUCKET.DATASETS,
       icon: "dataset",
       name: t`Datasets`,
-      description: t`The best starting place for new questions.`,
+      description: t`The best starting place for new charts.`,
     },
     {
       id: DATA_BUCKET.RAW_DATA,
@@ -1162,9 +1162,9 @@ const DataBucketPicker = ({ onChangeDataBucket }) => {
     },
     {
       id: DATA_BUCKET.SAVED_QUESTIONS,
-      name: t`Saved Questions`,
+      name: t`Saved charts`,
       icon: "folder",
-      description: t`Use any question’s results to start a new question.`,
+      description: t`Use any chart’s results to start a new chart.`,
     },
   ];
 
@@ -1279,7 +1279,7 @@ const DatabaseSchemaPicker = ({
   }
 
   const sections = databases.map(database => ({
-    name: database.is_saved_questions ? t`Saved Questions` : database.name,
+    name: database.is_saved_questions ? t`Saved charts` : database.name,
     items:
       !database.is_saved_questions && database.schemas.length > 1
         ? database.schemas.map(schema => ({

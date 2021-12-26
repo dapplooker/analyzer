@@ -36,7 +36,8 @@ export default class PulseEditName extends Component {
       <div className="py1">
         <h2>{t`Name your report`}</h2>
         <p className="mt1 h4 text-bold text-medium">
-          {t`Give your report a name to help others understand what it's about`}.
+          {t`Give your report a name to help others understand what it's about`}
+          .
         </p>
         <div className="my3">
           <input

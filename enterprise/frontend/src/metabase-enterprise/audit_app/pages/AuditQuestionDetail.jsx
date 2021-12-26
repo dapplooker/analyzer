@@ -74,7 +74,7 @@ function AuditQuestionAuditLogTab({ questionId }) {
 AuditQuestionAuditLogTab.propTypes = tabPropTypes;
 
 AuditQuestionDetail.tabs = [
-  { path: "activity", title: "Activity", component: AuditQuestionActivityTab },
+  { path: "activity", title: "Activity", component: AuditActivityTab },
   { path: "details", title: "Details" },
   {
     path: "revisions",

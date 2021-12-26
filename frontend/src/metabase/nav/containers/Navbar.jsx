@@ -150,7 +150,7 @@ export default class Navbar extends Component {
           </Box>
         </Flex>
         <Flex ml="auto" align="center" pl={[1, 2]} className="relative z2">
-        {hasDataAccess && (
+          {hasDataAccess && (
             <Link
               mr={[1, 2]}
               to={Urls.dapplookerHome()}
@@ -208,12 +208,12 @@ export default class Navbar extends Component {
                 action: () => this.setModal(MODAL_NEW_DASHBOARD),
                 event: `NavBar;New Dashboard Click;`,
               },
-              {
-                title: t`New Report`,
-                icon: `pulse`,
-                link: Urls.newPulse(),
-                event: `NavBar;New Pulse Click;`,
-              },
+            //   {
+            //     title: t`New Report`,
+            //     icon: `pulse`,
+            //     link: Urls.newPulse(),
+            //     event: `NavBar;New Pulse Click;`,
+            //   },
             ]}
           />
           {hasNativeWrite && (

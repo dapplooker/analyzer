@@ -8,7 +8,6 @@ import { capitalize } from "metabase/lib/formatting";
 import { color, darken } from "metabase/lib/colors";
 
 import MetabaseSettings from "metabase/lib/settings";
-import * as Urls from "metabase/lib/urls";
 import Modal from "metabase/components/Modal";
 
 import LogoIcon from "metabase/components/LogoIcon";
@@ -60,16 +59,25 @@ export default class ProfileLink extends Component {
       {
         title: t`Need Help?`,
         icon: null,
-        link: MetabaseSettings.docsUrl(),
+        link: 'https://dapplooker.com/#contact_us',
         externalLink: true,
         event: `Navbar;Profile Dropdown;About ${tag}`,
       },
-    //   {
-    //     title: t`About Metabase`,
-    //     icon: null,
-    //     action: () => this.openModal("about"),
-    //     event: `Navbar;Profile Dropdown;About ${tag}`,
-    //   },
+      {
+        title: t`Documentation`,
+        icon: null,
+        link: 'https://dapplooker.notion.site/dapplooker/Dapplooker-Documentation-f3113336bdce4ecea688fa0ba69cec98',
+        externalLink: true,
+        event: `Navbar;Profile Dropdown;About ${tag}`,
+      },
+      {
+        title: t`FAQ`,
+        icon: null,
+        link: 'https://dapplooker.com/faq/',
+        externalLink: false,
+        event: `Navbar;Profile Dropdown;About ${tag}`,
+      },
+     
       // {
       //   title: t`Sign out`,
       //   icon: null,

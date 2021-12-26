@@ -22,7 +22,7 @@ function ModerationActions({ moderationReview, className, onVerify }) {
     <Container className={className}>
       {!isVerified && (
         <VerifyButton data-testid="moderation-verify-action" onClick={onVerify}>
-          {t`Verify this question`}
+          {t`Verify this chart`}
         </VerifyButton>
       )}
     </Container>

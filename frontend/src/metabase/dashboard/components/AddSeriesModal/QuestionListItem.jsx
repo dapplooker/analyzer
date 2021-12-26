@@ -35,7 +35,7 @@ export const QuestionListItem = React.memo(function QuestionListItem({
         />
       </CheckboxContainer>
       {!question.isStructured() && (
-        <Tooltip tooltip={t`We're not sure if this question is compatible`}>
+        <Tooltip tooltip={t`We're not sure if this chart is compatible`}>
           <WarningIcon />
         </Tooltip>
       )}

@@ -42,11 +42,11 @@ export default class CardTagEditor extends Component {
       question.database_id != null &&
       question.database_id !== query.databaseId()
     ) {
-      return t`This question can't be used because it's based on a different database.`;
+      return t`This chart can't be used because it's based on a different database.`;
     }
     if (error) {
       return error.status === 404
-        ? t`Couldn't find a saved question with that ID number.`
+        ? t`Couldn't find a saved chart with that ID number.`
         : error.data;
     }
     return null;
@@ -57,9 +57,9 @@ export default class CardTagEditor extends Component {
     return (
       <SelectButton>
         {tag["card-id"] == null ? (
-          <span className="text-medium">{t`Pick a saved question`}</span>
+          <span className="text-medium">{t`Pick a saved chart`}</span>
         ) : this.errorMessage() ? (
-          <span className="text-medium">{t`Pick a different question`}</span>
+          <span className="text-medium">{t`Pick a different chart`}</span>
         ) : question ? (
           question.name
         ) : (

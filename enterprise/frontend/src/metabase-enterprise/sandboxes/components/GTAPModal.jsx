@@ -165,7 +165,7 @@ export default class GTAPModal extends React.Component {
                       { name: "Filter by a column in the table", value: true },
                       {
                         name:
-                          "Use a saved question to create a custom view for this table",
+                          "Use a saved chart to create a custom view for this table",
                         value: false,
                       },
                     ]}
@@ -176,7 +176,7 @@ export default class GTAPModal extends React.Component {
                 {!simple && (
                   <div className="px3 pb3">
                     <div className="pb2">
-                      {t`Pick a saved question that returns the custom view of this table that these users should see.`}
+                      {t`Pick a saved chart that returns the custom view of this table that these users should see.`}
                     </div>
                     <QuestionPicker
                       value={gtap.card_id}

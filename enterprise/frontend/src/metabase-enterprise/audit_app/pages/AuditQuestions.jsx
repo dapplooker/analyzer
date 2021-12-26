@@ -26,7 +26,7 @@ const AuditQuestionsOverviewTab = () => (
 
 AuditQuestions.tabs = [
   { path: "overview", title: "Overview", component: AuditQuestionsOverviewTab },
-  { path: "all", title: "All questions", component: QuestionsAuditTable },
+  { path: "all", title: "All charts", component: QuestionsAuditTable },
 ];
 
 export default AuditQuestions;

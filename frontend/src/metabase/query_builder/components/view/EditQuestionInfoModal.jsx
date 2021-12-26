@@ -31,7 +31,7 @@ function EditQuestionInfoModal({ question, onClose, onSave }) {
     PLUGIN_CACHING.getQuestionsImplicitCacheTTL(question) > 0;
 
   return (
-    <ModalContent title={t`Edit question`} onClose={onClose}>
+    <ModalContent title={t`Edit chart`} onClose={onClose}>
       <Form
         initialValues={question.card()}
         form={Questions.forms.edit}

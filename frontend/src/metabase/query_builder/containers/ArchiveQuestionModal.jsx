@@ -26,8 +26,8 @@ class ArchiveQuestionModal extends Component {
     const { onClose } = this.props;
     return (
       <ArchiveModal
-        title={t`Archive this question?`}
-        message={t`This question will be removed from any dashboards or reports using it.`}
+        title={t`Archive this chart?`}
+        message={t`This chart will be removed from any dashboards or reports using it.`}
         onArchive={this.onArchive}
         onClose={onClose}
       />

@@ -162,7 +162,7 @@ TableSelector.propTypes = TableSelectorPropTypes;
 
 const Placeholder = ({ query }) => (
   <span className="ml2 p2 text-medium">
-    {t`This question is written in ${query.nativeQueryLanguage()}.`}
+    {t`This chart is written in ${query.nativeQueryLanguage()}.`}
   </span>
 );
 

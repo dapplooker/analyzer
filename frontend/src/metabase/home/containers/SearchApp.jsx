@@ -49,12 +49,12 @@ const SEARCH_FILTERS = [
     icon: "table",
   },
   {
-    name: t`Questions`,
+    name: t`charts`,
     filter: "card",
     icon: "bar",
   },
   {
-    name: t`Pulses`,
+    name: t`Reports`,
     filter: "pulse",
     icon: "pulse",
   },

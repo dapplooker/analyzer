@@ -149,7 +149,7 @@ function ErrorDetail(props) {
         className="float-right"
         onClick={() => errorRetry(cardId)}
       >
-        {t`Rerun this question`}
+        {t`Rerun this chart`}
       </Button>
       <QuestionResultLoader question={question}>
         {({ rawSeries, result }) => <ErrorDetailDisplay result={result} />}

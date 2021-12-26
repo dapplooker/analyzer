@@ -30,7 +30,7 @@ const infoTextPropTypes = {
 export function InfoText({ result }) {
   switch (result.model) {
     case "card":
-      return jt`Saved question in ${formatCollection(result.getCollection())}`;
+      return jt`Saved chart in ${formatCollection(result.getCollection())}`;
     case "dataset":
       return jt`Dataset in ${formatCollection(result.getCollection())}`;
     case "collection":

@@ -19,7 +19,7 @@ export function QuestionsAuditTable(props) {
   return (
     <AuditParameters
       parameters={[
-        { key: "questionFilter", placeholder: t`Question name` },
+        { key: "questionFilter", placeholder: t`chart name` },
         { key: "collectionFilter", placeholder: t`Collection name` },
       ]}
     >

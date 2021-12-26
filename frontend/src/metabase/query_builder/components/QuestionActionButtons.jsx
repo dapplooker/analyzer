@@ -71,7 +71,7 @@ function QuestionActionButtons({ canWrite, isDataset, onOpenModal }) {
         </Tooltip>
       )}
       {canWrite && (
-        <Tooltip tooltip={t`Duplicate this question`}>
+        <Tooltip tooltip={t`Duplicate this chart`}>
           <Button
             onlyIcon
             icon="segment"
