@@ -50,7 +50,7 @@ export default class ProfileLink extends Component {
         link: "/admin",
         event: `Navbar;Profile Dropdown;Enter Admin`,
       },
-      admin && {
+      {
         title: t`Activity`,
         icon: null,
         link: "/activity",
@@ -74,7 +74,7 @@ export default class ProfileLink extends Component {
         title: t`FAQ`,
         icon: null,
         link: 'https://dapplooker.com/faq/',
-        externalLink: false,
+        externalLink: true,
         event: `Navbar;Profile Dropdown;About ${tag}`,
       },
      

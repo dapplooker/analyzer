@@ -34,8 +34,8 @@ describe("InfoText", () => {
       model: "card",
       getCollection: () => collection,
     });
-    expect(screen.queryByText("Saved question in")).toHaveTextContent(
-      "Saved question in Collection Name",
+    expect(screen.queryByText("Saved chart in")).toHaveTextContent(
+      "Saved chart in Collection Name",
     );
   });
 
