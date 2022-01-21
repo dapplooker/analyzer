@@ -162,7 +162,7 @@ export default class Navbar extends Component {
               data-metabase-event={`NavBar;New Question`}
             >
               <Icon name="pencil" size={18} />
-              <h4 className="hide sm-show ml1 text-nowrap">{t`My Project`}</h4>
+              <h4 className="hide sm-show ml1 text-nowrap">{t`My Projects`}</h4>
             </Link>
           )}
 
