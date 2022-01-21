@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React from "react";
 import { Box } from "grid-styled";
 import reactElementToJSXString from "react-element-to-jsx-string";
@@ -10,7 +11,7 @@ import Card from "metabase/components/Card";
 const Example = ({ children }) => {
   const code = reactElementToJSXString(children);
   return (
-    <Box my={3} w="100%">
+    <Box my={3} width={"100%"}>
       <Label color="medium">Example</Label>
       <Card>
         <Box p={2} className="border-bottom">
@@ -23,7 +24,7 @@ const Example = ({ children }) => {
               value={code}
             />
           </Absolute>
-          <pre>
+          <pre className="overflow-auto">
             <code>{code}</code>
           </pre>
         </Box>

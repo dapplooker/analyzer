@@ -1,5 +1,4 @@
-/* @flow */
-
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
 
 import TableInteractive from "../components/TableInteractive.jsx";
@@ -16,7 +15,6 @@ import {
   isMetric,
   isDimension,
   isNumber,
-  isString,
   isURL,
   isEmail,
   isImageURL,
@@ -36,24 +34,7 @@ import cx from "classnames";
 
 import { getIn } from "icepick";
 
-import type { DatasetData } from "metabase-types/types/Dataset";
-import type { VisualizationSettings } from "metabase-types/types/Card";
-import type { Series } from "metabase-types/types/Visualization";
-import type { SettingDefs } from "metabase/visualizations/lib/settings";
-
-type Props = {
-  series: Series,
-  settings: VisualizationSettings,
-  isDashboard: boolean,
-};
-type State = {
-  data: ?DatasetData,
-};
-
 export default class Table extends Component {
-  props: Props;
-  state: State;
-
   static uiName = t`Table`;
   static identifier = "table";
   static iconName = "table";
@@ -76,7 +57,30 @@ export default class Table extends Component {
     // scalar can always be rendered, nothing needed here
   }
 
-  static settings: SettingDefs = {
+  static isPivoted(series, settings) {
+    const [{ data }] = series;
+
+    if (!settings["table.pivot"]) {
+      return false;
+    }
+
+    const pivotIndex = _.findIndex(
+      data.cols,
+      col => col.name === settings["table.pivot_column"],
+    );
+    const cellIndex = _.findIndex(
+      data.cols,
+      col => col.name === settings["table.cell_column"],
+    );
+    const normalIndex = _.findIndex(
+      data.cols,
+      (col, index) => index !== pivotIndex && index !== cellIndex,
+    );
+
+    return pivotIndex >= 0 && cellIndex >= 0 && normalIndex >= 0;
+  }
+
+  static settings = {
     ...columnSettings({ hidden: true }),
     "table.pivot": {
       section: t`Columns`,
@@ -163,6 +167,11 @@ export default class Table extends Component {
       widget: ChartSettingOrderedColumns,
       getHidden: (series, vizSettings) => vizSettings["table.pivot"],
       isValid: ([{ card, data }]) =>
+        // If "table.columns" happened to be an empty array,
+        // it will be treated as "all columns are hidden",
+        // This check ensures it's not empty,
+        // otherwise it will be overwritten by `getDefault` below
+        card.visualization_settings["table.columns"].length !== 0 &&
         _.all(
           card.visualization_settings["table.columns"],
           columnSetting =>
@@ -191,17 +200,11 @@ export default class Table extends Component {
       section: t`Conditional Formatting`,
       widget: ChartSettingsTableFormatting,
       default: [],
-      getProps: (
-        [
-          {
-            data: { cols },
-          },
-        ],
-        settings,
-      ) => ({
-        cols: cols.filter(isFormattable),
+      getProps: (series, settings) => ({
+        cols: series[0].data.cols.filter(isFormattable),
         isPivoted: settings["table.pivot"],
       }),
+
       getHidden: (
         [
           {
@@ -228,7 +231,7 @@ export default class Table extends Component {
   };
 
   static columnSettings = column => {
-    const settings: SettingDefs = {
+    const settings = {
       column_title: {
         title: t`Column title`,
         widget: "input",
@@ -242,53 +245,63 @@ export default class Table extends Component {
         widget: "toggle",
       };
     }
-    if (isString(column)) {
-      let defaultValue = null;
-      const options: { name: string, value: null | string }[] = [
-        { name: t`Off`, value: null },
-      ];
-      if (!column.semantic_type || isURL(column)) {
-        defaultValue = "link";
-        options.push({ name: t`Link`, value: "link" });
-      }
-      if (!column.semantic_type || isEmail(column)) {
-        defaultValue = "email_link";
-        options.push({ name: t`Email link`, value: "email_link" });
-      }
-      if (!column.semantic_type || isImageURL(column) || isAvatarURL(column)) {
-        defaultValue = isAvatarURL(column) ? "image" : "link";
-        options.push({ name: t`Image`, value: "image" });
-      }
-      if (!column.semantic_type) {
-        defaultValue = "auto";
-        options.push({ name: t`Automatic`, value: "auto" });
-      }
 
-      if (options.length > 1) {
-        settings["view_as"] = {
-          title: t`View as link or image`,
-          widget: "select",
-          default: defaultValue,
-          props: {
-            options,
-          },
-        };
-      }
+    let defaultValue = !column.semantic_type || isURL(column) ? "link" : null;
 
-      settings["link_text"] = {
-        title: t`Link text`,
-        widget: "input",
-        default: null,
-        getHidden: (column, settings) =>
-          settings["view_as"] !== "link" &&
-          settings["view_as"] !== "email_link",
+    const options = [
+      { name: t`Off`, value: null },
+      { name: t`Link`, value: "link" },
+    ];
+
+    if (!column.semantic_type || isEmail(column)) {
+      defaultValue = "email_link";
+      options.push({ name: t`Email link`, value: "email_link" });
+    }
+    if (!column.semantic_type || isImageURL(column) || isAvatarURL(column)) {
+      defaultValue = isAvatarURL(column) ? "image" : "link";
+      options.push({ name: t`Image`, value: "image" });
+    }
+    if (!column.semantic_type) {
+      defaultValue = "auto";
+      options.push({ name: t`Automatic`, value: "auto" });
+    }
+
+    if (options.length > 1) {
+      settings["view_as"] = {
+        title: t`View as link or image`,
+        widget: "select",
+        default: defaultValue,
+        props: {
+          options,
+        },
       };
     }
+
+    const linkFieldsHint = t`You can use the value of any column here like this: {{COLUMN}}`;
+
+    settings["link_text"] = {
+      title: t`Link text`,
+      widget: "input",
+      hint: linkFieldsHint,
+      default: null,
+      getHidden: (_, settings) =>
+        settings["view_as"] !== "link" && settings["view_as"] !== "email_link",
+      readDependencies: ["view_as"],
+    };
+
+    settings["link_url"] = {
+      title: t`Link URL`,
+      widget: "input",
+      hint: linkFieldsHint,
+      default: null,
+      getHidden: (_, settings) => settings["view_as"] !== "link",
+      readDependencies: ["view_as"],
+    };
 
     return settings;
   };
 
-  constructor(props: Props) {
+  constructor(props) {
     super(props);
 
     this.state = {
@@ -300,7 +313,7 @@ export default class Table extends Component {
     this._updateData(this.props);
   }
 
-  UNSAFE_componentWillReceiveProps(newProps: Props) {
+  UNSAFE_componentWillReceiveProps(newProps) {
     if (
       newProps.series !== this.props.series ||
       !_.isEqual(newProps.settings, this.props.settings)
@@ -309,14 +322,10 @@ export default class Table extends Component {
     }
   }
 
-  _updateData({
-    series: [{ data }],
-    settings,
-  }: {
-    series: Series,
-    settings: VisualizationSettings,
-  }) {
-    if (settings["table.pivot"]) {
+  _updateData({ series, settings }) {
+    const [{ data }] = series;
+
+    if (Table.isPivoted(series, settings)) {
       const pivotIndex = _.findIndex(
         data.cols,
         col => col.name === settings["table.pivot_column"],
@@ -359,13 +368,13 @@ export default class Table extends Component {
 
   // shared helpers for table implementations
 
-  getColumnTitle = (columnIndex: number): ?string => {
+  getColumnTitle = columnIndex => {
     const cols = this.state.data && this.state.data.cols;
     if (!cols) {
       return null;
     }
-    const { settings } = this.props;
-    const isPivoted = settings["table.pivot"];
+    const { series, settings } = this.props;
+    const isPivoted = Table.isPivoted(series, settings);
     const column = cols[columnIndex];
     if (isPivoted) {
       return formatColumn(column) || (columnIndex !== 0 ? t`Unset` : null);
@@ -377,23 +386,20 @@ export default class Table extends Component {
   };
 
   render() {
-    const {
-      series: [{ card }],
-      isDashboard,
-      settings,
-    } = this.props;
+    const { series, isDashboard, settings } = this.props;
     const { data } = this.state;
+    const [{ card }] = series;
     const sort = getIn(card, ["dataset_query", "query", "order-by"]) || null;
-    const isPivoted = settings["table.pivot"];
-    const isColumnsDisabled =
-      (settings["table.columns"] || []).filter(f => f.enabled).length < 1;
+    const isPivoted = Table.isPivoted(series, settings);
+    const columnSettings = settings["table.columns"] || [];
+    const areAllColumnsHidden = !columnSettings.some(f => f.enabled);
     const TableComponent = isDashboard ? TableSimple : TableInteractive;
 
     if (!data) {
       return null;
     }
 
-    if (isColumnsDisabled) {
+    if (areAllColumnsHidden) {
       return (
         <div
           className={cx(
@@ -410,20 +416,19 @@ export default class Table extends Component {
             "
             className="mb2"
           />
-          <span className="h4 text-bold">Every field is hidden right now</span>
+          <span className="h4 text-bold">{t`Every field is hidden right now`}</span>
         </div>
       );
-    } else {
-      return (
-        // $FlowFixMe
-        <TableComponent
-          {...this.props}
-          data={data}
-          isPivoted={isPivoted}
-          sort={sort}
-          getColumnTitle={this.getColumnTitle}
-        />
-      );
     }
+
+    return (
+      <TableComponent
+        {...this.props}
+        data={data}
+        isPivoted={isPivoted}
+        sort={sort}
+        getColumnTitle={this.getColumnTitle}
+      />
+    );
   }
 }

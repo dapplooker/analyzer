@@ -5,6 +5,7 @@
             [metabase.models.field :as field :refer [Field]]
             [metabase.util :as u]
             [metabase.util.date-2 :as u.date]
+            [metabase.util.schema :as su]
             [schema.core :as s]
             [toucan.db :as db]))
 
@@ -12,45 +13,38 @@
   "Is given form an MBQL field reference?"
   (complement (s/checker mbql.s/field)))
 
-(defn field-reference->id
+(s/defn field-reference->id :- (s/maybe (s/cond-pre su/NonBlankString su/IntGreaterThanZero))
   "Extract field ID from a given field reference form."
   [clause]
   (mbql.u/match-one clause [:field id _] id))
 
-(defn collect-field-references
-  "Collect all `:field` references from a given
-   form."
+(s/defn collect-field-references :- [mbql.s/field]
+  "Collect all `:field` references from a given form."
   [form]
-  (->> form
-       (tree-seq (every-pred (some-fn sequential? map?)
-                             (complement field-reference?))
-                 identity)
-       (filter field-reference?)))
+  (mbql.u/match form :field &match))
 
-;; TODO — this function name is inaccurate, rename to `temporal?`
-(defn datetime?
+(defn- temporal?
   "Does `field` represent a temporal value, i.e. a date, time, or datetime?"
-  [field]
-  (and (not ((disj u.date/extract-units :year) (:unit field)))
-       (or (isa? (:base_type field) :type/Temporal)
-           (field/unix-timestamp? field))))
+  [{base-type :base_type, effective-type :effective_type, unit :unit}]
+  ;; TODO -- not sure why we're excluding year here? Is it because we normally returned it as an integer in the past?
+  (and (not ((disj u.date/extract-units :year) unit))
+       (isa? (or effective-type base-type) :type/Temporal)))
 
 (defn- interestingness
-  [{:keys [base_type semantic_type fingerprint] :as field}]
+  [{base-type :base_type, effective-type :effective_type, semantic-type :semantic_type, :keys [fingerprint]}]
   (cond-> 0
     (some-> fingerprint :global :distinct-count (< 10)) inc
     (some-> fingerprint :global :distinct-count (> 20)) dec
-    ((descendants :type/Category) semantic_type)        inc
-    (field/unix-timestamp? field)                       inc
-    (isa? base_type :type/Temporal)                     inc
-    ((descendants :type/Temporal) semantic_type)        inc
-    (isa? semantic_type :type/CreationTimestamp)        inc
-    (#{:type/State :type/Country} semantic_type)        inc))
+    ((descendants :type/Category) semantic-type)        inc
+    (isa? (or effective-type base-type) :type/Temporal) inc
+    ((descendants :type/Temporal) semantic-type)        inc
+    (isa? semantic-type :type/CreationTimestamp)        inc
+    (#{:type/State :type/Country} semantic-type)        inc))
 
 (defn- interleave-all
   [& colls]
   (lazy-seq
-   (when-not (empty? colls)
+   (when (seq colls)
      (concat (map first colls) (apply interleave-all (keep (comp seq rest) colls))))))
 
 (defn- sort-by-interestingness
@@ -70,7 +64,7 @@
   [fields]
   (->> fields
        (filter (fn [{:keys [semantic_type] :as field}]
-                 (or (datetime? field)
+                 (or (temporal? field)
                      (isa? semantic_type :type/Category))))
        sort-by-interestingness))
 
@@ -118,7 +112,7 @@
   "Return filter type for a given field."
   [{:keys [base_type semantic_type] :as field}]
   (cond
-    (datetime? field)                   "date/all-options"
+    (temporal? field)                   "date/all-options"
     (isa? semantic_type :type/State)    "location/state"
     (isa? semantic_type :type/Country)  "location/country"
     (isa? semantic_type :type/Category) "category"))

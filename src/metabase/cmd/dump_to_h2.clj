@@ -3,7 +3,7 @@
 
   Run this as follows (h2 filename is optional):
 
-    lein run dump-to-h2 '/path/to/metabase.db/'
+    clojure -M:run dump-to-h2 '/path/to/metabase.db/'
 
   or
 
@@ -11,7 +11,7 @@
 
   Validate with:
 
-    lein run load-from-h2 '/path/to/metabase.db'"
+    clojure -M:run load-from-h2 '\"/path/to/metabase.db\"'"
   (:require [clojure.tools.logging :as log]
             [metabase.cmd.copy :as copy]
             [metabase.cmd.copy.h2 :as copy.h2]
@@ -37,7 +37,7 @@
      (when-not keep-existing?
        (copy.h2/delete-existing-h2-database-files! h2-filename))
      (copy/copy!  (mdb.conn/db-type) (mdb.conn/jdbc-spec) :h2 h2-jdbc-spec)
-     (if dump-plaintext?
+     (when dump-plaintext?
        (binding [mdb.conn/*db-type* :h2
                  mdb.conn/*jdbc-spec* h2-jdbc-spec
                  db/*db-connection* h2-jdbc-spec

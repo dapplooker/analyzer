@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React from "react";
 import { connect } from "react-redux";
 import _ from "underscore";
@@ -60,9 +61,12 @@ const WithVizSettingsData = ComposedComponent => {
       }
 
       fetch() {
-        getLinkTargets(this.dashcardSettings(this.props)).forEach(
-          ({ entity, entityId }) =>
-            this.props.dispatch(entity.actions.fetch({ id: entityId })),
+        getLinkTargets(
+          this.dashcardSettings(this.props),
+        ).forEach(({ entity, entityId }) =>
+          this.props.dispatch(
+            entity.actions.fetch({ id: entityId }, { noEvent: true }),
+          ),
         );
       }
 

@@ -27,7 +27,8 @@
    :display_name                   s/Str
    ;; type of the Field. For Native queries we look at the values in the first 100 rows to make an educated guess
    :base_type                      su/FieldType
-   (s/optional-key :semantic_type) (s/maybe su/FieldType)
+   ;; effective_type, coercion, etc don't go here. probably best to rename base_type to effective type in the return
+   ;; from the metadata but that's for another day
    ;; where this column came from in the original query.
    :source                         (s/enum :aggregation :fields :breakout :native)
    ;; a field clause that can be used to refer to this Field if this query is subsequently used as a source query.
@@ -70,9 +71,7 @@
                   :first-row        (first rows)
                   :type             error-type/qp}))))))
 
-(defmethod column-info :native
-  [_ {:keys [cols rows]}]
-  (check-driver-native-columns cols rows)
+(defn- annotate-native-cols [cols]
   (let [unique-name-fn (mbql.u/unique-name-generator)]
     (vec (for [{col-name :name, base-type :base_type, :as driver-col-metadata} cols]
            (let [col-name (name col-name)]
@@ -86,6 +85,11 @@
               (when-not (str/blank? col-name)
                 {:field_ref [:field (unique-name-fn col-name) {:base-type base-type}]})
               driver-col-metadata))))))
+
+(defmethod column-info :native
+  [_query {:keys [cols rows] :as results}]
+  (check-driver-native-columns cols rows)
+  (annotate-native-cols cols))
 
 
 ;;; +----------------------------------------------------------------------------------------------------------------+
@@ -118,47 +122,53 @@
 
 (declare col-info-for-field-clause)
 
+(def type-info-columns
+  "Columns to select from a field to get its type information without getting information that is specific to that
+  column."
+  [:base_type :effective_type :coercion_strategy :semantic_type])
+
 (defn infer-expression-type
   "Infer base-type/semantic-type information about an `expression` clause."
   [expression]
   (cond
     (string? expression)
-    {:base_type     :type/Text
-     :semantic_type nil}
+    {:base_type :type/Text}
 
     (number? expression)
-    {:base_type     :type/Number
-     :semantic_type nil}
+    {:base_type :type/Number}
 
     (mbql.u/is-clause? :field expression)
     (col-info-for-field-clause {} expression)
 
     (mbql.u/is-clause? :coalesce expression)
-    (infer-expression-type (second expression))
+    (select-keys (infer-expression-type (second expression)) type-info-columns)
 
     (mbql.u/is-clause? :length expression)
-    {:base_type     :type/BigInteger
-     :semantic_type :type/Number}
+    {:base_type :type/BigInteger}
 
     (mbql.u/is-clause? :case expression)
-    (->> expression
-         second
+    (let [[_ clauses] expression]
+      (some
+       (fn [[_ expression]]
          ;; get the first non-nil val
-         (keep second)
-         first
-         infer-expression-type)
+         (when (and (not= expression nil)
+                    (or (not (mbql.u/is-clause? :value expression))
+                        (let [[_ value] expression]
+                          (not= value nil))))
+           (select-keys (infer-expression-type expression) type-info-columns)))
+       clauses))
 
     (mbql.u/datetime-arithmetics? expression)
-    {:base_type     :type/DateTime
-     :semantic_type nil}
+    {:base_type :type/DateTime}
 
     (mbql.u/is-clause? mbql.s/string-expressions expression)
-    {:base_type     :type/Text
-     :semantic_type nil}
+    {:base_type :type/Text}
+
+    (mbql.u/is-clause? mbql.s/arithmetic-expressions expression)
+    {:base_type :type/Float}
 
     :else
-    {:base_type     :type/Float
-     :semantic_type :type/Number}))
+    {:base_type :type/*}))
 
 (defn- col-info-for-expression
   [inner-query [_ expression-name :as clause]]
@@ -171,15 +181,12 @@
     :field_ref       clause}))
 
 (s/defn ^:private col-info-for-field-clause*
-  [{:keys [source-metadata expressions], :as inner-query} [_ id-or-name opts :as clause] :- mbql.s/field]
-  (let [join (when (:join-alias opts)
-               (join-with-alias inner-query (:join-alias opts)))]
+  [{:keys [source-metadata source-card-id], :as inner-query} [_ id-or-name opts :as clause] :- mbql.s/field]
+  (let [join                      (when (:join-alias opts)
+                                    (join-with-alias inner-query (:join-alias opts)))
+        join-is-at-current-level? (some #(= (:alias %) (:join-alias opts)) (:joins inner-query))]
     ;; TODO -- I think we actually need two `:field_ref` columns -- one for referring to the Field at the SAME
     ;; level, and one for referring to the Field from the PARENT level.
-    ;;
-    ;; If temporal bucketing is applied to a Field in a source query, you should not re-bucket it when you refer to it
-    ;; outside that source query; hence we remove the `temporal-unit` below. However you should keep the bucketing
-    ;; unit to refer to the Field *WITHIN* the source query, e.g. to add a sort on that column.
     (cond-> {:field_ref clause}
       (:base-type opts)
       (assoc :base_type (:base-type opts))
@@ -230,7 +237,14 @@
       (or (:source-field opts)
           (:fk-field-id join))
       (assoc :fk_field_id (or (:source-field opts)
-                              (:fk-field-id join))))))
+                              (:fk-field-id join)))
+
+      ;; If the source query is from a saved question, remove the join alias as the caller should not be aware of joins
+      ;; happening inside the saved question. The `not join-is-at-current-level?` check is to ensure that we are not
+      ;; removing `:join-alias` from fields from the right side of the join.
+      (and source-card-id
+           (not join-is-at-current-level?))
+      (update :field_ref mbql.u/update-field-options dissoc :join-alias))))
 
 (s/defn ^:private col-info-for-field-clause :- {:field_ref mbql.s/Field, s/Keyword s/Any}
   "Return results column metadata for a `:field` or `:expression` clause, in the format that gets returned by QP results"
@@ -362,8 +376,8 @@
 
 (s/defn col-info-for-aggregation-clause
   "Return appropriate column metadata for an `:aggregation` clause."
-  ; `clause` is normally an aggregation clause but this function can call itself recursively; see comments by the
-  ; `match` pattern for field clauses below
+  ;; `clause` is normally an aggregation clause but this function can call itself recursively; see comments by the
+  ;; `match` pattern for field clauses below
   [inner-query :- su/Map, clause]
   (mbql.u/match-one clause
     ;; ok, if this is a aggregation w/ options recurse so we can get information about the ag it wraps
@@ -378,19 +392,19 @@
     (merge
      (col-info-for-aggregation-clause inner-query args)
      {:base_type     :type/BigInteger
-      :semantic_type :type/Number}
+      :semantic_type :type/Quantity}
      (ag->name-info inner-query &match))
 
     [:count-where _]
     (merge
      {:base_type     :type/Integer
-      :semantic_type :type/Number}
+      :semantic_type :type/Quantity}
      (ag->name-info inner-query &match))
 
     [:share _]
     (merge
      {:base_type     :type/Float
-      :semantic_type :type/Number}
+      :semantic_type :type/Share}
      (ag->name-info inner-query &match))
 
     ;; get info from a Field if we can (theses Fields are matched when ag clauses recursively call
@@ -403,10 +417,12 @@
      (when (mbql.preds/Aggregation? &match)
        (ag->name-info inner-query &match)))
 
-    [:case _ & _]
+    ;; the type returned by a case statement depends on what its expressions are; we'll just return the type info for
+    ;; the first expression for the time being. I guess it's possible the expression might return a string for one
+    ;; case and a number for another, but I think in post cases it should be the same type for every clause.
+    [:case & _]
     (merge
-     {:base_type     :type/Float
-      :semantic_type :type/Number}
+     (infer-expression-type &match)
      (ag->name-info inner-query &match))
 
     ;; get name/display-name of this ag
@@ -458,7 +474,39 @@
    (cols-for-ags-and-breakouts inner-query)
    (cols-for-fields inner-query)))
 
-(declare mbql-cols)
+(def ^:private preserved-keys
+  "Keys that can survive merging metadata from the database onto metadata computed from the query. When merging
+  metadata, the types returned should be authoritative. But things like semantic_type, display_name, and description
+  can be merged on top."
+  [:description :display_name :semantic_type])
+
+(defn- combine-metadata
+  "Ensure that saved metadata from datasets or source queries can remain in the results metadata. We always recompute
+  metadata in general, so need to blend the saved metadata on top of the computed metadata. First argument should be
+  the metadata from a particular run from the query, and `from-db` should be the metadata from the database we wish to
+  ensure survives."
+  [computed from-db]
+  (let [by-key (u/key-by (comp u/field-ref->key :field_ref) from-db)]
+    (for [{:keys [field_ref] :as col} computed]
+      (if-let [existing (get by-key (u/field-ref->key field_ref))]
+        (merge col (select-keys existing preserved-keys))
+        col))))
+
+(s/defn ^:private merge-source-metadata-col :- (s/maybe su/Map)
+  [source-metadata-col :- (s/maybe su/Map) col :- (s/maybe su/Map)]
+  (merge
+   source-metadata-col
+   col
+   (select-keys source-metadata-col preserved-keys)
+   ;; if there is a join involved, allow a possible "Question 5 → B Column" display name from the outer query to
+   ;; dominate
+   (when (:source_alias col)
+     (select-keys col [:display_name]))
+   ;; pass along the unit from the source query metadata if the top-level metadata has unit `:default`. This way the
+   ;; frontend will display the results correctly if bucketing was applied in the nested query, e.g. it will format
+   ;; temporal values in results using that unit
+   (when (= (:unit col) :default)
+     (select-keys source-metadata-col [:unit]))))
 
 (defn- maybe-merge-source-metadata
   "Merge information from `source-metadata` into the returned `cols` for queries that return the columns of a source
@@ -466,23 +514,26 @@
   excluding the one added automatically by `add-source-metadata`)."
   [source-metadata cols]
   (if (= (count cols) (count source-metadata))
-    (map merge source-metadata cols)
+    (map merge-source-metadata-col source-metadata cols)
     cols))
 
 (defn- flow-field-metadata
   "Merge information about fields from `source-metadata` into the returned `cols`."
   [source-metadata cols]
-  (let [field-id->metadata (u/key-by :id source-metadata)]
+  (let [ref->metadata (u/key-by (comp u/field-ref->key :field_ref) source-metadata)]
     (for [col cols]
-      (if-let [source-metadata-for-field (-> col :id field-id->metadata)]
-        (merge source-metadata-for-field col)
+      (if-let [source-metadata-for-field (-> col :field_ref u/field-ref->key ref->metadata)]
+        (merge-source-metadata-col source-metadata-for-field col)
         col))))
+
+(declare mbql-cols)
 
 (defn- cols-for-source-query
   [{:keys [source-metadata], {native-source-query :native, :as source-query} :source-query} results]
-  (if native-source-query
-    (maybe-merge-source-metadata source-metadata (column-info {:type :native} results))
-    (mbql-cols source-query results)))
+  (let [columns       (if native-source-query
+                        (maybe-merge-source-metadata source-metadata (column-info {:type :native} results))
+                        (mbql-cols source-query results))]
+    (combine-metadata columns source-metadata)))
 
 (defn mbql-cols
   "Return the `:cols` result metadata for an 'inner' MBQL query based on the fields/breakouts/aggregations in the
@@ -538,11 +589,18 @@
   (let [non-nil-driver-col-metadata (m/filter-vals some? driver-col-metadata)
         our-base-type               (when (= (:base_type driver-col-metadata) :type/*)
                                       (u/select-non-nil-keys our-col-metadata [:base_type]))
+        ;; whatever type comes back from the query is by definition the effective type, fallback to our effective
+        ;; type, fallback to the base_type
+        effective-type              (when-let [db-base (or (:base_type driver-col-metadata)
+                                                           (:effective_type our-col-metadata)
+                                                           (:base_type our-col-metadata))]
+                                      {:effective_type db-base})
         our-name                    (u/select-non-nil-keys our-col-metadata [:name])]
     (merge our-col-metadata
            non-nil-driver-col-metadata
            our-base-type
-           our-name)))
+           our-name
+           effective-type)))
 
 (defn- merge-cols-returned-by-driver
   "Merge our column metadata (`:cols`) derived from logic above with the column metadata returned by the driver. We'll
@@ -560,10 +618,8 @@
   metadata returned by the driver's impl of `execute-reducible-query` and (b) column metadata inferred by logic in
   this namespace."
   [query {cols-returned-by-driver :cols, :as result}]
-  ;; merge in `:cols` if returned by the driver, then make sure the `:name` of each map in `:cols` is unique, since
-  ;; the FE uses it as a key for stuff like column settings
   (deduplicate-cols-names
-   (merge-cols-returned-by-driver (map (partial into {}) (column-info query result)) cols-returned-by-driver)))
+   (merge-cols-returned-by-driver (column-info query result) cols-returned-by-driver)))
 
 (defn base-type-inferer
   "Native queries don't have the type information from the original `Field` objects used in the query.
@@ -582,24 +638,43 @@
    [(base-type-inferer metadata)
     ((take 1) conj)]
    (fn combine [result base-types truncated-rows]
-     (let [metadata (update metadata :cols (partial map (fn [col base-type]
-                                                          (assoc col :base_type base-type)))
-                            base-types)]
+     (let [metadata (update metadata :cols
+                            (comp annotate-native-cols
+                                  (fn [cols]
+                                    (map (fn [col base-type]
+                                           (-> col
+                                               (assoc :base_type base-type)
+                                               ;; annotate will add a field ref with type info
+                                               (dissoc :field_ref)))
+                                         cols
+                                         base-types))))]
        (rf (cond-> result
-             (map? result) (assoc-in [:data :cols] (merged-column-info
-                                                    query
-                                                    (assoc metadata :rows truncated-rows)))))))))
+             (map? result)
+             (assoc-in [:data :cols]
+                       (merged-column-info
+                        query
+                        (assoc metadata :rows truncated-rows)))))))))
 
 (defn add-column-info
   "Middleware for adding type information about the columns in the query results (the `:cols` key)."
   [qp]
-  (fn [{query-type :type, :as query} rff context]
+  (fn [{query-type :type, :as query
+        {:keys [:metadata/dataset-metadata]} :info} rff context]
     (qp
      query
      (fn [metadata]
        (if (= query-type :query)
-         (rff (assoc metadata :cols (merged-column-info query metadata)))
+         (rff (cond-> (assoc metadata :cols (merged-column-info query metadata))
+                (seq dataset-metadata)
+                (update :cols combine-metadata dataset-metadata)))
          ;; rows sampling is only needed for native queries! TODO ­ not sure we really even need to do for native
          ;; queries...
-         (add-column-info-xform query metadata (rff metadata))))
+         (let [metadata (cond-> (update metadata :cols annotate-native-cols)
+                          ;; annotate-native-cols ensures that column refs are present which we need to match metadata
+                          (seq dataset-metadata)
+                          (update :cols combine-metadata dataset-metadata)
+                          ;; but we want those column refs removed since they have type info which we don't know yet
+                          :always
+                          (update :cols (fn [cols] (map #(dissoc % :field_ref) cols))))]
+           (add-column-info-xform query metadata (rff metadata)))))
      context)))

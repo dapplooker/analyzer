@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React from "react";
 import { t } from "ttag";
 import { connect } from "react-redux";
@@ -56,10 +57,7 @@ const renderJobsTable = jobs => {
   );
 };
 
-@connect(
-  null,
-  { fetchJobInfo },
-)
+@connect(null, { fetchJobInfo })
 export default class JobInfoApp extends React.Component {
   async componentDidMount() {
     try {

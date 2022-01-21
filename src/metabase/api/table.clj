@@ -6,6 +6,7 @@
             [metabase.api.common :as api]
             [metabase.driver :as driver]
             [metabase.driver.util :as driver.u]
+            [metabase.events :as events]
             [metabase.models.card :refer [Card]]
             [metabase.models.field :refer [Field]]
             [metabase.models.field-values :as fv :refer [FieldValues]]
@@ -13,6 +14,7 @@
             [metabase.models.table :as table :refer [Table]]
             [metabase.related :as related]
             [metabase.sync :as sync]
+            [metabase.sync.concurrent :as sync.concurrent]
             [metabase.sync.field-values :as sync-field-values]
             [metabase.types :as types]
             [metabase.util :as u]
@@ -40,35 +42,52 @@
 (api/defendpoint GET "/:id"
   "Get `Table` with ID."
   [id]
-  (-> (api/read-check Table id)
-      (hydrate :db :pk_field)))
+  (u/prog1 (-> (api/read-check Table id)
+               (hydrate :db :pk_field))
+           (events/publish-event! :table-read (assoc <> :actor_id api/*current-user-id*))))
 
-;; TODO: this should changed to `update-tables!` and update multiple tables in one db request
-(defn- update-table!
-  [id {:keys [visibility_type] :as body}]
-  (let [table (Table id)]
-    (api/write-check table)
-    ;; always update visibility type; update display_name, show_in_getting_started, entity_type if non-nil; update
-    ;; description and related fields if passed in
-    (api/check-500
-     (db/update! Table id
-       (assoc (u/select-keys-when body
-                :non-nil [:display_name :show_in_getting_started :entity_type :field_order]
-                :present [:description :caveats :points_of_interest])
-              :visibility_type visibility_type)))
-    (let [updated-table        (Table id)
-          changed-field-order? (not= (:field_order updated-table) (:field_order table))
-          now-visible?         (nil? (:visibility_type updated-table)) ; only Tables with `nil` visibility type are visible
-          was-visible?         (nil? (:visibility_type table))
-          became-visible?      (and now-visible? (not was-visible?))]
-      (when became-visible?
-        (log/info (u/format-color 'green (trs "Table ''{0}'' is now visible. Resyncing." (:name updated-table))))
-        (sync/sync-table! updated-table))
-      (if changed-field-order?
-        (do
-          (table/update-field-positions! updated-table)
-          (hydrate updated-table [:fields [:target :has_field_values] :dimensions :has_field_values]))
-         updated-table))))
+(defn- update-table!*
+  "Takes an existing table and the changes, updates in the database and optionally calls `table/update-field-positions!`
+  if field positions have changed."
+  [{:keys [id] :as existing-table} {:keys [visibility_type] :as body}]
+  (api/check-500
+   (db/update! Table id
+               (assoc (u/select-keys-when body
+                        :non-nil [:display_name :show_in_getting_started :entity_type :field_order]
+                        :present [:description :caveats :points_of_interest])
+                      :visibility_type visibility_type)))
+  (let [updated-table        (Table id)
+        changed-field-order? (not= (:field_order updated-table) (:field_order existing-table))]
+    (if changed-field-order?
+      (do
+        (table/update-field-positions! updated-table)
+        (hydrate updated-table [:fields [:target :has_field_values] :dimensions :has_field_values]))
+      updated-table)))
+
+(defn- sync-unhidden-tables
+  "Function to call on newly unhidden tables. Starts a thread to sync all tables."
+  [newly-unhidden]
+  (when (seq newly-unhidden)
+    (sync.concurrent/submit-task
+     (fn []
+       (let [database (table/database (first newly-unhidden))]
+         (if (driver.u/can-connect-with-details? (:engine database) (:details database))
+           (doseq [table newly-unhidden]
+             (log/info (u/format-color 'green (trs "Table ''{0}'' is now visible. Resyncing." (:name table))))
+             (sync/sync-table! table))
+           (log/warn (u/format-color 'red (trs "Cannot connect to database ''{0}'' in order to sync unhidden tables"
+                                               (:name database))))))))))
+
+(defn- update-tables!
+  [ids {:keys [visibility_type] :as body}]
+  (let [existing-tables (db/select Table :id [:in ids])]
+    (api/check-404 (= (count existing-tables) (count ids)))
+    (run! api/write-check existing-tables)
+    (let [updated-tables (db/transaction (mapv #(update-table!* % body) existing-tables))
+          newly-unhidden (when (nil? visibility_type)
+                           (into [] (filter (comp some? :visibility_type)) existing-tables))]
+      (sync-unhidden-tables newly-unhidden)
+      updated-tables)))
 
 (api/defendpoint PUT "/:id"
   "Update `Table` with ID."
@@ -82,7 +101,7 @@
    points_of_interest      (s/maybe su/NonBlankString)
    show_in_getting_started (s/maybe s/Bool)
    field_order             (s/maybe FieldOrder)}
-  (update-table! id body))
+  (first (update-tables! [id] body)))
 
 (api/defendpoint PUT "/"
   "Update all `Table` in `ids`."
@@ -96,8 +115,7 @@
    caveats                 (s/maybe su/NonBlankString)
    points_of_interest      (s/maybe su/NonBlankString)
    show_in_getting_started (s/maybe s/Bool)}
-  (db/transaction
-    (mapv #(update-table! % body) ids)))
+  (update-tables! ids body))
 
 
 (def ^:private auto-bin-str (deferred-tru "Auto bin"))
@@ -213,7 +231,7 @@
 
                                        (and min_value max_value
                                             (isa? base_type :type/Number)
-                                            (or (nil? semantic_type) (isa? semantic_type :type/Number))
+                                            (not (isa? semantic_type :Relation/*))
                                             (supports-numeric-binning? driver))
                                        [numeric-default-index numeric-dimension-indexes]
 
@@ -300,12 +318,13 @@
   [{:keys [database_id] :as card} & {:keys [include-fields?]}]
   ;; if collection isn't already hydrated then do so
   (let [card (hydrate card :collection)]
-    (cond-> {:id           (str "card__" (u/get-id card))
-             :db_id        (:database_id card)
-             :display_name (:name card)
-             :schema       (get-in card [:collection :name] (root-collection-schema-name))
-             :description  (:description card)}
-      include-fields? (assoc :fields (card-result-metadata->virtual-fields (u/get-id card)
+    (cond-> {:id               (str "card__" (u/the-id card))
+             :db_id            (:database_id card)
+             :display_name     (:name card)
+             :schema           (get-in card [:collection :name] (root-collection-schema-name))
+             :moderated_status (:moderated_status card)
+             :description      (:description card)}
+      include-fields? (assoc :fields (card-result-metadata->virtual-fields (u/the-id card)
                                                                            database_id
                                                                            (:result_metadata card))))))
 
@@ -322,10 +341,20 @@
 (api/defendpoint GET "/card__:id/query_metadata"
   "Return metadata for the 'virtual' table for a Card."
   [id]
-  (let [{:keys [database_id] :as card } (db/select-one [Card :id :dataset_query :result_metadata :name :description
-                                                        :collection_id :database_id]
-                                          :id id)]
-    (-> card
+  (let [{:keys [database_id] :as card} (db/select-one [Card :id :dataset_query :result_metadata :name :description
+                                                       :collection_id :database_id]
+                                                      :id id)
+        moderated-status              (->> (db/query {:select   [:status]
+                                                      :from     [:moderation_review]
+                                                      :where    [:and
+                                                                 [:= :moderated_item_type "card"]
+                                                                 [:= :moderated_item_id id]
+                                                                 [:= :most_recent true]]
+                                                      :order-by [[:id :desc]]
+                                                      :limit    1}
+                                                     :id id)
+                                           first :status)]
+    (-> (assoc card :moderated_status moderated-status)
         api/read-check
         (card->virtual-table :include-fields? true)
         (assoc-dimension-options (driver.u/database->driver database_id))
@@ -358,8 +387,9 @@
   [id]
   (api/check-superuser)
   ;; async so as not to block the UI
-  (future
-    (sync-field-values/update-field-values-for-table! (api/check-404 (Table id))))
+  (sync.concurrent/submit-task
+    (fn []
+      (sync-field-values/update-field-values-for-table! (api/check-404 (Table id)))))
   {:status :success})
 
 (api/defendpoint POST "/:id/discard_values"

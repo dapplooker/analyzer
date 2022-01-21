@@ -13,15 +13,47 @@
             [flatland.ordered.map :refer [ordered-map]]
             [medley.core :as m]
             [metabase.config :as config]
+            [metabase.shared.util :as shared.u]
             [metabase.util.i18n :refer [trs tru]]
+            [potemkin :as p]
             [ring.util.codec :as codec]
             [weavejester.dependency :as dep])
   (:import [java.net InetAddress InetSocketAddress Socket]
            [java.text Normalizer Normalizer$Form]
+           (java.util Locale PriorityQueue)
            java.util.concurrent.TimeoutException
-           java.util.Locale
            javax.xml.bind.DatatypeConverter
            [org.apache.commons.validator.routines RegexValidator UrlValidator]))
+
+(comment shared.u/keep-me)
+
+(p/import-vars
+ [shared.u
+  qualified-name])
+
+(defn add-period
+  "Fixes strings that don't terminate in a period."
+  [s]
+  (if (or (str/blank? s)
+          (#{\. \? \!} (last s)))
+    s
+    (str s ".")))
+
+(defn lower-case-en
+  "Locale-agnostic version of `clojure.string/lower-case`.
+  `clojure.string/lower-case` uses the default locale in conversions, turning
+  `ID` into `ıd`, in the Turkish locale. This function always uses the
+  `Locale/US` locale."
+  [^CharSequence s]
+  (.. s toString (toLowerCase (Locale/US))))
+
+(defn upper-case-en
+  "Locale-agnostic version of `clojure.string/upper-case`.
+  `clojure.string/upper-case` uses the default locale in conversions, turning
+  `id` into `İD`, in the Turkish locale. This function always uses the
+  `Locale/US` locale."
+  [^CharSequence s]
+  (.. s toString (toUpperCase (Locale/US))))
 
 (defn format-bytes
   "Nicely format `num-bytes` as kilobytes/megabytes/etc.
@@ -75,14 +107,14 @@
   {:style/indent 1, :arglists '([klass] [klass xs])}
   [klass & [objects]]
   (vary-meta `(into-array ~klass ~objects)
-             assoc :tag (format "[L%s;" (.getCanonicalName ^Class (ns-resolve *ns* klass)))))
+             assoc :tag (format "[L%s;" (.getTypeName ^Class (ns-resolve *ns* klass)))))
 
 (defn email?
   "Is `s` a valid email address string?"
   ^Boolean [^String s]
   (boolean (when (string? s)
              (re-matches #"[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?"
-                         (str/lower-case s)))))
+                         (lower-case-en s)))))
 
 (defn state?
   "Is `s` a state string?"
@@ -99,13 +131,13 @@
                    "ak" "al" "ar" "az" "ca" "co" "ct" "de" "fl" "ga" "hi" "ia" "id" "il" "in" "ks" "ky" "la"
                    "ma" "md" "me" "mi" "mn" "mo" "ms" "mt" "nc" "nd" "ne" "nh" "nj" "nm" "nv" "ny" "oh" "ok"
                    "or" "pa" "ri" "sc" "sd" "tn" "tx" "ut" "va" "vt" "wa" "wi" "wv" "wy"}
-                 (str/lower-case s)))))
+                 (lower-case-en s)))))
 
 (defn url?
   "Is `s` a valid HTTP/HTTPS URL string?"
   ^Boolean [s]
   (let [validator (UrlValidator. (varargs String ["http" "https"])
-                                 (RegexValidator. "^\\p{Alnum}+([\\.|\\-]\\p{Alnum}+)*(:\\d*)?")
+                                 (RegexValidator. "^[\\p{Alnum}\\_]+([\\.|\\-][\\p{Alnum}\\_]+)*(:\\d*)?")
                                  UrlValidator/ALLOW_LOCAL_URLS)]
     (.isValid validator (str s))))
 
@@ -132,7 +164,6 @@
   [f x]
   (or (nil? x)
       (f x)))
-
 
 (def ^:private ^:const host-up-timeout
   "Timeout (in ms) for checking if a host is available with `host-up?` and `host-port-up?`."
@@ -406,6 +437,12 @@
   (^String [s max-length]
    (str/join (take max-length (slugify s)))))
 
+(defn full-exception-chain
+  "Gather the full exception chain into a sequence."
+  [e]
+  (when (instance? Throwable e)
+    (take-while some? (iterate ex-cause e))))
+
 (defn all-ex-data
   "Like `ex-data`, but merges `ex-data` from causes. If duplicate keys exist, the keys from the highest level are
   preferred.
@@ -422,7 +459,7 @@
    (fn [data e]
      (merge (ex-data e) data))
    nil
-   (take-while some? (iterate #(.getCause ^Throwable %) e))))
+   (full-exception-chain e)))
 
 (defn do-with-auto-retries
   "Execute `f`, a function that takes no arguments, and return the results.
@@ -463,24 +500,12 @@
   [f coll]
   (into {} (map (juxt f identity)) coll))
 
-(defn qualified-name
-  "Return `k` as a string, qualified by its namespace, if any (unlike `name`). Handles `nil` values gracefully as well
-  (also unlike `name`).
-
-     (u/qualified-name :type/FK) -> \"type/FK\""
-  [k]
-  (when (some? k)
-    (if-let [namespac (when (instance? clojure.lang.Named k)
-                        (namespace k))]
-      (str namespac "/" (name k))
-      (name k))))
-
 (defn id
   "If passed an integer ID, returns it. If passed a map containing an `:id` key, returns the value if it is an integer.
   Otherwise returns `nil`.
 
   Provided as a convenience to allow model-layer functions to easily accept either an object or raw ID. Use this in
-  cases where the ID/object is allowed to be `nil`. Use `get-id` below in cases where you would also like to guarantee
+  cases where the ID/object is allowed to be `nil`. Use `the-id` below in cases where you would also like to guarantee
   it is non-`nil`."
   ^Integer [object-or-id]
   (cond
@@ -497,10 +522,6 @@
   ^Integer [object-or-id]
   (or (id object-or-id)
       (throw (Exception. (tru "Not something with an ID: {0}" object-or-id)))))
-
-(def ^:deprecated ^Integer ^{:arglists '([object-or-id])} get-id
-  "DEPRECATED: Use `the-id` instead, which does the same thing, but has a clearer name."
-  the-id)
 
 ;; This is made `^:const` so it will get calculated when the uberjar is compiled. `find-namespaces` won't work if
 ;; source is excluded; either way this takes a few seconds, so doing it at compile time speeds up launch as well.
@@ -552,7 +573,9 @@
   "Is `s` a Base-64 encoded string?"
   ^Boolean [s]
   (boolean (when (string? s)
-             (re-matches #"^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$" s))))
+             (as-> s s
+                   (str/replace s #"\s" "")
+                   (re-matches #"^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$" s)))))
 
 (defn decode-base64
   "Decodes a Base64 string to a UTF-8 string"
@@ -742,22 +765,6 @@
                           (concat independent sorted))))))
               g)))
 
-(defn lower-case-en
-  "Locale-agnostic version of `clojure.string/lower-case`.
-  `clojure.string/lower-case` uses the default locale in conversions, turning
-  `ID` into `ıd`, in the Turkish locale. This function always uses the
-  `Locale/US` locale."
-  [^CharSequence s]
-  (.. s toString (toLowerCase (Locale/US))))
-
-(defn upper-case-en
-  "Locale-agnostic version of `clojure.string/upper-case`.
-  `clojure.string/upper-case` uses the default locale in conversions, turning
-  `id` into `İD`, in the Turkish locale. This function always uses the
-  `Locale/US` locale."
-  [^CharSequence s]
-  (.. s toString (toUpperCase (Locale/US))))
-
 (defn lower-case-map-keys
   "Changes the keys of a given map to lower case."
   [m]
@@ -889,3 +896,63 @@
       (if (pred# x#)
         x#
         (or-with pred# ~@more)))))
+
+(defn ip-address?
+  "Whether string `s` is a valid IP (v4 or v6) address."
+  [^String s]
+  (and (string? s)
+       (.isValid (org.apache.commons.validator.routines.InetAddressValidator/getInstance) s)))
+
+(defn sorted-take
+  "A reducing function that maintains a queue of the largest items as determined by `kompare`. The queue is bounded
+  in size by `size`. Useful if you are interested in the largest `size` number of items without keeping the entire
+  collection in memory.
+
+  In general,
+  (=
+    (take-last 2 (sort-by identity kompare coll))
+    (transduce (map identity) (u/sorted-take 2 kompare) coll))
+  But the entire collection is not in memory, just at most
+  "
+  [size kompare]
+  (fn bounded-heap-acc
+    ([] (PriorityQueue. size kompare))
+    ([^PriorityQueue q]
+     (loop [acc []]
+       (if-let [x (.poll q)]
+         (recur (conj acc x))
+         acc)))
+    ([^PriorityQueue q item]
+     (if (>= (.size q) size)
+       (let [smallest (.peek q)]
+         (if (pos? (kompare item smallest))
+           (doto q
+             (.poll)
+             (.offer item))
+           q))
+       (doto q
+         (.offer item))))))
+
+(defn email->domain
+  "Extract the domain portion of an `email-address`.
+
+    (email->domain \"cam@toucan.farm\") ; -> \"toucan.farm\""
+  ^String [email-address]
+  (when (string? email-address)
+    (last (re-find #"^.*@(.*$)" email-address))))
+
+(defn email-in-domain?
+  "Is `email-address` in `domain`?
+
+    (email-in-domain? \"cam@toucan.farm\" \"toucan.farm\")  ; -> true
+    (email-in-domain? \"cam@toucan.farm\" \"metabase.com\") ; -> false"
+  [email-address domain]
+  {:pre [(email? email-address)]}
+  (= (email->domain email-address) domain))
+
+(defn field-ref->key
+  "A standard and repeatable way to address a column. Names can collide and sometimes are not unique. Field refs should
+  be stable, except we have to exclude the last part as extra information can be tucked in there. Names can be
+  non-unique at times, numeric ids are not guaranteed."
+  [field-ref]
+  (into [] (take 2) field-ref))

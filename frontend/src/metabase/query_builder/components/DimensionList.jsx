@@ -1,5 +1,4 @@
-/* @flow weak */
-
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
 import _ from "underscore";
 import { t } from "ttag";
@@ -9,39 +8,8 @@ import Icon from "metabase/components/Icon";
 import PopoverWithTrigger from "metabase/components/PopoverWithTrigger";
 import Tooltip from "metabase/components/Tooltip";
 
-import Dimension, { FieldDimension } from "metabase-lib/lib/Dimension";
-
-// import type { Section } from "metabase/components/AccordionList";
-export type AccordionListItem = {};
-
-export type AccordionListSection = {
-  name: ?string,
-  items: AccordionListItem[],
-};
-
-type Props = {
-  className?: string,
-  maxHeight?: number,
-  width?: ?number | ?string,
-
-  dimension?: ?Dimension,
-  dimensions?: Dimension[],
-  onChangeDimension: (dimension: Dimension) => void,
-  onChangeOther?: (item: any) => void,
-
-  onAddDimension?: (dimension: Dimension, item: AccordionListItem) => void,
-  onRemoveDimension?: (dimension: Dimension, item: AccordionListItem) => void,
-
-  sections: AccordionListSection[],
-
-  alwaysExpanded?: boolean,
-  enableSubDimensions?: boolean,
-  useOriginalDimension?: boolean,
-};
-
-type State = {
-  sections: AccordionListSection[],
-};
+import { FieldDimension } from "metabase-lib/lib/Dimension";
+import { DimensionPicker } from "./DimensionPicker";
 
 const SUBMENU_TETHER_OPTIONS = {
   attachment: "top left",
@@ -51,17 +19,13 @@ const SUBMENU_TETHER_OPTIONS = {
     {
       to: "window",
       attachment: "together",
-      pin: ["left", "right"],
+      pin: true,
     },
   ],
 };
 
 export default class DimensionList extends Component {
-  props: Props;
-  state: State = {
-    sections: [],
-  };
-  state: State = {
+  state = {
     sections: [],
   };
 
@@ -105,13 +69,30 @@ export default class DimensionList extends Component {
     const {
       dimension,
       enableSubDimensions,
+      preventNumberSubDimensions,
       onAddDimension,
       onRemoveDimension,
     } = this.props;
+
+    const surpressSubDimensions =
+      preventNumberSubDimensions && item.dimension.field().isSummable();
+
     const subDimensions =
-      enableSubDimensions && item.dimension && item.dimension.dimensions();
+      enableSubDimensions &&
+      item.dimension &&
+      // Do not display sub dimension if this is an FK (metabase#16787)
+      !item.dimension.field().isFK() &&
+      !surpressSubDimensions &&
+      item.dimension.dimensions();
 
     const multiSelect = !!(onAddDimension || onRemoveDimension);
+
+    const sectionDimension = dimension
+      ? dimension
+      : _.find(
+          this._getDimensions(),
+          d => d.field() === item.dimension.field(),
+        );
 
     return (
       <div className="Field-extra flex align-center">
@@ -126,6 +107,7 @@ export default class DimensionList extends Component {
             triggerElement={this.renderSubDimensionTrigger(
               item.dimension,
               multiSelect,
+              preventNumberSubDimensions,
             )}
             tetherOptions={multiSelect ? null : SUBMENU_TETHER_OPTIONS}
             sizeToFit
@@ -133,10 +115,12 @@ export default class DimensionList extends Component {
             {({ onClose }) => (
               <DimensionPicker
                 className="scroll-y"
-                dimension={dimension}
+                dimension={sectionDimension}
                 dimensions={subDimensions}
                 onChangeDimension={dimension => {
-                  this.props.onChangeDimension(dimension);
+                  this.props.onChangeDimension(dimension, {
+                    isSubDimension: true,
+                  });
                   onClose();
                 }}
               />
@@ -176,8 +160,12 @@ export default class DimensionList extends Component {
       _.find(dimensions, d => d.isSameBaseDimension(otherDimension)) ||
       otherDimension.defaultDimension();
     const name = subDimension ? subDimension.subTriggerDisplayName() : null;
+
     return (
-      <div className="FieldList-grouping-trigger text-white-hover flex align-center p1 cursor-pointer">
+      <div
+        className="FieldList-grouping-trigger text-white-hover flex align-center p1 cursor-pointer"
+        data-testid="dimension-list-item-binning"
+      >
         {name && <h4>{name}</h4>}
         {!multiSelect && <Icon name="chevronright" className="ml1" size={16} />}
       </div>
@@ -185,7 +173,11 @@ export default class DimensionList extends Component {
   }
 
   _getDimensionFromItem(item) {
-    const { enableSubDimensions, useOriginalDimension } = this.props;
+    const {
+      enableSubDimensions,
+      useOriginalDimension,
+      preventNumberSubDimensions,
+    } = this.props;
     const dimension = useOriginalDimension
       ? item.dimension
       : item.dimension.defaultDimension() || item.dimension;
@@ -195,7 +187,10 @@ export default class DimensionList extends Component {
       dimension instanceof FieldDimension &&
       dimension.binningStrategy();
 
-    if (shouldExcludeBinning) {
+    if (
+      shouldExcludeBinning ||
+      (preventNumberSubDimensions && dimension.field().isSummable())
+    ) {
       // If we don't let user choose the sub-dimension, we don't want to treat the field
       // as a binned field (which would use the default binning)
       // Let's unwrap the base field of the binned field instead
@@ -235,6 +230,7 @@ export default class DimensionList extends Component {
     return (
       <AccordionList
         {...this.props}
+        itemTestId="dimension-list-item"
         sections={this.state.sections}
         onChange={this.handleChange}
         itemIsSelected={this.itemIsSelected}
@@ -244,33 +240,3 @@ export default class DimensionList extends Component {
     );
   }
 }
-
-import cx from "classnames";
-
-export const DimensionPicker = ({
-  style,
-  className,
-  dimension,
-  dimensions,
-  onChangeDimension,
-}) => {
-  return (
-    <ul className={cx(className, "px2 py1")} style={style}>
-      {dimensions.map((d, index) => (
-        <li
-          key={index}
-          className={cx("List-item", {
-            "List-item--selected": d.isEqual(dimension),
-          })}
-        >
-          <a
-            className="List-item-title full px2 py1 cursor-pointer"
-            onClick={() => onChangeDimension(d)}
-          >
-            {d.subDisplayName()}
-          </a>
-        </li>
-      ))}
-    </ul>
-  );
-};

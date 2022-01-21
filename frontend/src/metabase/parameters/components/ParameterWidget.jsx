@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
 import PropTypes from "prop-types";
 import ParameterValueWidget from "./ParameterValueWidget";
@@ -27,15 +28,21 @@ export default class ParameterWidget extends Component {
   };
 
   renderPopover(value, setValue, placeholder, isFullscreen) {
-    const { parameter, editingParameter, commitImmediately } = this.props;
-    const isEditingParameter = !!(
-      editingParameter && editingParameter.id === parameter.id
-    );
+    const {
+      dashboard,
+      parameter,
+      editingParameter,
+      commitImmediately,
+      parameters,
+    } = this.props;
+
+    const isEditingParameter = editingParameter?.id === parameter.id;
+
     return (
       <ParameterValueWidget
         parameter={parameter}
-        parameters={this.props.parameters}
-        dashboard={this.props.dashboard}
+        parameters={parameters}
+        dashboard={dashboard}
         name={name}
         value={value}
         setValue={setValue}

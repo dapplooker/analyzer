@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React from "react";
 
 import { t } from "ttag";
@@ -13,7 +14,7 @@ const defaultGetTooltip = ({ isDirty, result }) => {
   return !isDirty &&
     cached &&
     average_execution_time > REFRESH_TOOLTIP_THRESHOLD
-    ? t`This question will take approximately ${duration(
+    ? t`This chart will take approximately ${duration(
         average_execution_time,
       )} to refresh`
     : null;

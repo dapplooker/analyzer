@@ -1,4 +1,4 @@
-import "__support__/mocks"; // included explicitly whereas with integrated tests it comes with __support__/integrated_tests
+import "__support__/ui-mocks"; // included explicitly whereas with integrated tests it comes with __support__/integrated_tests
 import testAcrossTimezones from "__support__/timezones";
 
 import _ from "underscore";
@@ -15,6 +15,14 @@ import {
 // make WIDTH big enough that ticks aren't skipped
 const WIDTH = 4000;
 const HEIGHT = 1000;
+
+// jsdom doesn't support layout methods like getBBox, so we need to mock it.
+window.SVGElement.prototype.getBBox = () => ({
+  x: 0,
+  y: 0,
+  width: WIDTH,
+  height: HEIGHT,
+});
 
 describe("LineAreaBarRenderer-bar", () => {
   let element;

@@ -1,30 +1,31 @@
 import {
-  signInAsAdmin,
   restore,
   openOrdersTable,
   version,
   popover,
-  itOpenSourceOnly,
-  setupDummySMTP,
-} from "__support__/cypress";
+  describeWithToken,
+  setupMetabaseCloud,
+  describeWithoutToken,
+} from "__support__/e2e/cypress";
+import { SAMPLE_DATASET } from "__support__/e2e/cypress_sample_dataset";
+
+const { ORDERS } = SAMPLE_DATASET;
 
 describe("scenarios > admin > settings", () => {
   beforeEach(() => {
     restore();
-    signInAsAdmin();
+    cy.signInAsAdmin();
   });
 
-  itOpenSourceOnly(
-    "should prompt admin to migrate to the hosted instance",
-    () => {
-      cy.visit("/admin/settings/setup");
-      cy.findByText("Have your server maintained for you.");
-      cy.findByText("Migrate to Metabase Cloud.");
-      cy.findAllByRole("link", { name: "Learn more" })
-        .should("have.attr", "href")
-        .and("include", "/migrate/");
-    },
-  );
+  it("should prompt admin to migrate to the hosted instance", () => {
+    cy.skipOn(!!Cypress.env("HAS_ENTERPRISE_TOKEN"));
+    cy.visit("/admin/settings/setup");
+    cy.findByText("Have your server maintained for you.");
+    cy.findByText("Migrate to Metabase Cloud.");
+    cy.findAllByRole("link", { name: "Learn more" })
+      .should("have.attr", "href")
+      .and("include", "/migrate/");
+  });
 
   it("should surface an error when validation for any field fails (metabase#4506)", () => {
     const BASE_URL = Cypress.config().baseUrl;
@@ -66,8 +67,7 @@ describe("scenarios > admin > settings", () => {
     cy.contains(
       "To allow users to sign in with Google you'll need to give Metabase a Google Developers console application client ID.",
     );
-    // *** should be 'Save changes'
-    cy.findByText("Save Changes");
+    cy.findByText("Save changes");
 
     // SSO
     cy.visit("/admin/settings/authentication");
@@ -102,18 +102,13 @@ describe("scenarios > admin > settings", () => {
       .type("abc", { delay: 50 })
       .clear()
       .click()
-      .type("other.email@metabase.com")
+      .type("other.email@metabase.test")
       .blur();
     cy.wait("@saveSettings");
 
     cy.visit("/admin/settings/general");
     // after we refreshed, the field should still be "other.email"
-    emailInput().should("have.value", "other.email@metabase.com");
-
-    // reset the email
-    cy.request("PUT", "/api/setting/admin-email", {
-      value: "bob@metabase.com",
-    });
+    emailInput().should("have.value", "other.email@metabase.test");
   });
 
   it("should check for working https before enabling a redirect", () => {
@@ -188,6 +183,29 @@ describe("scenarios > admin > settings", () => {
     // check the reset formatting in a question
     openOrdersTable();
     cy.contains(/^February 11, 2019, 9:40 PM$/);
+  });
+
+  it("should correctly apply the globalized date formats (metabase#11394)", () => {
+    cy.server();
+    cy.route("PUT", "**/custom-formatting").as("saveFormatting");
+
+    cy.request("PUT", `/api/field/${ORDERS.CREATED_AT}`, {
+      semantic_type: null,
+    });
+
+    cy.visit("/admin/settings/localization");
+
+    cy.contains("Date style")
+      .closest("li")
+      .find(".AdminSelect")
+      .first()
+      .click();
+    cy.findByText("2018/1/7").click();
+    cy.contains("17:24 (24-hour clock)").click();
+    cy.wait("@saveFormatting");
+
+    openOrdersTable();
+    cy.contains(/^2019\/2\/11, 21:40$/);
   });
 
   it("should search for and select a new timezone", () => {
@@ -326,69 +344,89 @@ describe("scenarios > admin > settings", () => {
     cy.findByText(/Site URL/i);
   });
 
-  describe(" > email settings", () => {
-    it("should be able to save email settings", () => {
-      cy.visit("/admin/settings/email");
-      cy.findByPlaceholderText("smtp.yourservice.com")
-        .type("localhost")
-        .blur();
-      cy.findByPlaceholderText("587")
-        .type("1234")
-        .blur();
-      cy.findByPlaceholderText("metabase@yourcompany.com")
-        .type("admin@metabase.com")
-        .blur();
-      cy.findByText("Save changes").click();
+  it("should display the order of the settings items consistently between OSS/EE versions (metabase#15441)", () => {
+    const lastItem = Cypress.env("HAS_ENTERPRISE_TOKEN")
+      ? "Whitelabel"
+      : "Caching";
 
-      cy.findByText("Changes saved!");
-    });
-    it("should show an error if test email fails", () => {
-      // Reuse Email setup without relying on the previous test
-      cy.request("PUT", "/api/setting", {
-        "email-from-address": "admin@metabase.com",
-        "email-smtp-host": "localhost",
-        "email-smtp-password": null,
-        "email-smtp-port": "1234",
-        "email-smtp-security": "none",
-        "email-smtp-username": null,
-      });
-      cy.visit("/admin/settings/email");
-      cy.findByText("Send test email").click();
-      cy.findByText("Sorry, something went wrong. Please try again.");
-    });
+    cy.visit("/admin/settings/setup");
+    cy.get(".AdminList .AdminList-item")
+      .as("settingsOptions")
+      .first()
+      .contains("Setup");
+    cy.get("@settingsOptions")
+      .last()
+      .contains(lastItem);
+  });
 
-    it("should be able to clear email settings", () => {
-      cy.visit("/admin/settings/email");
-      cy.findByText("Clear").click();
-      cy.findByPlaceholderText("smtp.yourservice.com").should("have.value", "");
-      cy.findByPlaceholderText("587").should("have.value", "");
-      cy.findByPlaceholderText("metabase@yourcompany.com").should(
-        "have.value",
-        "",
-      );
-    });
+  // Unskip when mocking Cloud in Cypress is fixed (#18289)
+  it.skip("should hide self-hosted settings when running Metabase Cloud", () => {
+    setupMetabaseCloud();
+    cy.visit("/admin/settings/general");
 
-    it.skip("should not offer to save email changes when there aren't any (metabase#14749)", () => {
-      // Make sure some settings are already there
-      setupDummySMTP();
+    cy.findByText("Site Name");
+    cy.findByText("Site URL").should("not.exist");
 
-      cy.visit("/admin/settings/email");
-      cy.findByText("Send test email").scrollIntoView();
-      // Needed to scroll the page down first to be able to use findByRole() - it fails otherwise
-      cy.findByRole("button", { name: "Save changes" }).should("be.disabled");
-    });
+    cy.findByText("Email").should("not.exist");
+    cy.findByText("Updates").should("not.exist");
+  });
+
+  // Unskip when mocking Cloud in Cypress is fixed (#18289)
+  it.skip("should hide the store link when running Metabase Cloud", () => {
+    setupMetabaseCloud();
+    cy.visit("/admin/settings/general");
+
+    cy.findByText("Metabase Admin");
+    cy.findByLabelText("store icon").should("not.exist");
   });
 
   describe(" > slack settings", () => {
     it("should present the form and display errors", () => {
       cy.visit("/admin/settings/slack");
       cy.contains("Answers sent right to your Slack");
-      cy.findByPlaceholderText("Enter the token you received from Slack")
+      cy.findByLabelText("Slack API Token")
         .type("not-a-real-token")
         .blur();
       cy.findByText("Save changes").click();
       cy.contains("Looks like we ran into some problems");
     });
+  });
+});
+
+describeWithoutToken("scenarios > admin > settings (OSS)", () => {
+  beforeEach(() => {
+    restore();
+    cy.signInAsAdmin();
+  });
+
+  it("should show the store link when running Metabase OSS", () => {
+    cy.visit("/admin/settings/general");
+
+    cy.findByText("Metabase Admin");
+    cy.findByLabelText("store icon");
+  });
+});
+
+describeWithToken("scenarios > admin > settings (EE)", () => {
+  beforeEach(() => {
+    restore();
+    cy.signInAsAdmin();
+  });
+
+  // Unskip when mocking Cloud in Cypress is fixed (#18289)
+  it.skip("should hide Enterprise page when running Metabase Cloud", () => {
+    setupMetabaseCloud();
+    cy.visit("/admin/settings/general");
+
+    cy.findByText("Site Name");
+    cy.findByText("Enterprise").should("not.exist");
+  });
+
+  it("should hide the store link when running Metabase EE", () => {
+    cy.visit("/admin/settings/general");
+
+    cy.findByText("Metabase Admin");
+    cy.findByLabelText("store icon").should("not.exist");
   });
 });
 

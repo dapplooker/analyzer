@@ -1,5 +1,6 @@
 (ns metabase.sync.analyze.fingerprint.fingerprinters-test
   (:require [cheshire.core :as json]
+            [clojure.string :as str]
             [clojure.test :refer :all]
             [metabase.models.field :as field :refer [Field]]
             [metabase.sync.analyze.fingerprint.fingerprinters :as f]
@@ -71,14 +72,17 @@
 
 (deftest disambiguate-test
   (testing "We should correctly disambiguate multiple competing multimethods (DateTime and FK in this case)"
-    (is (= {:global {:distinct-count 3
-                     :nil%           0.0}
-            :type   {:type/DateTime {:earliest "2013-01-01"
-                                     :latest   "2018-01-01"}}}
-           (transduce identity
-                      (f/fingerprinter (field/map->FieldInstance {:base_type     :type/DateTime
-                                                                  :semantic_type :type/FK}))
-                      [#t "2013" #t "2018" #t "2015"])))))
+    (let [field {:base_type     :type/DateTime
+                 :semantic_type :type/FK}]
+      (is (= [:type/DateTime :Semantic/* :type/FK]
+             ((.dispatchFn ^clojure.lang.MultiFn f/fingerprinter) field)))
+      (is (= {:global {:distinct-count 3
+                       :nil%           0.0}
+              :type   {:type/DateTime {:earliest "2013-01-01"
+                                       :latest   "2018-01-01"}}}
+             (transduce identity
+                        (f/fingerprinter field)
+                        [#t "2013" #t "2018" #t "2015"]))))))
 
 (deftest fingerprint-numeric-values-test
   (is (= {:global {:distinct-count 3
@@ -143,8 +147,8 @@
       (testing "date fingerprints"
         (is (schema= {:global {:distinct-count (s/eq 618)
                                :nil%           (s/eq 0.0)}
-                      :type   {:type/DateTime {:earliest (s/pred #(.startsWith % "2013-01-03"))
-                                               :latest   (s/pred #(.startsWith % "2015-12-29"))}}}
+                      :type   {:type/DateTime {:earliest (s/pred #(str/starts-with? % "2013-01-03"))
+                                               :latest   (s/pred #(str/starts-with? % "2015-12-29"))}}}
                      (db/select-one-field :fingerprint Field :id (mt/id :checkins :date)))))
       (testing "number fingerprints"
         (is (schema= {:global {:distinct-count (s/eq 4)

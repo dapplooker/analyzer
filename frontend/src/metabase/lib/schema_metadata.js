@@ -1,5 +1,3 @@
-/* @flow weak */
-
 import _ from "underscore";
 import { t } from "ttag";
 import {
@@ -23,6 +21,7 @@ export const PRIMARY_KEY = "PRIMARY_KEY";
 // other types used for various purporses
 export const ENTITY = "ENTITY";
 export const SUMMABLE = "SUMMABLE";
+export const SCOPE = "SCOPE";
 export const CATEGORY = "CATEGORY";
 export const DIMENSION = "DIMENSION";
 
@@ -33,21 +32,26 @@ export const UNKNOWN = "UNKNOWN";
 const TYPES = {
   [TEMPORAL]: {
     base: [TYPE.Temporal],
+    effective: [TYPE.Temporal],
     semantic: [TYPE.Temporal],
   },
   [NUMBER]: {
     base: [TYPE.Number],
+    effective: [TYPE.Number],
     semantic: [TYPE.Number],
   },
   [STRING]: {
     base: [TYPE.Text],
+    effective: [TYPE.Text],
     semantic: [TYPE.Text],
   },
   [STRING_LIKE]: {
     base: [TYPE.TextLike],
+    effective: [TYPE.TextLike],
   },
   [BOOLEAN]: {
     base: [TYPE.Boolean],
+    effective: [TYPE.Boolean],
   },
   [COORDINATE]: {
     semantic: [TYPE.Coordinate],
@@ -68,8 +72,13 @@ const TYPES = {
     include: [NUMBER],
     exclude: [ENTITY, LOCATION, TEMPORAL],
   },
+  [SCOPE]: {
+    include: [NUMBER, TEMPORAL],
+    exclude: [ENTITY, LOCATION],
+  },
   [CATEGORY]: {
     base: [TYPE.Boolean],
+    effective: [TYPE.Boolean],
     semantic: [TYPE.Category],
     include: [LOCATION],
   },
@@ -86,7 +95,10 @@ export function isFieldType(type, field) {
 
   const typeDefinition = TYPES[type];
   // check to see if it belongs to any of the field types:
-  for (const prop of ["base", "semantic"]) {
+  const props = field.effective_type
+    ? ["effective", "semantic"]
+    : ["base", "semantic"];
+  for (const prop of props) {
     const allowedTypes = typeDefinition[prop];
     if (!allowedTypes) {
       continue;
@@ -140,6 +152,7 @@ export const isNumeric = isFieldType.bind(null, NUMBER);
 export const isBoolean = isFieldType.bind(null, BOOLEAN);
 export const isString = isFieldType.bind(null, STRING);
 export const isSummable = isFieldType.bind(null, SUMMABLE);
+export const isScope = isFieldType.bind(null, SCOPE);
 export const isCategory = isFieldType.bind(null, CATEGORY);
 export const isLocation = isFieldType.bind(null, LOCATION);
 
@@ -155,8 +168,27 @@ export const isEntityName = field =>
 
 export const isAny = col => true;
 
-export const isNumericBaseType = field =>
-  field && isa(field.base_type, TYPE.Number);
+export const isNumericBaseType = field => {
+  if (!field) {
+    return false;
+  }
+  if (field.effective_type) {
+    return isa(field.effective_type, TYPE.Number);
+  } else {
+    return isa(field.base_type, TYPE.Number);
+  }
+};
+
+export const isDateWithoutTime = field => {
+  if (!field) {
+    return false;
+  }
+  if (field.effective_type) {
+    return isa(field.effective_type, TYPE.Date);
+  } else {
+    return isa(field.base_type, TYPE.Date);
+  }
+};
 
 // ZipCode, ID, etc derive from Number but should not be formatted as numbers
 export const isNumber = field =>
@@ -166,7 +198,16 @@ export const isNumber = field =>
 
 export const isBinnedNumber = field => isNumber(field) && !!field.binning_info;
 
-export const isTime = field => field && isa(field.base_type, TYPE.Time);
+export const isTime = field => {
+  if (!field) {
+    return false;
+  }
+  if (field.effective_type) {
+    return isa(field.effective_type, TYPE.Time);
+  } else {
+    return isa(field.base_type, TYPE.Time);
+  }
+};
 
 export const isAddress = field =>
   field && isa(field.semantic_type, TYPE.Address);
@@ -234,7 +275,10 @@ function equivalentArgument(field, table) {
   if (isBoolean(field)) {
     return {
       type: "select",
-      values: [{ key: true, name: t`True` }, { key: false, name: t`False` }],
+      values: [
+        { key: true, name: t`True` },
+        { key: false, name: t`False` },
+      ],
       default: true,
     };
   }
@@ -371,6 +415,18 @@ const DEFAULT_FILTER_OPERATORS = [
   { name: "not-null", verboseName: t`Not empty` },
 ];
 
+const KEY_FILTER_OPERATORS = [
+  { name: "=", verboseName: t`Is` },
+  { name: "!=", verboseName: t`Is not` },
+  { name: ">", verboseName: t`Greater than` },
+  { name: "<", verboseName: t`Less than` },
+  { name: "between", verboseName: t`Between` },
+  { name: ">=", verboseName: t`Greater than or equal to` },
+  { name: "<=", verboseName: t`Less than or equal to` },
+  { name: "is-null", verboseName: t`Is empty` },
+  { name: "not-null", verboseName: t`Not empty` },
+];
+
 // ordered list of operators and metadata per type
 const FILTER_OPERATORS_BY_TYPE_ORDERED = {
   [NUMBER]: [
@@ -417,19 +473,28 @@ const FILTER_OPERATORS_BY_TYPE_ORDERED = {
     { name: "!=", verboseName: t`Is not` },
     { name: "is-null", verboseName: t`Is empty` },
     { name: "not-null", verboseName: t`Not empty` },
+    { name: "contains", verboseName: t`Contains` },
+    { name: "does-not-contain", verboseName: t`Does not contain` },
+    { name: "starts-with", verboseName: t`Starts with` },
+    { name: "ends-with", verboseName: t`Ends with` },
   ],
   [COORDINATE]: [
     { name: "=", verboseName: t`Is` },
     { name: "!=", verboseName: t`Is not` },
     { name: "inside", verboseName: t`Inside` },
+    { name: ">", verboseName: t`Greater than` },
+    { name: "<", verboseName: t`Less than` },
+    { name: "between", verboseName: t`Between` },
+    { name: ">=", verboseName: t`Greater than or equal to` },
+    { name: "<=", verboseName: t`Less than or equal to` },
   ],
   [BOOLEAN]: [
     { name: "=", verboseName: t`Is`, multi: false },
     { name: "is-null", verboseName: t`Is empty` },
     { name: "not-null", verboseName: t`Not empty` },
   ],
-  [FOREIGN_KEY]: DEFAULT_FILTER_OPERATORS,
-  [PRIMARY_KEY]: DEFAULT_FILTER_OPERATORS,
+  [FOREIGN_KEY]: KEY_FILTER_OPERATORS,
+  [PRIMARY_KEY]: KEY_FILTER_OPERATORS,
   [UNKNOWN]: DEFAULT_FILTER_OPERATORS,
 };
 
@@ -446,8 +511,39 @@ const MORE_VERBOSE_NAMES = {
   "greater than or equal to": "is greater than or equal to",
 };
 
+export function doesOperatorExist(operatorName) {
+  return !!FIELD_FILTER_OPERATORS[operatorName];
+}
+
+export function getOperatorByTypeAndName(type, name) {
+  const typedNamedOperator = _.findWhere(
+    FILTER_OPERATORS_BY_TYPE_ORDERED[type],
+    {
+      name,
+    },
+  );
+  const namedOperator = FIELD_FILTER_OPERATORS[name];
+
+  return (
+    typedNamedOperator && {
+      ...typedNamedOperator,
+      ...namedOperator,
+      numFields: namedOperator.validArgumentsFilters.length,
+    }
+  );
+}
+
 export function getFilterOperators(field, table, selected) {
-  const type = getFieldType(field) || UNKNOWN;
+  const fieldType = getFieldType(field) || UNKNOWN;
+  let type = fieldType;
+  if (type === PRIMARY_KEY || type === FOREIGN_KEY) {
+    if (isFieldType(STRING, field)) {
+      type = STRING;
+    } else if (isFieldType(STRING_LIKE, field)) {
+      type = STRING_LIKE;
+    }
+  }
+
   return FILTER_OPERATORS_BY_TYPE_ORDERED[type]
     .map(operatorForType => {
       const operator = FIELD_FILTER_OPERATORS[operatorForType.name];
@@ -489,6 +585,10 @@ function allFields(fields) {
 
 function summableFields(fields) {
   return _.filter(fields, isSummable);
+}
+
+function scopeFields(fields) {
+  return _.filter(fields, isScope);
 }
 
 const AGGREGATION_OPERATORS = [
@@ -569,7 +669,7 @@ const AGGREGATION_OPERATORS = [
     name: t`Minimum of ...`,
     columnName: t`Min`,
     description: t`Minimum value of a column`,
-    validFieldsFilters: [summableFields],
+    validFieldsFilters: [scopeFields],
     requiresField: true,
     requiredDriverFeature: "basic-aggregations",
   },
@@ -578,7 +678,7 @@ const AGGREGATION_OPERATORS = [
     name: t`Maximum of ...`,
     columnName: t`Max`,
     description: t`Maximum value of a column`,
-    validFieldsFilters: [summableFields],
+    validFieldsFilters: [scopeFields],
     requiresField: true,
     requiredDriverFeature: "basic-aggregations",
   },
@@ -683,6 +783,7 @@ export const ICON_MAPPING = {
   [NUMBER]: "int",
   [BOOLEAN]: "io",
   [FOREIGN_KEY]: "connections",
+  [PRIMARY_KEY]: "label",
 };
 
 export function getIconForField(field) {
@@ -696,4 +797,13 @@ export function getFilterArgumentFormatOptions(filterOperator, index) {
       filterOperator.formatOptions[index]) ||
     {}
   );
+}
+
+export function isEqualsOperator(operator) {
+  return !!operator && operator.name === "=";
+}
+
+export function isFuzzyOperator(operator) {
+  const { name } = operator || {};
+  return !["=", "!="].includes(name);
 }

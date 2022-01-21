@@ -1,24 +1,27 @@
-/* @flow */
+/* eslint-disable react/prop-types */
 import React from "react";
 
 import Collection from "metabase/entities/collections";
 import Search from "metabase/entities/search";
 
-type Props = {
-  collectionId: number,
-  children: () => void,
-};
+const PINNED_DASHBOARDS_LOAD_LIMIT = 500;
 
-const CollectionItemsLoader = ({ collectionId, children, ...props }: Props) => (
-  <Collection.Loader
-    {...props}
-    id={collectionId}
-    children={({ object }) => (
+const CollectionItemsLoader = ({ collectionId, children, ...props }) => (
+  <Collection.Loader {...props} id={collectionId}>
+    {({ object }) => (
       <Search.ListLoader
         {...props}
-        query={{ collection: collectionId }}
+        query={{
+          collection: collectionId,
+          pinned_state: "is_pinned",
+          sort_column: "name",
+          sort_direction: "asc",
+          models: "dashboard",
+          limit: PINNED_DASHBOARDS_LOAD_LIMIT,
+        }}
         wrapped
-        children={({ list }) =>
+      >
+        {({ list }) =>
           object &&
           list &&
           children({
@@ -26,9 +29,9 @@ const CollectionItemsLoader = ({ collectionId, children, ...props }: Props) => (
             items: list,
           })
         }
-      />
+      </Search.ListLoader>
     )}
-  />
+  </Collection.Loader>
 );
 
 export default CollectionItemsLoader;

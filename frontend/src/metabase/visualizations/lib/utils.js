@@ -1,5 +1,3 @@
-/* @flow weak */
-
 import _ from "underscore";
 import d3 from "d3";
 import { t } from "ttag";
@@ -102,8 +100,14 @@ export function computeSplit(extents, left = [], right = []) {
   const favorUnsplit = right.length > 0;
 
   const cost = split =>
-    axisCost(split[0].map(i => extents[i]), favorUnsplit) +
-    axisCost(split[1].map(i => extents[i]), favorUnsplit);
+    axisCost(
+      split[0].map(i => extents[i]),
+      favorUnsplit,
+    ) +
+    axisCost(
+      split[1].map(i => extents[i]),
+      favorUnsplit,
+    );
 
   const splits = generateSplits(unassigned, left, right);
 
@@ -155,7 +159,7 @@ export function isSameSeries(seriesA, seriesB) {
       const sameVizSettings =
         (a.card && JSON.stringify(a.card.visualization_settings)) ===
         (b.card && JSON.stringify(b.card.visualization_settings));
-      return acc && (sameData && sameDisplay && sameVizSettings);
+      return acc && sameData && sameDisplay && sameVizSettings;
     }, true)
   );
 }
@@ -208,7 +212,10 @@ const extentCache = new WeakMap();
 export function getColumnExtent(cols, rows, index) {
   const col = cols[index];
   if (!extentCache.has(col)) {
-    extentCache.set(col, d3.extent(rows, row => row[index]));
+    extentCache.set(
+      col,
+      d3.extent(rows, row => row[index]),
+    );
   }
   return extentCache.get(col);
 }
@@ -322,7 +329,6 @@ export function getDefaultDimensionsAndMetrics(
 export function computeMaxDecimalsForValues(values, options) {
   try {
     // Intl.NumberFormat isn't supported on all browsers, so wrap in try/catch
-    // $FlowFixMe
     const formatter = Intl.NumberFormat("en", options);
     let maxDecimalCount = 0;
     for (const value of values) {

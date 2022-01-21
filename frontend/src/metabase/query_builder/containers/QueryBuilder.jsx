@@ -1,7 +1,5 @@
-/* @flow weak */
-
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
-import ReactDOM from "react-dom";
 import { connect } from "react-redux";
 import { t } from "ttag";
 import _ from "underscore";
@@ -156,18 +154,11 @@ const mapDispatchToProps = {
   onChangeLocation: push,
 };
 
-@connect(
-  mapStateToProps,
-  mapDispatchToProps,
-)
+@connect(mapStateToProps, mapDispatchToProps)
 @title(({ card }) => (card && card.name) || t`Question`)
 @titleWithLoadingTime("queryStartTime")
 @fitViewport
 export default class QueryBuilder extends Component {
-  timeout: any;
-
-  forceUpdateDebounced: () => void;
-
   constructor(props, context) {
     super(props, context);
 
@@ -176,7 +167,11 @@ export default class QueryBuilder extends Component {
   }
 
   UNSAFE_componentWillMount() {
-    this.props.initializeQB(this.props.location, this.props.params);
+    this.props.initializeQB(
+      this.props.location,
+      this.props.params,
+      this.props.location.query,
+    );
   }
 
   componentDidMount() {
@@ -213,13 +208,6 @@ export default class QueryBuilder extends Component {
     }
   }
 
-  componentDidUpdate() {
-    const viz = ReactDOM.findDOMNode(this.refs.viz);
-    if (viz) {
-      viz.style.opacity = 1.0;
-    }
-  }
-
   componentWillUnmount() {
     // cancel the query if one is running
     this.props.cancelQuery();
@@ -235,10 +223,6 @@ export default class QueryBuilder extends Component {
   // Debounce the function to improve resizing performance.
   handleResize = e => {
     this.forceUpdateDebounced();
-    const viz = ReactDOM.findDOMNode(this.refs.viz);
-    if (viz) {
-      viz.style.opacity = 0.2;
-    }
   };
 
   // NOTE: these were lifted from QueryHeader. Move to Redux?
@@ -266,9 +250,10 @@ export default class QueryBuilder extends Component {
   };
 
   handleSave = async card => {
-    const { question, apiUpdateQuestion } = this.props;
+    const { question, apiUpdateQuestion, updateUrl } = this.props;
     const questionWithUpdatedCard = question.setCard(card);
     await apiUpdateQuestion(questionWithUpdatedCard);
+    await updateUrl(questionWithUpdatedCard.card(), { dirty: false });
 
     if (this.props.fromUrl) {
       this.props.onChangeLocation(this.props.fromUrl);
@@ -291,11 +276,8 @@ export default class QueryBuilder extends Component {
       uiControls: { modal, recentlySaved },
     } = this.props;
 
-    // const Panel = queryBuilderMode === "notebook" ? Notebook : View;
-    const Panel = View;
-
     return (
-      <Panel
+      <View
         {...this.props}
         // NOTE: these were lifted from QueryHeader. Move to Redux?
         modal={modal}

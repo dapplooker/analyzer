@@ -1,5 +1,4 @@
-/* @flow */
-
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
 import PropTypes from "prop-types";
 import ReactDOM from "react-dom";
@@ -15,6 +14,7 @@ import { memoize } from "metabase-lib/lib/utils";
 import {
   getTableCellClickedObject,
   getTableHeaderClickedObject,
+  getTableClickedObjectRowData,
   isColumnRightAligned,
 } from "metabase/visualizations/lib/table";
 import { getColumnExtent } from "metabase/visualizations/lib/utils";
@@ -27,10 +27,10 @@ import cx from "classnames";
 import ExplicitSize from "metabase/components/ExplicitSize";
 import MiniBar from "./MiniBar";
 
-// $FlowFixMe: had to ignore react-virtualized in flow, probably due to different version
 import { Grid, ScrollSync } from "react-virtualized";
 import Draggable from "react-draggable";
 import Ellipsified from "metabase/components/Ellipsified";
+import DimensionInfoPopover from "metabase/components/MetadataInfo/DimensionInfoPopover";
 
 const HEADER_HEIGHT = 36;
 const ROW_HEIGHT = 36;
@@ -41,13 +41,6 @@ const HEADER_DRAG_THRESHOLD = 5;
 
 // HACK: used to get react-draggable to reset after a drag
 let DRAG_COUNTER = 0;
-
-import type {
-  VisualizationProps,
-  ClickObject,
-} from "metabase-types/types/Visualization";
-import type { VisualizationSettings } from "metabase-types/types/Card";
-import type { DatasetData } from "metabase-types/types/Dataset";
 
 function pickRowsToMeasure(rows, columnIndex, count = 10) {
   const rowIndexes = [];
@@ -64,62 +57,9 @@ function pickRowsToMeasure(rows, columnIndex, count = 10) {
   return rowIndexes;
 }
 
-type Props = VisualizationProps & {
-  width: number,
-  height: number,
-  sort: any,
-  isPivoted: boolean,
-  onActionDismissal: () => void,
-  onContentWidthChange: (number, number[]) => void,
-  renderTableCellWrapper: any,
-  renderTableHeaderWrapper: any,
-  tableHeaderHeight: number,
-  getColumnTitle: number => string,
-  data: any,
-};
-type State = {
-  columnWidths: number[],
-  contentWidths: ?(number[]),
-
-  dragColIndex?: ?number,
-  dragColStyle?: ?{ [key: string]: any },
-  dragColNewLefts?: ?(number[]),
-  dragColNewIndex?: ?number,
-  columnPositions?: ?({
-    left: number,
-    right: number,
-    center: number,
-    width: number,
-  }[]),
-};
-
-type CellRendererProps = {
-  key: string,
-  style: { [key: string]: any },
-  columnIndex: number,
-  rowIndex: number,
-};
-
-type GridComponent = Component<void, void, void> & {
-  recomputeGridSize: () => void,
-};
-
 @ExplicitSize()
 export default class TableInteractive extends Component {
-  state: State;
-  props: Props;
-
-  columnHasResized: { [key: number]: boolean };
-  columnNeedsResize: { [key: number]: boolean };
-  _div: HTMLElement;
-  _totalContentWidth: ?number;
-  _previousOverscrollBehaviorX: any;
-
-  header: GridComponent;
-  grid: GridComponent;
-  headerRefs: HTMLElement[];
-
-  constructor(props: Props) {
+  constructor(props) {
     super(props);
 
     this.state = {
@@ -169,7 +109,7 @@ export default class TableInteractive extends Component {
     }
   }
 
-  UNSAFE_componentWillReceiveProps(newProps: Props) {
+  UNSAFE_componentWillReceiveProps(newProps) {
     if (
       this.props.data &&
       newProps.data &&
@@ -186,12 +126,12 @@ export default class TableInteractive extends Component {
     }
   }
 
-  _getColumnSettings(props: Props) {
+  _getColumnSettings(props) {
     return props.data && props.data.cols.map(col => props.settings.column(col));
   }
 
-  shouldComponentUpdate(nextProps: Props, nextState: State) {
-    const PROP_KEYS: string[] = ["width", "height", "settings", "data"];
+  shouldComponentUpdate(nextProps, nextState) {
+    const PROP_KEYS = ["width", "height", "settings", "data"];
     // compare specific props and state to determine if we should re-render
     return (
       !_.isEqual(
@@ -261,7 +201,7 @@ export default class TableInteractive extends Component {
           columnElement => columnElement.offsetWidth,
         );
 
-        const columnWidths: number[] = cols.map((col, index) => {
+        const columnWidths = cols.map((col, index) => {
           if (this.columnNeedsResize) {
             if (
               this.columnNeedsResize[index] &&
@@ -299,13 +239,13 @@ export default class TableInteractive extends Component {
     this.setState({ contentWidths: null });
   }, 100);
 
-  onCellResize(columnIndex: number) {
+  onCellResize(columnIndex) {
     this.columnNeedsResize = this.columnNeedsResize || {};
     this.columnNeedsResize[columnIndex] = true;
     this.recomputeColumnSizes();
   }
 
-  onColumnResize(columnIndex: number, width: number) {
+  onColumnResize(columnIndex, width) {
     const { settings } = this.props;
     const columnWidthsSetting = settings["table.column_widths"]
       ? settings["table.column_widths"].slice()
@@ -317,7 +257,7 @@ export default class TableInteractive extends Component {
     setTimeout(() => this.recomputeGridSize(), 1);
   }
 
-  onColumnReorder(columnIndex: number, newColumnIndex: number) {
+  onColumnReorder(columnIndex, newColumnIndex) {
     const { settings, onUpdateVisualizationSettings } = this.props;
     const columns = settings["table.columns"].slice(); // copy since splice mutates
     columns.splice(newColumnIndex, 0, columns.splice(columnIndex, 1)[0]);
@@ -326,14 +266,14 @@ export default class TableInteractive extends Component {
     });
   }
 
-  onVisualizationClick(clicked: ?ClickObject, element: HTMLElement) {
+  onVisualizationClick(clicked, element) {
     const { onVisualizationClick } = this.props;
     if (this.visualizationIsClickable(clicked)) {
       onVisualizationClick({ ...clicked, element });
     }
   }
 
-  getCellClickedObject(rowIndex: number, columnIndex: number) {
+  getCellClickedObject(rowIndex, columnIndex) {
     try {
       return this._getCellClickedObjectCached(
         this.props.data,
@@ -341,6 +281,7 @@ export default class TableInteractive extends Component {
         rowIndex,
         columnIndex,
         this.props.isPivoted,
+        this.props.series,
       );
     } catch (e) {
       console.error(e);
@@ -349,22 +290,32 @@ export default class TableInteractive extends Component {
   // NOTE: all arguments must be passed to the memoized method, not taken from this.props etc
   @memoize
   _getCellClickedObjectCached(
-    data: DatasetData,
-    settings: VisualizationSettings,
-    rowIndex: number,
-    columnIndex: number,
-    isPivoted: boolean,
+    data,
+    settings,
+    rowIndex,
+    columnIndex,
+    isPivoted,
+    series,
   ) {
+    const clickedRowData = getTableClickedObjectRowData(
+      series,
+      rowIndex,
+      columnIndex,
+      isPivoted,
+      data,
+    );
+
     return getTableCellClickedObject(
       data,
       settings,
       rowIndex,
       columnIndex,
       isPivoted,
+      clickedRowData,
     );
   }
 
-  getHeaderClickedObject(columnIndex: number) {
+  getHeaderClickedObject(columnIndex) {
     try {
       return this._getHeaderClickedObjectCached(
         this.props.data,
@@ -377,15 +328,11 @@ export default class TableInteractive extends Component {
   }
   // NOTE: all arguments must be passed to the memoized method, not taken from this.props etc
   @memoize
-  _getHeaderClickedObjectCached(
-    data: DatasetData,
-    columnIndex: number,
-    isPivoted: boolean,
-  ) {
+  _getHeaderClickedObjectCached(data, columnIndex, isPivoted) {
     return getTableHeaderClickedObject(data, columnIndex, isPivoted);
   }
 
-  visualizationIsClickable(clicked: ?ClickObject) {
+  visualizationIsClickable(clicked) {
     try {
       const { onVisualizationClick, visualizationIsClickable } = this.props;
       const { dragColIndex } = this.state;
@@ -407,21 +354,13 @@ export default class TableInteractive extends Component {
   }
   // NOTE: all arguments must be passed to the memoized method, not taken from this.props etc
   @memoize
-  _visualizationIsClickableCached(
-    visualizationIsClickable: Function,
-    clicked: ClickObject,
-  ) {
+  _visualizationIsClickableCached(visualizationIsClickable, clicked) {
     return visualizationIsClickable(clicked);
   }
 
   // NOTE: all arguments must be passed to the memoized method, not taken from this.props etc
   @memoize
-  getCellBackgroundColor(
-    settings: VisualizationSettings,
-    value: Value,
-    rowIndex: number,
-    columnName: number,
-  ) {
+  getCellBackgroundColor(settings, value, rowIndex, columnName) {
     try {
       return settings["table._cell_background_getter"](
         value,
@@ -435,11 +374,7 @@ export default class TableInteractive extends Component {
 
   // NOTE: all arguments must be passed to the memoized method, not taken from this.props etc
   @memoize
-  getCellFormattedValue(
-    value: Value,
-    columnSettings: any,
-    clicked: ?ClickObject,
-  ) {
+  getCellFormattedValue(value, columnSettings, clicked) {
     try {
       return formatValue(value, {
         ...columnSettings,
@@ -453,7 +388,7 @@ export default class TableInteractive extends Component {
     }
   }
 
-  cellRenderer = ({ key, style, rowIndex, columnIndex }: CellRendererProps) => {
+  cellRenderer = ({ key, style, rowIndex, columnIndex }) => {
     const { data, settings } = this.props;
     const { dragColIndex } = this.state;
     const { rows, cols } = data;
@@ -508,20 +443,29 @@ export default class TableInteractive extends Component {
           "Table-FK": value != null && isFK(column),
           link: isClickable && isID(column),
         })}
-        onMouseUp={
+        onClick={
           isClickable
             ? e => {
                 this.onVisualizationClick(clicked, e.currentTarget);
               }
             : undefined
         }
+        onKeyUp={
+          isClickable
+            ? e => {
+                e.key === "Enter" &&
+                  this.onVisualizationClick(clicked, e.currentTarget);
+              }
+            : undefined
+        }
+        tabIndex="0"
       >
         {this.props.renderTableCellWrapper(cellData)}
       </div>
     );
   };
 
-  getDragColNewIndex(data: { x: number }) {
+  getDragColNewIndex(data) {
     const { columnPositions, dragColNewIndex, dragColStyle } = this.state;
     if (dragColStyle) {
       if (data.x < 0) {
@@ -556,16 +500,14 @@ export default class TableInteractive extends Component {
     });
   }
 
-  getNewColumnLefts(dragColNewIndex: number) {
+  getNewColumnLefts(dragColNewIndex) {
     const { dragColIndex, columnPositions } = this.state;
     const { cols } = this.props.data;
     const indexes = cols.map((col, index) => index);
-    // $FlowFixMe
     indexes.splice(dragColNewIndex, 0, indexes.splice(dragColIndex, 1)[0]);
     let left = 0;
     const lefts = indexes.map(index => {
       const thisLeft = left;
-      // $FlowFixMe: we know columnPositions[index] isn't null because onDrag is called after onStart
       left += columnPositions[index].width;
       return { index, left: thisLeft };
     });
@@ -573,7 +515,7 @@ export default class TableInteractive extends Component {
     return lefts.map(p => p.left);
   }
 
-  getColumnLeft(style: any, index: number) {
+  getColumnLeft(style, index) {
     const { dragColNewIndex, dragColNewLefts } = this.state;
     if (dragColNewIndex != null && dragColNewLefts) {
       return dragColNewLefts[index];
@@ -581,7 +523,22 @@ export default class TableInteractive extends Component {
     return style.left;
   }
 
-  tableHeaderRenderer = ({ key, style, columnIndex }: CellRendererProps) => {
+  @memoize
+  getDimension(column, query) {
+    if (!query) {
+      return undefined;
+    }
+
+    const dimension = Dimension.parseMBQL(
+      column.field_ref,
+      query.metadata(),
+      query,
+    );
+
+    return dimension;
+  }
+
+  tableHeaderRenderer = ({ key, style, columnIndex }) => {
     const {
       data,
       sort,
@@ -690,31 +647,39 @@ export default class TableInteractive extends Component {
               : undefined
           }
         >
-          {renderTableHeaderWrapper(
-            <Ellipsified tooltip={columnTitle}>
-              {isSortable && isRightAligned && (
-                <Icon
-                  className="Icon mr1"
-                  name={isAscending ? "chevronup" : "chevrondown"}
-                  size={8}
-                />
-              )}
-              {columnTitle}
-              {isSortable && !isRightAligned && (
-                <Icon
-                  className="Icon ml1"
-                  name={isAscending ? "chevronup" : "chevrondown"}
-                  size={8}
-                />
-              )}
-            </Ellipsified>,
-            column,
-            columnIndex,
-          )}
+          <DimensionInfoPopover
+            placement="bottom-start"
+            dimension={this.getDimension(column, this.props.query)}
+          >
+            {renderTableHeaderWrapper(
+              <Ellipsified tooltip={columnTitle}>
+                {isSortable && isRightAligned && (
+                  <Icon
+                    className="Icon mr1"
+                    name={isAscending ? "chevronup" : "chevrondown"}
+                    size={8}
+                  />
+                )}
+                {columnTitle}
+                {isSortable && !isRightAligned && (
+                  <Icon
+                    className="Icon ml1"
+                    name={isAscending ? "chevronup" : "chevrondown"}
+                    size={8}
+                  />
+                )}
+              </Ellipsified>,
+              column,
+              columnIndex,
+            )}
+          </DimensionInfoPopover>
           <Draggable
             axis="x"
             bounds={{ left: RESIZE_HANDLE_WIDTH }}
-            position={{ x: this.getColumnWidth({ index: columnIndex }), y: 0 }}
+            position={{
+              x: this.getColumnWidth({ index: columnIndex }),
+              y: 0,
+            }}
             onStart={e => {
               e.stopPropagation();
               this.setState({ dragColIndex: columnIndex });
@@ -744,7 +709,7 @@ export default class TableInteractive extends Component {
     );
   };
 
-  getColumnWidth = ({ index }: { index: number }) => {
+  getColumnWidth = ({ index }) => {
     const { settings } = this.props;
     const { columnWidths } = this.state;
     const columnWidthsSetting = settings["table.column_widths"] || [];
@@ -756,13 +721,10 @@ export default class TableInteractive extends Component {
   handleOnMouseEnter = () => {
     // prevent touchpad gestures from navigating forward/back if you're expecting to just scroll the table
     // https://stackoverflow.com/a/50846937
-    // $FlowFixMe: overscrollBehaviorX
     this._previousOverscrollBehaviorX = document.body.style.overscrollBehaviorX;
-    // $FlowFixMe: overscrollBehaviorX
     document.body.style.overscrollBehaviorX = "none";
   };
   handleOnMouseLeave = () => {
-    // $FlowFixMe: overscrollBehaviorX
     document.body.style.overscrollBehaviorX = this._previousOverscrollBehaviorX;
   };
 
@@ -862,7 +824,6 @@ export default class TableInteractive extends Component {
   _benchmark() {
     const grid = ReactDOM.findDOMNode(this.grid);
     const height = grid.scrollHeight;
-    console.log("height", height);
     let top = 0;
     let start = Date.now();
     // console.profile();

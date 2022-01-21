@@ -2,7 +2,9 @@
   "Middleware for automatically bucketing unbucketed `:type/Temporal` (but not `:type/Time`) Fields with `:day`
   bucketing. Applies to any unbucketed Field in a breakout, or fields in a filter clause being compared against
   `yyyy-MM-dd` format datetime strings."
-  (:require [medley.core :as m]
+  (:require [clojure.set :as set]
+            [clojure.walk :as walk]
+            [medley.core :as m]
             [metabase.mbql.predicates :as mbql.preds]
             [metabase.mbql.schema :as mbql.s]
             [metabase.mbql.util :as mbql.u]
@@ -13,7 +15,7 @@
 
 (def ^:private FieldTypeInfo
   {:base-type                      (s/maybe su/FieldType)
-   (s/optional-key :semantic-type) (s/maybe su/FieldType)
+   (s/optional-key :semantic-type) (s/maybe su/FieldSemanticOrRelationType)
    s/Keyword                       s/Any})
 
 (def ^:private FieldIDOrName->TypeInfo
@@ -34,9 +36,14 @@
               [id-or-name {:base-type base-type}]))
    ;; build map of field ID -> <info from DB>
    (when-let [field-ids (seq (filter integer? (map second unbucketed-fields)))]
-     (into {} (for [{id :id, base-type :base_type, semantic-type :semantic_type} (db/select [Field :id :base_type :semantic_type]
-                                                                                   :id [:in (set field-ids)])]
-                [id {:base-type base-type, :semantic-type semantic-type}])))))
+     (into {} (for [{id :id, :as field}
+                    (db/select [Field :id :base_type :effective_type :semantic_type]
+                      :id [:in (set field-ids)])]
+                [id (set/rename-keys (select-keys field
+                                                  [:base_type :effective_type :semantic_type])
+                                     {:base_type      :base-type
+                                      :effective_type :effective-type
+                                      :semantic_type  :semantic-type})])))))
 
 (defn- yyyy-MM-dd-date-string? [x]
   (and (string? x)
@@ -69,23 +76,23 @@
         (let [[_ _ opts] x]
           ((some-fn :temporal-unit :binning) opts)))))
 
-(defn- date-or-datetime-field? [{base-type :base-type, semantic-type :semantic-type}]
+(defn- date-or-datetime-field? [{base-type :base-type, effective-type :effective-type}]
   (some (fn [field-type]
           (some #(isa? field-type %)
                 [:type/Date :type/DateTime]))
-        [base-type semantic-type]))
+        [base-type effective-type]))
 
 (s/defn ^:private wrap-unbucketed-fields
   "Add `:temporal-unit` to `:field`s in breakouts and filters if appropriate; look at corresponing type information in
   `field-id->type-info` to see if we should do so."
   ;; we only want to wrap clauses in `:breakout` and `:filter` so just make a 3-arg version of this fn that takes the
   ;; name of the clause to rewrite and call that twice
-  ([query field-id->type-info :- FieldIDOrName->TypeInfo]
-   (-> query
+  ([inner-query field-id->type-info :- FieldIDOrName->TypeInfo]
+   (-> inner-query
        (wrap-unbucketed-fields field-id->type-info :breakout)
        (wrap-unbucketed-fields field-id->type-info :filter)))
 
-  ([query field-id->type-info clause-to-rewrite]
+  ([inner-query field-id->type-info clause-to-rewrite]
    (let [datetime-but-not-time? (comp date-or-datetime-field? field-id->type-info)]
      (letfn [(wrap-fields [x]
                (mbql.u/replace x
@@ -97,10 +104,10 @@
                  ;; `:type/Time`), then go ahead and replace it
                  [:field (id-or-name :guard datetime-but-not-time?) opts]
                  [:field id-or-name (assoc opts :temporal-unit :day)]))]
-       (m/update-existing-in query [:query clause-to-rewrite] wrap-fields)))))
+       (m/update-existing inner-query clause-to-rewrite wrap-fields)))))
 
-(s/defn ^:private auto-bucket-datetimes*
-  [{{breakouts :breakout, filter-clause :filter} :query, :as query}]
+(s/defn ^:private auto-bucket-datetimes-this-level
+  [{breakouts :breakout, filter-clause :filter, :as inner-query}]
   ;; find any breakouts or filters in the query that are just plain `[:field-id ...]` clauses (unwrapped by any other
   ;; clause)
   (if-let [unbucketed-fields (mbql.u/match (cons filter-clause breakouts)
@@ -110,18 +117,31 @@
     ;; breakouts/filters...
     (let [field-id->type-info (unbucketed-fields->field-id->type-info unbucketed-fields)]
       ;; ...and then update each breakout/filter by wrapping it if appropriate
-      (wrap-unbucketed-fields query field-id->type-info))
-    ;; otherwise if there are no unbuketed breakouts/filters return the query as-is
-    query))
+      (wrap-unbucketed-fields inner-query field-id->type-info))
+    ;; otherwise if there are no unbucketed breakouts/filters return the query as-is
+    inner-query))
+
+(defn- auto-bucket-datetimes-all-levels [{query-type :type, :as query}]
+  (if (not= query-type :query)
+    query
+    ;; walk query, looking for inner-query forms that have a `:filter` key
+    (walk/postwalk
+     (fn [form]
+       (if (and (map? form)
+                (or (seq (:filter form))
+                    (seq (:breakout form))))
+         (auto-bucket-datetimes-this-level form)
+         form))
+     query)))
 
 (defn auto-bucket-datetimes
-  "Middleware that automatically adds `:temporal-unit` to breakout and filter `:field` clauses if the Field they refer
-  to has a type that derives from `:type/Temporal` (but not `:type/Time`). (This is done for historic reasons, before
-  datetime bucketing was added to MBQL; datetime Fields defaulted to breaking out by day. We might want to revisit
-  this behavior in the future.)
+  "Middleware that automatically adds `:temporal-unit` `:day` to breakout and filter `:field` clauses if the Field they
+  refer to has a type that derives from `:type/Temporal` (but not `:type/Time`). (This is done for historic reasons,
+  before datetime bucketing was added to MBQL; datetime Fields defaulted to breaking out by day. We might want to
+  revisit this behavior in the future.)
 
   Applies to any unbucketed Field in a breakout, or fields in a filter clause being compared against `yyyy-MM-dd`
   format datetime strings."
   [qp]
   (fn [query rff context]
-    (qp (auto-bucket-datetimes* query) rff context)))
+    (qp (auto-bucket-datetimes-all-levels query) rff context)))

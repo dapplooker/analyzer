@@ -11,11 +11,13 @@
   (:require [clojure.string :as str]
             [clojure.tools.logging :as log]
             [metabase.driver.common.parameters :as i]
+            [metabase.mbql.schema :as mbql.s]
             [metabase.models.card :refer [Card]]
             [metabase.models.field :refer [Field]]
             [metabase.models.native-query-snippet :refer [NativeQuerySnippet]]
             [metabase.query-processor :as qp]
             [metabase.query-processor.error-type :as qp.error-type]
+            [metabase.util :as u]
             [metabase.util.i18n :refer [deferred-tru tru]]
             [metabase.util.schema :as su]
             [schema.core :as s]
@@ -24,14 +26,6 @@
            java.text.NumberFormat
            java.util.UUID
            [metabase.driver.common.parameters CommaSeparatedNumbers FieldFilter MultipleValues ReferencedCardQuery ReferencedQuerySnippet]))
-
-(def ^:private ParamType
-  (s/enum :number
-          :dimension ; Field Filter
-          :card
-          :snippet
-          :text
-          :date))
 
 (defmulti ^:private parse-tag
   "Parse a tag by its `:type`, returning an appropriate record type such as
@@ -53,42 +47,21 @@
 ;; Since 'FieldFilter' are considered their own `:type` (confusingly enough, called `:dimension`), to *actually* store
 ;; the type of a FieldFilter look at the key `:widget-type`. This applies to things like the default value for a
 ;; FieldFilter as well.
-(def ^:private TagParam
-  "Schema for a tag parameter declaration, passed in as part of the `:template-tags` list."
-  (s/named
-   {(s/optional-key :id)           su/NonBlankString     ; this is used internally by the frontend
-    :name                          su/NonBlankString
-    :display-name                  su/NonBlankString
-    :type                          ParamType
-    (s/optional-key :dimension)    [s/Any]
-    (s/optional-key :card-id)      su/IntGreaterThanZero
-    (s/optional-key :snippet-name) su/NonBlankString
-    (s/optional-key :snippet-id)   su/IntGreaterThanZero
-    (s/optional-key :database)     su/IntGreaterThanZero ; used by tags of `:type :snippet`
-    (s/optional-key :widget-type)  s/Keyword             ; type of the [default] value if `:type` itself is `dimension`
-    (s/optional-key :required)     s/Bool
-    (s/optional-key :default)      s/Any
-    s/Keyword                      s/Any}
-   "valid template-tags tag"))
 
 (def ^:private ParsedParamValue
   "Schema for valid param value(s). Params can have one or more values."
   (s/named (s/maybe (s/cond-pre i/SingleValue MultipleValues su/Map))
            "Valid param value(s)"))
 
-(s/defn ^:private param-with-target
-  "Return the param in `params` with a matching `target`. `target` is something like:
+(s/defn ^:private params-with-target
+  "Return `params` with a matching `target`. `target` is something like:
 
      [:dimension [:template-tag <param-name>]] ; for FieldFilters (Field Filters)
      [:variable  [:template-tag <param-name>]] ; for other types of params"
-  [params :- (s/maybe [i/ParamValue]), target]
-  (when-let [matching-params (seq (for [param params
-                                        :when (= (:target param) target)]
-                                    param))]
-    ;; if there's only one matching param no need to nest it inside a vector. Otherwise return vector of params
-    ((if (= (count matching-params) 1)
-       first
-       vec) matching-params)))
+  [params :- (s/maybe [mbql.s/Parameter]) target :- mbql.s/ParameterTarget]
+  (seq (for [param params
+             :when (= (:target param) target)]
+         param)))
 
 
 ;;; FieldFilter Params (Field Filters) (e.g. WHERE {{x}})
@@ -98,47 +71,56 @@
                 param-display-name)
            {:type qp.error-type/missing-required-parameter}))
 
-(s/defn ^:private default-value-for-field-filter
-  "Return the default value for a FieldFilter (`:type` = `:dimension`) param defined by the map `tag`, if one is set."
-  [tag :- TagParam]
-  (when (and (:required tag) (not (:default tag)))
-    (throw (missing-required-param-exception (:display-name tag))))
-  (when-let [default (:default tag)]
-    {:type   (:widget-type tag :dimension) ; widget-type is the actual type of the default value if set
-     :target [:dimension [:template-tag (:name tag)]]
-     :value  default}))
-
 (s/defn ^:private field-filter->field-id :- su/IntGreaterThanZero
   [field-filter]
   (second field-filter))
 
+(s/defn ^:private field-filter-value
+  "Get parameter value(s) for a Field filter. Returns map if there is a normal single value, or a vector of maps for
+  multiple values."
+  [tag :- mbql.s/TemplateTag params :- (s/maybe [mbql.s/Parameter])]
+  (let [matching-params  (params-with-target params [:dimension [:template-tag (:name tag)]])
+        normalize-params (fn [params]
+                           ;; remove `:target` which is no longer needed after this point.
+                           (let [params (map #(dissoc % :target) params)]
+                             (if (= (count params) 1)
+                               (first params)
+                               params)))]
+    (or
+     ;; if we have matching parameter(s) that all have actual values, return those.
+     (when (and (seq matching-params)
+                (every? :value matching-params))
+       (normalize-params matching-params))
+     ;; otherwise, attempt to fall back to the default value specified as part of the template tag.
+     (when-let [tag-default (:default tag)]
+       {:type  (:widget-type tag :dimension) ; widget-type is the actual type of the default value if set
+        :value tag-default})
+     ;; if that doesn't exist, see if the matching parameters specified default values This can be the case if the
+     ;; parameters came from a Dashboard -- Dashboard parameter mappings can specify their own defaults -- but we want
+     ;; the defaults specified in the template tag to take precedence if both are specified
+     (when (and (seq matching-params)
+                (every? :default matching-params))
+       (normalize-params matching-params))
+     ;; otherwise there is no value for this Field filter ("dimension"), throw Exception if this param is required,
+     ;; otherwise return [[i/no-value]] to signify that
+     (if (:required tag)
+       (throw (missing-required-param-exception (:display-name tag)))
+       i/no-value))))
+
 (s/defmethod parse-tag :dimension :- (s/maybe FieldFilter)
-  [{field-filter :dimension, :as tag} :- TagParam, params :- (s/maybe [i/ParamValue])]
+  [{field-filter :dimension, :as tag} :- mbql.s/TemplateTag
+   params                             :- (s/maybe [mbql.s/Parameter])]
   (i/map->FieldFilter
    ;; TODO - shouldn't this use the QP Store?
    {:field (let [field-id (field-filter->field-id field-filter)]
-             (or (db/select-one [Field :name :parent_id :table_id :base_type :semantic_type] :id field-id)
+             (or (db/select-one [Field :name :parent_id :table_id :base_type :effective_type :coercion_strategy :semantic_type]
+                   :id field-id)
                  (throw (ex-info (str (deferred-tru "Can''t find field with ID: {0}" field-id))
                                  {:field-id field-id, :type qp.error-type/invalid-parameter}))))
-    :value (if-let [value-info-or-infos (or
-                                         ;; look in the sequence of params we were passed to see if there's anything
-                                         ;; that matches
-                                         (param-with-target params [:dimension [:template-tag (:name tag)]])
-                                         ;; if not, check and see if we have a default param
-                                         (default-value-for-field-filter tag))]
-             ;; `value-info` will look something like after we remove `:target` which is not needed after this point
-             ;;
-             ;;    {:type   :date/single
-             ;;     :value  #t "2019-09-20T19:52:00.000-07:00"}
-             ;;
-             ;; (or it will be a vector of these maps for multiple values)
-             (cond
-               (map? value-info-or-infos)        (dissoc value-info-or-infos :target)
-               (sequential? value-info-or-infos) (mapv #(dissoc % :target) value-info-or-infos))
-             i/no-value)}))
+    :value (field-filter-value tag params)}))
 
 (s/defmethod parse-tag :card :- ReferencedCardQuery
-  [{:keys [card-id], :as tag} :- TagParam, params :- (s/maybe [i/ParamValue])]
+  [{:keys [card-id], :as tag} :- mbql.s/TemplateTag params :- (s/maybe [mbql.s/Parameter])]
   (when-not card-id
     (throw (ex-info (tru "Invalid :card parameter: missing `:card-id`")
                     {:tag tag, :type qp.error-type/invalid-parameter})))
@@ -147,8 +129,8 @@
                                   {:card-id card-id, :tag tag, :type qp.error-type/invalid-parameter})))]
     (try
       (i/map->ReferencedCardQuery
-       {:card-id card-id
-        :query   (:query (qp/query->native (assoc query :parameters params, :info {:card-id card-id})))})
+       (merge {:card-id card-id}
+              (qp/query->native (assoc query :parameters params, :info {:card-id card-id}))))
       (catch ExceptionInfo e
         (throw (ex-info
                 (tru "The sub-query from referenced question #{0} failed with the following error: {1}"
@@ -160,7 +142,7 @@
                 e))))))
 
 (s/defmethod parse-tag :snippet :- ReferencedQuerySnippet
-  [{:keys [snippet-name snippet-id], :as tag} :- TagParam, _]
+  [{:keys [snippet-name snippet-id], :as tag} :- mbql.s/TemplateTag, _]
   (let [snippet-id (or snippet-id
                        (throw (ex-info (tru "Unable to resolve Snippet: missing `:snippet-id`")
                                        {:tag tag, :type qp.error-type/invalid-parameter})))
@@ -177,30 +159,37 @@
 
 ;;; Non-FieldFilter Params (e.g. WHERE x = {{x}})
 
-(s/defn ^:private default-value-for-tag
-  "Return the `:default` value for a param if no explicit values were passsed. This only applies to non-FieldFilter
-  params. Default values for FieldFilter (Field Filter) params are handled above in `default-value-for-field-filter`."
-  [{:keys [default display-name required]} :- TagParam]
-  (or default
-      (when required
-        (throw (missing-required-param-exception display-name)))))
-
-(s/defn ^:private param-value-for-tag [{tag-name :name, :as tag} :- TagParam, params :- (s/maybe [i/ParamValue])]
-  (or (:value (param-with-target params [:variable [:template-tag tag-name]]))
-      (default-value-for-tag tag)
-      i/no-value))
+(s/defn ^:private param-value-for-raw-value-tag
+  "Get the value that should be used for a raw value (i.e., non-Field filter) template tag from `params`."
+  [{tag-name :name, :as tag} :- mbql.s/TemplateTag
+   params                    :- (s/maybe [mbql.s/Parameter])]
+  (let [matching-param (when-let [matching-params (not-empty (params-with-target params [:variable [:template-tag tag-name]]))]
+                         ;; double-check and make sure we didn't end up with multiple mappings or something crazy like that.
+                         (when (> (count matching-params) 1)
+                           (throw (ex-info (tru "Error: multiple values specified for parameter; non-Field Filter parameters can only have one value.")
+                                           {:type                qp.error-type/invalid-parameter
+                                            :template-tag        tag
+                                            :matching-parameters params})))
+                         (first matching-params))]
+    ;; if both the tag and the Dashboard parameter specify a default value, prefer the default value from the tag.
+    (or (:value matching-param)
+        (:default tag)
+        (:default matching-param)
+        (if (:required tag)
+          (throw (missing-required-param-exception (:display-name tag)))
+          i/no-value))))
 
 (defmethod parse-tag :number
   [tag params]
-  (param-value-for-tag tag params))
+  (param-value-for-raw-value-tag tag params))
 
 (defmethod parse-tag :text
   [tag params]
-  (param-value-for-tag tag params))
+  (param-value-for-raw-value-tag tag params))
 
 (defmethod parse-tag :date
   [tag params]
-  (param-value-for-tag tag params))
+  (param-value-for-raw-value-tag tag params))
 
 
 ;;; Parsing Values
@@ -224,6 +213,13 @@
    (number? value) value
    ;; same goes for an instance of CommaSeperated values
    (instance? CommaSeparatedNumbers value) value
+
+   ;; newer operators use vectors as their arguments even if there's only one
+   (vector? value)
+   (let [values (map parse-number value)]
+     (if (next values)
+       (i/map->CommaSeparatedNumbers {:numbers values})
+       (first values)))
    ;; if the value is a string, then split it by commas in the string. Usually there should be none.
    ;; Parse each part as a number.
    (string? value)
@@ -240,13 +236,12 @@
   to parse it as appropriate based on the base type and semantic type of the Field associated with it). These are
   special cases for handling types that do not have an associated parameter type (such as `date` or `number`), such as
   UUID fields."
-  [base-type :- su/FieldType semantic-type :- (s/maybe su/FieldType) value]
+  [effective-type :- su/FieldType value]
   (cond
-    (isa? base-type :type/UUID)
+    (isa? effective-type :type/UUID)
     (UUID/fromString value)
 
-    (and (isa? base-type :type/Number)
-         (not (isa? semantic-type :type/Temporal)))
+    (isa? effective-type :type/Number)
     (value->number value)
 
     :else
@@ -255,17 +250,18 @@
 (s/defn ^:private update-filter-for-field-type :- ParsedParamValue
   "Update a Field Filter with a textual, or sequence of textual, values. The base type and semantic type of the field
   are used to determine what 'semantic' type interpretation is required (e.g. for UUID fields)."
-  [{{base-type :base_type, semantic-type :semantic_type} :field, {value :value} :value, :as field-filter} :- FieldFilter]
-  (let [new-value (cond
+  [{field :field, {value :value} :value, :as field-filter} :- FieldFilter]
+  (let [effective-type (or (:effective_type field) (:base_type field))
+        new-value (cond
                     (string? value)
-                    (parse-value-for-field-type base-type semantic-type value)
+                    (parse-value-for-field-type effective-type value)
 
                     (and (sequential? value)
                          (every? string? value))
-                    (mapv (partial parse-value-for-field-type base-type semantic-type) value))]
+                    (mapv (partial parse-value-for-field-type effective-type) value))]
     (when (not= value new-value)
-      (log/tracef "update filter for base-type: %s semantic-type: %s value: %s -> %s"
-                  (pr-str base-type) (pr-str semantic-type) (pr-str value) (pr-str new-value)))
+      (log/tracef "update filter for base-type: %s value: %s -> %s"
+                  (pr-str effective-type) (pr-str value) (pr-str new-value)))
     (cond-> field-filter
       new-value (assoc-in [:value :value] new-value))))
 
@@ -275,7 +271,7 @@
   value.) For numbers, dates, and the like, this will parse the string appropriately; for `text` parameters, this will
   additionally attempt handle special cases based on the base type of the Field, for example, parsing params for UUID
   base type Fields as UUIDs."
-  [param-type :- ParamType value]
+  [param-type :- mbql.s/TemplateTagType value]
   (cond
    (= value i/no-value)
    value
@@ -306,11 +302,11 @@
 (s/defn ^:private value-for-tag :- ParsedParamValue
   "Given a map `tag` (a value in the `:template-tags` dictionary) return the corresponding value from the `params`
    sequence. The `value` is something that can be compiled to SQL via `->replacement-snippet-info`."
-  [tag :- TagParam params :- (s/maybe [i/ParamValue])]
+  [tag :- mbql.s/TemplateTag params :- (s/maybe [mbql.s/Parameter])]
   (try
     (parse-value-for-type (:type tag) (parse-tag tag params))
     (catch Throwable e
-      (throw (ex-info (tru "Error determining value for parameter")
+      (throw (ex-info (tru "Error determining value for parameter: {0}" (ex-message e))
                       {:tag  tag
                        :type (or (:type (ex-data e)) qp.error-type/invalid-parameter)}
                       e)))))
@@ -322,7 +318,7 @@
     ->
     {:checkin_date #t \"2019-09-19T23:30:42.233-07:00\"}"
   [{tags :template-tags, params :parameters}]
-  (log/tracef "Building params map out of tags %s and params %s" (pr-str tags) (pr-str params))
+  (log/tracef "Building params map out of tags\n%s\nand params\n%s" (u/pprint-to-str tags) (u/pprint-to-str params))
   (try
     (into {} (for [[k tag] tags
                    :let    [v (value-for-tag tag params)]
@@ -330,10 +326,10 @@
                ;; TODO - if V is `nil` *on purpose* this still won't give us a query like `WHERE field = NULL`. That
                ;; kind of query shouldn't be possible from the frontend anyway
                (do
-                 (log/tracef "Value for tag %s %s -> %s" (pr-str k) (pr-str tag) (pr-str v))
+                 (log/tracef "Value for tag %s\n%s\n->\n%s" (pr-str k) (u/pprint-to-str tag) (u/pprint-to-str v))
                  {k v})))
     (catch Throwable e
-      (throw (ex-info (tru "Error building query parameter map")
+      (throw (ex-info (tru "Error building query parameter map: {0}" (ex-message e))
                       {:type   (or (:type (ex-data e)) qp.error-type/invalid-parameter)
                        :tags   tags
                        :params params}

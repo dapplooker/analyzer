@@ -1,4 +1,4 @@
-import "__support__/mocks"; // included explicitly whereas with e2e tests it comes with __support__/e2e
+import "__support__/ui-mocks"; // included explicitly whereas with e2e tests it comes with __support__/e2e
 
 import {
   NumberColumn,
@@ -39,11 +39,13 @@ function MainSeries(chartType, settings = {}, { key = "A", value = 1 } = {}) {
     data: {
       cols: [
         StringColumn({
+          name: "Category",
           display_name: "Category",
           source: "breakout",
           field_ref: ["field", 1, null],
         }),
         NumberColumn({
+          name: "Sum",
           display_name: "Sum",
           source: "aggregation",
           field_ref: ["field", 2, null],
@@ -74,6 +76,14 @@ function ExtraSeries(count = 2) {
     },
   };
 }
+
+// jsdom doesn't support layout methods like getBBox, so we need to mock it.
+window.SVGElement.prototype.getBBox = () => ({
+  x: 0,
+  y: 0,
+  width: 1000,
+  height: 1000,
+});
 
 describe("LineAreaBarRenderer-bar", () => {
   let element;
@@ -226,6 +236,9 @@ describe("LineAreaBarRenderer-bar", () => {
       [
         MainSeries("bar", {
           series: () => ({ ...DEFAULT_SERIES_SETTINGS, title: "Foo" }),
+          series_settings: {
+            Sum: { title: "Foo" },
+          },
         }),
       ],
       { onHoverChange },

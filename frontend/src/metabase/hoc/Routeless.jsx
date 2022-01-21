@@ -1,5 +1,4 @@
-/* @flow weak */
-
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
 
 import { connect } from "react-redux";
@@ -43,9 +42,6 @@ export default (
         "Routeless[" +
         (ComposedComponent.displayName || ComposedComponent.name) +
         "]";
-
-      _state: any;
-      _timeout: any;
 
       UNSAFE_componentWillMount() {
         const push = this.props._routeless_push;

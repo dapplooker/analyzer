@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React from "react";
 import _ from "underscore";
 import { t } from "ttag";
@@ -44,13 +45,14 @@ const ChartTypeSidebar = ({
       title={t`Choose a visualization`}
       onDone={onCloseChartType}
     >
-      {layout.map(row => (
-        <Flex mx={2} mb={1} className="flex-wrap">
+      {layout.map((row, index) => (
+        <Flex key={index} mx={2} mb={1} className="flex-wrap">
           {row.map(type => {
             const visualization = visualizations.get(type);
             return (
               visualization && (
                 <ChartTypeOption
+                  key={type}
                   visualization={visualization}
                   isSelected={type === question.display()}
                   isSensible={
@@ -85,7 +87,7 @@ const ChartTypeOption = ({
 }) => (
   <Box
     p={1}
-    w={1 / 3}
+    width={1 / 3}
     className="text-centered"
     style={{ opacity: !isSensible ? 0.25 : 1 }}
   >
@@ -103,6 +105,8 @@ const ChartTypeOption = ({
         borderRadius: 10,
         padding: 12,
       }}
+      data-testid={`${visualization.uiName}-button`}
+      data-is-sensible={isSensible}
     >
       <Icon name={visualization.iconName} size={20} />
     </Flex>

@@ -22,7 +22,7 @@
 (defmethod type-info :default [_] nil)
 
 (defmethod type-info (class Field) [this]
-  (let [field-info (select-keys this [:base_type :semantic_type :database_type :name])]
+  (let [field-info (select-keys this [:base_type :effective_type :coercion_strategy :semantic_type :database_type :name])]
     (merge
      field-info
      ;; add in a default unit for this Field so we know to wrap datetime strings in `absolute-datetime` below based on
@@ -103,7 +103,20 @@
 
 (def ^:private raw-value? (complement mbql.u/mbql-clause?))
 
-(defn- wrap-value-literals-in-mbql [mbql]
+(defn wrap-value-literals-in-mbql
+  "Given a normalized mbql query (important to desugar forms like `[:does-not-contain ...]` -> `[:not [:contains
+  ...]]`), walks over the clause and annotates literals with type information.
+
+  eg:
+
+  [:not [:contains [:field 13 {:base_type :type/Text}] \"foo\"]]
+  ->
+  [:not [:contains [:field 13 {:base_type :type/Text}]
+                   [:value \"foo\" {:base_type :type/Text,
+                                    :semantic_type nil,
+                                    :database_type \"VARCHAR\",
+                                    :name \"description\"}]]]"
+  [mbql]
   (mbql.u/replace mbql
     [(clause :guard #{:= :!= :< :> :<= :>=}) field (x :guard raw-value?)]
     [clause field (add-type-info x (type-info field))]

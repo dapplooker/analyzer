@@ -9,12 +9,12 @@
             [metabase.db.connection :as mdb.conn]
             [metabase.db.data-migrations :refer [DataMigrations]]
             [metabase.db.setup :as mdb.setup]
-            [metabase.models :refer [Activity Card CardFavorite Collection CollectionRevision Dashboard DashboardCard
-                                     DashboardCardSeries DashboardFavorite Database Dependency Dimension Field
-                                     FieldValues Metric MetricImportantField NativeQuerySnippet Permissions
-                                     PermissionsGroup PermissionsGroupMembership PermissionsRevision Pulse PulseCard
-                                     PulseChannel PulseChannelRecipient Revision Segment Session Setting Table User
-                                     ViewLog]]
+            [metabase.models :refer [Activity Card CardFavorite Collection CollectionPermissionGraphRevision Dashboard
+                                     DashboardCard DashboardCardSeries DashboardFavorite Database Dependency Dimension Field
+                                     FieldValues LoginHistory Metric MetricImportantField ModerationReview NativeQuerySnippet
+                                     Permissions PermissionsGroup PermissionsGroupMembership PermissionsRevision Pulse PulseCard
+                                     PulseChannel PulseChannelRecipient Revision Secret Segment Session Setting Table
+                                     User ViewLog]]
             [metabase.util :as u]
             [metabase.util.i18n :refer [trs]]
             [metabase.util.schema :as su]
@@ -54,11 +54,12 @@
    Segment
    Metric
    MetricImportantField
+   ModerationReview
    Revision
    ViewLog
    Session
    Collection
-   CollectionRevision
+   CollectionPermissionGraphRevision
    Dashboard
    Card
    CardFavorite
@@ -76,6 +77,8 @@
    DashboardFavorite
    Dimension
    NativeQuerySnippet
+   LoginHistory
+   Secret
    ;; migrate the list of finished DataMigrations as the very last thing (all models to copy over should be listed
    ;; above this line)
    DataMigrations])

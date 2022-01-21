@@ -54,7 +54,7 @@
 
 (s/defn ^:private update-last-analyzed!
   [tables :- [i/TableInstance]]
-  (when-let [ids (seq (map u/get-id tables))]
+  (when-let [ids (seq (map u/the-id tables))]
     ;; The WHERE portion of this query should match up with that of `classify/fields-to-classify`
     (db/update-where! Field {:table_id            [:in ids]
                              :fingerprint_version i/latest-fingerprint-version
@@ -123,7 +123,7 @@
 
 (s/defn refingerprint-db!
   "Refingerprint a subset of tables in a given `database`. This will re-fingerprint tables up to a threshold amount of
-  `fingerprint/max-refingerprint-field-count`."
+  [[fingerprint/max-refingerprint-field-count]]."
   [database :- i/DatabaseInstance]
   (sync-util/sync-operation :refingerprint database (format "Refingerprinting tables for %s" (sync-util/name-for-logging database))
     (let [tables (sync-util/db->sync-tables database)

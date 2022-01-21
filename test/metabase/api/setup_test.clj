@@ -82,13 +82,43 @@
                    (public-settings/admin-email))))
 
           (testing "Should record :user-joined Activity (#12933)"
-            (let [user-id (u/get-id (db/select-one-id User :email email))]
+            (let [user-id (u/the-id (db/select-one-id User :email email))]
               (is (schema= {:topic    (s/eq :user-joined)
                             :model_id (s/eq user-id)
                             :user_id  (s/eq user-id)
                             :model    (s/eq "user")
                             s/Keyword s/Any}
                            (wait-for-result #(db/select-one Activity :topic "user-joined", :user_id user-id)))))))))))
+
+(deftest invite-user-test
+  (testing "POST /api/setup"
+    (testing "Check that a second admin can be created during setup, and that an invite email is sent successfully"
+      (mt/with-fake-inbox
+        (let [email (mt/random-email)
+              first-name (mt/random-name)
+              last-name (mt/random-name)
+              invitor-first-name (mt/random-name)]
+          (with-setup {:invite {:email email, :first_name first-name, :last_name last-name}
+                       :user {:first_name invitor-first-name}
+                       :site_name "Metabase"}
+            (let [invited-user (User :email email)]
+              (is (= (:first_name invited-user) first-name))
+              (is (= (:last_name invited-user) last-name))
+              (is (:is_superuser invited-user)))
+            (let [invite-email (-> (mt/regex-email-bodies
+                                    (re-pattern (str invitor-first-name " could use your help setting up Metabase.*")))
+                                   (get email)
+                                   first)]
+             (is (= {(str invitor-first-name " could use your help setting up Metabase.*") true}
+                    (:body invite-email))))))))
+
+    (testing "No second user is created if email is not set up"
+      (mt/with-temporary-setting-values [email-smtp-host nil]
+        (let [email (mt/random-email)
+              first-name (mt/random-name)
+              last-name (mt/random-name)]
+          (with-setup {:invite {:email email, :first_name first-name, :last_name last-name}}
+            (is (not (db/exists? User :email email)))))))))
 
 (deftest setup-settings-test
   (testing "POST /api/setup"
@@ -160,7 +190,7 @@
                 (assert (some? db))
                 (is (= 4
                        (wait-for-result (fn []
-                                          (let [cnt (db/count Table :db_id (u/get-id db))]
+                                          (let [cnt (db/count Table :db_id (u/the-id db))]
                                             (when (= cnt 4)
                                               cnt))))))))))))
 
@@ -225,11 +255,11 @@
 
       (testing "password"
         (testing "missing"
-          (is (= {:errors {:password "Insufficient password strength"}}
+          (is (= {:errors {:password "password is too common."}}
                  (setup! m/dissoc-in [:user :password]))))
 
         (testing "invalid"
-          (is (= {:errors {:password "Insufficient password strength"}}
+          (is (= {:errors {:password "password is too common."}}
                  (setup! assoc-in [:user :password] "anything"))))))))
 
 (deftest setup-with-empty-cache-test
@@ -257,7 +287,7 @@
                          :user     {:first_name (mt/random-name)
                                     :last_name  (mt/random-name)
                                     :email      user-email
-                                    :password   "p@ssw0rd"}}]
+                                    :password   "p@ssword1"}}]
         (do-with-setup*
          body
          (fn []
@@ -363,3 +393,19 @@
               :tasks (for [task tasks]
                        (-> (select-keys task [:title :completed :triggered :is_next_step])
                            (update :title str)))})))))
+
+(deftest user-defaults-test
+  (testing "with no user defaults configured"
+    (mt/with-temp-env-var-value [mb-user-defaults nil]
+      (is (= "Not found." (http/client :get "setup/user_defaults")))))
+
+  (testing "with defaults containing no token"
+    (mt/with-temp-env-var-value [mb-user-defaults "{}"]
+      (is (= "Not found." (http/client :get "setup/user_defaults")))))
+
+  (testing "with valid configuration"
+    (mt/with-temp-env-var-value [mb-user-defaults "{\"token\":\"123456\",\"email\":\"john.doe@example.com\"}"]
+      (testing "with mismatched token"
+        (is (= "You don't have permissions to do that." (http/client :get "setup/user_defaults?token=987654"))))
+      (testing "with valid token"
+        (is (= {:email "john.doe@example.com"} (http/client :get "setup/user_defaults?token=123456")))))))

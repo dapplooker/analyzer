@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
 import ReactDOM from "react-dom";
 import { connect } from "react-redux";
@@ -13,10 +14,7 @@ const GOOGLE_AUTH_ERRORS = {
   popup_closed_by_user: t`The window was closed before completing Google Authentication.`,
 };
 
-@connect(
-  null,
-  { loginGoogle },
-)
+@connect(null, { loginGoogle })
 export default class GoogleButton extends Component {
   constructor(props) {
     super(props);
@@ -48,8 +46,7 @@ export default class GoogleButton extends Component {
               );
 
               if (
-                result.payload["status"] &&
-                result.payload["status"] === 400 &&
+                result.payload &&
                 result.payload.data &&
                 result.payload.data.errors
               ) {

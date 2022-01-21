@@ -5,7 +5,7 @@ import { t, jt } from "ttag";
 import { getFilterOptions, setFilterOptions } from "metabase/lib/query/filter";
 
 import CheckBox from "metabase/components/CheckBox";
-import MetabaseAnalytics from "metabase/lib/analytics";
+import * as MetabaseAnalytics from "metabase/lib/analytics";
 
 const OPTION_NAMES = {
   "include-current": filter => {
@@ -28,9 +28,8 @@ const CURRENT_INTERVAL_NAME = {
   hour: t`this hour`,
 };
 
-function getCurrentIntervalName(filter: FieldFilter): ?string {
+function getCurrentIntervalName(filter) {
   if (filter[0] === "time-interval") {
-    // $FlowFixMe:
     return CURRENT_INTERVAL_NAME[filter[3]];
   }
   return null;
@@ -78,7 +77,12 @@ export default class FilterOptions extends Component {
         [name]: !options[name],
       }),
     );
-    MetabaseAnalytics.trackEvent("QueryBuilder", "Filter", "SetOption", name);
+    MetabaseAnalytics.trackStructEvent(
+      "QueryBuilder",
+      "Filter",
+      "SetOption",
+      name,
+    );
   }
 
   toggleOptionValue(name) {
@@ -93,17 +97,13 @@ export default class FilterOptions extends Component {
     return (
       <div className="flex align-center">
         {options.map(([name, option]) => (
-          <div
-            key={name}
-            className="flex align-center"
-            onClick={() => this.toggleOptionValue(name)}
-          >
+          <div key={name} className="flex align-center">
             <CheckBox
-              color="purple"
+              label={this.getOptionName(name)}
+              checkedColor="accent2"
               checked={this.getOptionValue(name)}
               onChange={() => this.toggleOptionValue(name)}
             />
-            <label className="ml1">{this.getOptionName(name)}</label>
           </div>
         ))}
       </div>

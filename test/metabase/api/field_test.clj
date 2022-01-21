@@ -5,6 +5,7 @@
             [metabase.api.field :as field-api]
             [metabase.driver.util :as driver.u]
             [metabase.models :refer [Database Field FieldValues Table]]
+            [metabase.sync :as sync]
             [metabase.test :as mt]
             [metabase.test.fixtures :as fixtures]
             [metabase.timeseries-query-processor-test.util :as tqp.test]
@@ -19,11 +20,11 @@
 
 (defn- db-details []
   (merge
-   (select-keys (mt/db) [:id :timezone])
-   (dissoc (mt/object-defaults Database) :details)
+   (select-keys (mt/db) [:id :timezone :initial_sync_status])
+   (dissoc (mt/object-defaults Database) :details :initial_sync_status)
    {:engine        "h2"
     :name          "test-data"
-    :features      (mapv u/qualified-name (driver.u/features :h2))
+    :features      (mapv u/qualified-name (driver.u/features :h2 (mt/db)))
     :timezone      "UTC"}))
 
 (deftest get-field-test
@@ -35,7 +36,7 @@
                 {:table_id         (mt/id :users)
                  :table            (merge
                                     (mt/obj->json->obj (mt/object-defaults Table))
-                                    (db/select-one [Table :created_at :updated_at] :id (mt/id :users))
+                                    (db/select-one [Table :created_at :updated_at :initial_sync_status] :id (mt/id :users))
                                     {:description             nil
                                      :entity_type             "entity/UserTable"
                                      :visibility_type         nil
@@ -43,7 +44,6 @@
                                      :schema                  "PUBLIC"
                                      :name                    "USERS"
                                      :display_name            "Users"
-                                     :entity_name             nil
                                      :active                  true
                                      :id                      (mt/id :users)
                                      :db_id                   (mt/id)
@@ -58,12 +58,13 @@
                  :visibility_type  "normal"
                  :database_type    "VARCHAR"
                  :base_type        "type/Text"
+                 :effective_type   "type/Text"
                  :has_field_values "list"
                  :dimensions       []
                  :name_field       nil})
-               (m/dissoc-in [:table :db :updated_at] [:table :db :created_at]))
+               (m/dissoc-in [:table :db :updated_at] [:table :db :created_at] [:table :db :timezone]))
            (-> (mt/user-http-request :rasta :get 200 (format "field/%d" (mt/id :users :name)))
-               (m/dissoc-in [:table :db :updated_at] [:table :db :created_at]))))))
+               (m/dissoc-in [:table :db :updated_at] [:table :db :created_at] [:table :db :timezone]))))))
 
 (deftest get-field-summary-test
   (testing "GET /api/field/:id/summary"
@@ -74,6 +75,11 @@
 
 (defn simple-field-details [field]
   (select-keys field [:name :display_name :description :visibility_type :semantic_type :fk_target_field_id]))
+
+(mt/defdataset integer-coerceable
+  [["t" [{:field-name "f"
+          :base-type  :type/Integer}]
+    [[100000] [200000] [300000]]]])
 
 (deftest update-field-test
   (testing "PUT /api/field/:id"
@@ -90,10 +96,10 @@
                    original-val)))
           ;; set it
           (mt/user-http-request :crowberto :put 200 (format "field/%d" field-id) {:name            "something else"
-                                                                                       :display_name    "yay"
-                                                                                       :description     "foobar"
-                                                                                       :semantic_type   :type/Name
-                                                                                       :visibility_type :sensitive})
+                                                                                  :display_name    "yay"
+                                                                                  :description     "foobar"
+                                                                                  :semantic_type   :type/Name
+                                                                                  :visibility_type :sensitive})
           (let [updated-val (simple-field-details (Field field-id))]
             (testing "updated value"
               (is (= {:name               "Field Test"
@@ -105,7 +111,7 @@
                      updated-val)))
             ;; unset it
             (mt/user-http-request :crowberto :put 200 (format "field/%d" field-id) {:description   nil
-                                                                                 :semantic_type nil})
+                                                                                    :semantic_type nil})
             (testing "response"
               (is (= {:name               "Field Test"
                       :display_name       "yay"
@@ -113,7 +119,43 @@
                       :semantic_type      nil
                       :visibility_type    :sensitive
                       :fk_target_field_id nil}
-                     (simple-field-details (Field field-id)))))))))))
+                     (simple-field-details (Field field-id)))))))))
+    (testing "updating coercion strategies"
+      (mt/with-temp Field [{field-id :id} {:name "Field Test"}]
+        (testing "When valid, updates coercion strategy and effective type"
+          (is (= ["type/DateTime" "Coercion/YYYYMMDDHHMMSSString->Temporal"]
+                 ((juxt :effective_type :coercion_strategy)
+                  (mt/user-http-request :crowberto :put 200 (format "field/%d" field-id)
+                                        {:coercion_strategy :Coercion/YYYYMMDDHHMMSSString->Temporal})))))
+        (testing "Sending a nil coercion_strategy restores the effective type"
+          (is (= ["type/Text" nil]
+                 ((juxt :effective_type :coercion_strategy)
+                  (mt/user-http-request :crowberto :put 200 (format "field/%d" field-id)
+                                        {:coercion_strategy nil}))))))
+      (mt/with-temp Field [{field-id :id} {:name "Field Test"}]
+        (testing "When not a valid strategy does not change the coercion or effective type"
+          (is (= ["type/Text" nil]
+                 ((juxt :effective_type :coercion_strategy)
+                  (mt/user-http-request :crowberto :put 200 (format "field/%d" field-id)
+                                        ;; unix is an integer->Temporal conversion
+                                        {:coercion_strategy :Coercion/UNIXMicroSeconds->DateTime}))))))
+      (testing "Refingerprints field when updated"
+        (with-redefs [metabase.sync.concurrent/submit-task (fn [task] (task))]
+          (mt/dataset integer-coerceable
+            (sync/sync-database! (Database (mt/id)))
+            (let [field-id      (mt/id :t :f)
+                  set-strategy! (fn [strategy]
+                                  (mt/user-http-request :crowberto :put 200 (format "field/%d" field-id)
+                                                        {:coercion_strategy strategy}))]
+              ;; ensure that there is no coercion strategy from previous tests
+              (set-strategy! nil)
+              (let [field (Field field-id)]
+                (is (= :type/Integer (:effective_type field)))
+                (is (contains? (get-in field [:fingerprint :type]) :type/Number)))
+              (set-strategy! :Coercion/UNIXSeconds->DateTime)
+              (let [field (Field field-id)]
+                (is (= :type/Instant (:effective_type field)))
+                (is (contains? (get-in field [:fingerprint :type]) :type/DateTime))))))))))
 
 (deftest remove-fk-semantic-type-test
   (testing "PUT /api/field/:id"
@@ -134,8 +176,9 @@
   (testing "PUT /api/field/:id"
     (testing "check that you *can* set `:fk_target_field_id` if it *is* the proper base type"
       (mt/with-temp Field [{field-id :id} {:base_type :type/Integer}]
-        (mt/user-http-request :crowberto :put 200 (str "field/" field-id) {:semantic_type :type/UNIXTimestampSeconds})
-        (is (= :type/UNIXTimestampSeconds
+        (mt/user-http-request :crowberto :put 200 (str "field/" field-id)
+                              {:semantic_type :type/Quantity})
+        (is (= :type/Quantity
                (db/select-one-field :semantic_type Field, :id field-id)))))))
 
 (defn- field->field-values
@@ -161,7 +204,7 @@
       (is (= {:values [], :field_id (mt/id :venues :id)}
              (mt/user-http-request :rasta :get 200 (format "field/%d/values" (mt/id :venues :id))))))
 
-    (testing "Sensisitive fields do not have field values and should return empty"
+    (testing "Sensitive fields do not have field values and should return empty"
       (is (= {:values [], :field_id (mt/id :users :password)}
              (mt/user-http-request :rasta :get 200 (format "field/%d/values" (mt/id :users :password))))))))
 
@@ -417,7 +460,7 @@
             (is (= expected
                    (mt/boolean-ids-and-timestamps (dimension-for-field field-id-1))))))))))
 
-(deftest remove-fk-semantic-type-test
+(deftest remove-fk-semantic-type-test-2
   (testing "When removing the FK semantic type, the fk_target_field_id should be cleared as well"
     (mt/with-temp* [Field [{field-id-1 :id} {:name "Field Test 1"}]
                     Field [{field-id-2 :id} {:name               "Field Test 2"
@@ -441,7 +484,7 @@
                 :fk_target_field_id false}
                (mt/boolean-ids-and-timestamps (simple-field-details (Field field-id-2)))))))))
 
-(deftest update-fk-target-field-id-test
+(deftest update-fk-target-field-id-test-2
   (testing "Checking update of the fk_target_field_id"
     (mt/with-temp* [Field [{field-id-1 :id} {:name "Field Test 1"}]
                     Field [{field-id-2 :id} {:name "Field Test 2"}]
@@ -484,7 +527,7 @@
                 :fk_target_field_id false}
                (mt/boolean-ids-and-timestamps (simple-field-details (Field field-id-2))))))
       (mt/user-http-request :crowberto :put 200 (format "field/%d" field-id-2) {:semantic_type      :type/FK
-                                                                             :fk_target_field_id field-id-1})
+                                                                                :fk_target_field_id field-id-1})
       (testing "after change"
         (is (= {:name               "Field Test 2"
                 :display_name       "Field Test 2"
@@ -534,7 +577,7 @@
                   :human_readable_field_id false
                   :field_id                true}
                  (mt/boolean-ids-and-timestamps (dimension-for-field field-id)))))
-        (mt/user-http-request :crowberto :put 200 (format "field/%d" field-id) {:semantic_type "type/Text"})
+        (mt/user-http-request :crowberto :put 200 (format "field/%d" field-id) {:semantic_type "type/AvatarURL"})
         (testing "after API request"
           (is (= []
                  (dimension-for-field field-id))))))
@@ -569,28 +612,47 @@
 (deftest search-values-test
   (testing "make sure `search-values` works on with our various drivers"
     (mt/test-drivers (mt/normal-drivers)
-      (is (= [[1 "Red Medicine"]]
+      (is (= [[1 "Red Medicine"]
+              [10 "Fred 62"]]
              (mt/format-rows-by [int str]
                (field-api/search-values (Field (mt/id :venues :id))
                                         (Field (mt/id :venues :name))
-                                        "Red")))))
+                                        "Red"
+                                        nil)))))
     (tqp.test/test-timeseries-drivers
       (is (= [["139" "Red Medicine"]
+              ["148" "Fred 62"]
+              ["308" "Fred 62"]
               ["375" "Red Medicine"]
-              ["72"  "Red Medicine"]]
+              ["396" "Fred 62"]
+              ["589" "Fred 62"]
+              ["648" "Fred 62"]
+              ["72" "Red Medicine"]
+              ["977" "Fred 62"]]
              (field-api/search-values (Field (mt/id :checkins :id))
                                       (Field (mt/id :checkins :venue_name))
-                                      "Red"))))))
+                                      "Red"
+                                      nil)))))
+  (testing "make sure limit works"
+    (mt/test-drivers (mt/normal-drivers)
+      (is (= [[1 "Red Medicine"]]
+             (mt/format-rows-by [int str]
+                                (field-api/search-values (Field (mt/id :venues :id))
+                                                         (Field (mt/id :venues :name))
+                                                         "Red"
+                                                         1)))))))
 
 (deftest search-values-with-field-same-as-search-field-test
   (testing "make sure it also works if you use the same Field twice"
     (mt/test-drivers (mt/normal-drivers)
-      (is (= [["Red Medicine" "Red Medicine"]]
+      (is (= [["Fred 62" "Fred 62"] ["Red Medicine" "Red Medicine"]]
              (field-api/search-values (Field (mt/id :venues :name))
                                       (Field (mt/id :venues :name))
-                                      "Red"))))
+                                      "Red"
+                                      nil))))
     (tqp.test/test-timeseries-drivers
-      (is (= [["Red Medicine" "Red Medicine"]]
+      (is (= [["Fred 62" "Fred 62"] ["Red Medicine" "Red Medicine"]]
              (field-api/search-values (Field (mt/id :checkins :venue_name))
                                       (Field (mt/id :checkins :venue_name))
-                                      "Red"))))))
+                                      "Red"
+                                      nil))))))

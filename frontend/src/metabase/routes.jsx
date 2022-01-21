@@ -1,5 +1,3 @@
-/* @flow weak */
-
 import React from "react";
 
 import { PLUGIN_LANDING_PAGE } from "metabase/plugins";
@@ -15,7 +13,7 @@ import MetabaseSettings from "metabase/lib/settings";
 
 import App from "metabase/App.jsx";
 
-import HomepageApp from "metabase/home/containers/HomepageApp";
+import ActivityApp from "metabase/home/containers/ActivityApp";
 
 // auth containers
 import AuthApp from "metabase/auth/AuthApp";
@@ -23,7 +21,6 @@ import ForgotPasswordApp from "metabase/auth/containers/ForgotPasswordApp";
 import LoginApp from "metabase/auth/containers/LoginApp";
 import LogoutApp from "metabase/auth/containers/LogoutApp";
 import PasswordResetApp from "metabase/auth/containers/PasswordResetApp";
-import GoogleNoAccount from "metabase/auth/components/GoogleNoAccount";
 
 /* Dashboards */
 import DashboardApp from "metabase/dashboard/containers/DashboardApp";
@@ -40,13 +37,12 @@ import QueryBuilder from "metabase/query_builder/containers/QueryBuilder";
 import CollectionEdit from "metabase/collections/containers/CollectionEdit";
 import CollectionCreate from "metabase/collections/containers/CollectionCreate";
 import ArchiveCollectionModal from "metabase/components/ArchiveCollectionModal";
-import CollectionPermissionsModal from "metabase/admin/permissions/containers/CollectionPermissionsModal";
+import CollectionPermissionsModal from "metabase/admin/permissions/components/CollectionPermissionsModal/CollectionPermissionsModal";
 import UserCollectionList from "metabase/containers/UserCollectionList";
 
 import PulseEditApp from "metabase/pulse/containers/PulseEditApp";
 import SetupApp from "metabase/setup/containers/SetupApp";
 import PostSetupApp from "metabase/setup/containers/PostSetupApp";
-import UserSettingsApp from "metabase/user/containers/UserSettingsApp";
 // new question
 import NewQueryOptions from "metabase/new_query/containers/NewQueryOptions";
 
@@ -75,6 +71,7 @@ import TableQuestionsContainer from "metabase/reference/databases/TableQuestions
 import FieldListContainer from "metabase/reference/databases/FieldListContainer";
 import FieldDetailContainer from "metabase/reference/databases/FieldDetailContainer";
 
+import getAccountRoutes from "metabase/account/routes";
 import getAdminRoutes from "metabase/admin/routes";
 
 import PublicQuestion from "metabase/public/containers/PublicQuestion";
@@ -86,11 +83,12 @@ import DashboardCopyModal from "metabase/dashboard/components/DashboardCopyModal
 import DashboardDetailsModal from "metabase/dashboard/components/DashboardDetailsModal";
 import { ModalRoute } from "metabase/hoc/ModalRoute";
 
-import CollectionLanding from "metabase/components/CollectionLanding";
-import Overworld from "metabase/containers/Overworld";
+import CollectionLanding from "metabase/components/CollectionLanding/CollectionLanding";
+import HomepageApp from "metabase/home/homepage/containers/HomepageApp";
 
 import ArchiveApp from "metabase/home/containers/ArchiveApp";
 import SearchApp from "metabase/home/containers/SearchApp";
+import { trackPageView } from "metabase/lib/analytics";
 
 const MetabaseIsSetup = UserAuthWrapper({
   predicate: authData => !authData.hasSetupToken,
@@ -147,6 +145,10 @@ export const getRoutes = store => (
         if (!MetabaseSettings.hasSetupToken()) {
           replace("/");
         }
+        trackPageView(location.pathname);
+      }}
+      onChange={(prevState, nextState) => {
+        trackPageView(nextState.location.pathname);
       }}
     />
 
@@ -156,39 +158,56 @@ export const getRoutes = store => (
       <Route path="dashboard/:uuid" component={PublicDashboard} />
     </Route>
 
-    <Route path='/dapplooker' component={() => {
-     window.location.href = 'https://dapplooker.com/dashboard';
-     return null;
-}}/>
+    <Route
+      path="/dapplooker"
+      component={() => {
+        window.location.href = "https://dapplooker.com/dashboard";
+        return null;
+      }}
+    />
 
     {/* APP */}
     <Route
       onEnter={async (nextState, replace, done) => {
         await store.dispatch(loadCurrentUser());
+        trackPageView(nextState.location.pathname);
         done();
+      }}
+      onChange={(prevState, nextState) => {
+        trackPageView(nextState.location.pathname);
       }}
     >
       {/* AUTH */}
       <Route path="/auth" component={AuthApp}>
         <IndexRedirect to="/auth/login" />
         <Route component={IsNotAuthenticated}>
-         <Route path='login' component={() => {
-            window.location.href = 'https://dapplooker.com/login?ref=analyzer';
-            return null;
-          }}/>
+          <Route
+            path="login"
+            component={() => {
+              window.location.href =
+                "https://dapplooker.com/login?source=dlooker";
+              return null;
+            }}
+          />
           {/* { <Route path="login" title={t`Login`} component={LoginApp} />}
           { <Route path="login/:provider" title={t`Login`} component={LoginApp} />} */}
         </Route>
         <Route path="logout" component={LogoutApp} />
-        <Route path="forgot_password" component={() => {
-            window.location.href = 'https://dapplooker.com/login?ref=analyzer';
+        <Route
+          path="forgot_password"
+          component={() => {
+            window.location.href = "https://dapplooker.com/login?source=dlooker";
             return null;
-          }} />
-        <Route path="reset_password/:token" component={() => {
-            window.location.href = 'https://dapplooker.com/login?ref=analyzer';
+          }}
+        />
+        <Route
+          path="reset_password/:token"
+          component={() => {
+            window.location.href = "https://dapplooker.com/login?source=dlooker";
             return null;
-          }} />
-        <Route path="google_no_mb_account" component={GoogleNoAccount} />
+          }}
+        />
+        {/* <Route path="google_no_mb_account" component={GoogleNoAccount} /> */}
       </Route>
 
       {/* MAIN */}
@@ -196,7 +215,7 @@ export const getRoutes = store => (
         {/* The global all hands rotues, things in here are for all the folks */}
         <Route
           path="/"
-          component={Overworld}
+          component={HomepageApp}
           onEnter={(nextState, replace) => {
             const page = PLUGIN_LANDING_PAGE[0] && PLUGIN_LANDING_PAGE[0]();
             if (page && page !== "/") {
@@ -215,7 +234,7 @@ export const getRoutes = store => (
           <IndexRoute component={UserCollectionList} />
         </Route>
 
-        <Route path="collection/:collectionId" component={CollectionLanding}>
+        <Route path="collection/:slug" component={CollectionLanding}>
           <ModalRoute path="edit" modal={CollectionEdit} />
           <ModalRoute path="archive" modal={ArchiveCollectionModal} />
           <ModalRoute path="new_collection" modal={CollectionCreate} />
@@ -223,10 +242,10 @@ export const getRoutes = store => (
           <ModalRoute path="permissions" modal={CollectionPermissionsModal} />
         </Route>
 
-        <Route path="activity" component={HomepageApp} />
+        <Route path="activity" component={ActivityApp} />
 
         <Route
-          path="dashboard/:dashboardId"
+          path="dashboard/:slug"
           title={t`Dashboard`}
           component={DashboardApp}
         >
@@ -240,21 +259,25 @@ export const getRoutes = store => (
         <Route path="/question">
           <IndexRoute component={QueryBuilder} />
           {/* NEW QUESTION FLOW */}
-          <Route
-            path="new"
-            title={t`New Chart`}
-            component={NewQueryOptions}
-          />
+          <Route path="new" title={t`New Chart`} component={NewQueryOptions} />
           <Route path="notebook" component={QueryBuilder} />
-          <Route path=":cardId" component={QueryBuilder} />
-          <Route path=":cardId/notebook" component={QueryBuilder} />
+          <Route path=":slug" component={QueryBuilder} />
+          <Route path=":slug/notebook" component={QueryBuilder} />
+        </Route>
+
+        <Route path="/dataset">
+          <IndexRoute component={QueryBuilder} />
+          <Route path="notebook" component={QueryBuilder} />
+          <Route path=":slug" component={QueryBuilder} />
+          <Route path=":slug/notebook" component={QueryBuilder} />
+          <Route path=":slug/query" component={QueryBuilder} />
         </Route>
 
         <Route path="/ready" component={PostSetupApp} />
 
         <Route path="browse" component={BrowseApp}>
           <IndexRoute component={DatabaseBrowser} />
-          <Route path=":dbId" component={SchemaBrowser} />
+          <Route path=":slug" component={SchemaBrowser} />
           <Route path=":dbId/schema/:schemaName" component={TableBrowser} />
         </Route>
 
@@ -272,6 +295,10 @@ export const getRoutes = store => (
         <IndexRedirect to="/reference/databases" />
         <Route path="metrics" component={MetricListContainer} />
         <Route path="metrics/:metricId" component={MetricDetailContainer} />
+        <Route
+          path="metrics/:metricId/edit"
+          component={MetricDetailContainer}
+        />
         <Route
           path="metrics/:metricId/questions"
           component={MetricQuestionsContainer}
@@ -326,8 +353,9 @@ export const getRoutes = store => (
       </Route>
 
       {/* PULSE */}
+      {/* NOTE: legacy route, not linked to in app */}
       <Route path="/pulse" title={t`Reports`}>
-        {/* NOTE: legacy route, not linked to in app */}
+        
         <IndexRedirect to="/search" query={{ type: "pulse" }} />
         <Route path="create" component={PulseEditApp} />
         <Route path=":pulseId">
@@ -335,8 +363,8 @@ export const getRoutes = store => (
         </Route>
       </Route>
 
-      {/* USER */}
-      <Route path="/user/edit_current" component={UserSettingsApp} />
+      {/* ACCOUNT */}
+      {getAccountRoutes(store, IsAuthenticated)}
 
       {/* ADMIN */}
       {getAdminRoutes(store, IsAdmin)}
@@ -346,7 +374,6 @@ export const getRoutes = store => (
     <Route
       path="/_internal"
       getChildRoutes={(partialNextState, callback) =>
-        // $FlowFixMe: flow doesn't know about require.ensure
         require.ensure([], function(require) {
           callback(null, [require("metabase/internal/routes").default]);
         })
@@ -362,15 +389,15 @@ export const getRoutes = store => (
       }
     />
     <Route
-      path="/card/:cardId"
+      path="/card/:slug"
       onEnter={({ location, params }, replace) =>
         replace({
-          pathname: `/question/${params.cardId}`,
+          pathname: `/question/${params.slug}`,
           hash: location.hash,
         })
       }
     />
-    <Redirect from="/dash/:dashboardId" to="/dashboard/:dashboardId" />
+    <Redirect from="/dash/:dashboardId" to="/dashboard/:slug" />
     <Redirect
       from="/collections/permissions"
       to="/admin/permissions/collections"

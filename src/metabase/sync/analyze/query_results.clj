@@ -20,7 +20,7 @@
 (def ^:private DateTimeUnitKeywordOrString
   "Schema for a valid datetime unit string like \"default\" or \"minute-of-hour\"."
   (s/constrained su/KeywordOrString
-                 #(mbql.preds/DatetimeFieldUnit? (keyword %))
+                 #(mbql.preds/DateTimeUnit? (keyword %))
                  "Valid field datetime unit keyword or string"))
 
 (def ^:private ResultColumnMetadata
@@ -31,7 +31,7 @@
    :display_name                   s/Str
    (s/optional-key :description)   (s/maybe su/NonBlankString)
    :base_type                      su/FieldTypeKeywordOrString
-   (s/optional-key :semantic_type) (s/maybe su/FieldTypeKeywordOrString)
+   (s/optional-key :semantic_type) (s/maybe su/FieldSemanticOrRelationTypeKeywordOrString)
    (s/optional-key :unit)          (s/maybe DateTimeUnitKeywordOrString)
    (s/optional-key :fingerprint)   (s/maybe i/Fingerprint)
    (s/optional-key :id)            (s/maybe su/IntGreaterThanZero)
@@ -40,7 +40,7 @@
                                     mbql.s/FieldOrAggregationReference
                                     (s/pred
                                      (comp (complement (s/checker mbql.s/FieldOrAggregationReference))
-                                           mbql.normalize/normalize-tokens )
+                                           mbql.normalize/normalize-tokens)
                                      "Field or aggregation reference as it comes in to the API"))
    s/Keyword                       s/Any})
 
@@ -78,7 +78,7 @@
 
 (defn insights-rf
   "A reducing function that calculates what is ultimately returned as `[:data :results_metadata]` in userland QP
-  results. `metadata` is the usual QP results metadata e.g. as recieved by an `rff`."
+  results. `metadata` is the usual QP results metadata e.g. as received by an `rff`."
   {:arglists '([metadata])}
   [{:keys [cols]}]
   (let [cols (for [col cols]

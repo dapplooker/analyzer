@@ -1,37 +1,55 @@
-/* @flow */
-
-import type { DatasetData, Column } from "metabase-types/types/Dataset";
-import type { ClickObject } from "metabase-types/types/Visualization";
-import type { VisualizationSettings } from "metabase-types/types/Card";
 import { isNumber, isCoordinate } from "metabase/lib/schema_metadata";
 
+export function getTableClickedObjectRowData(
+  [series],
+  rowIndex,
+  columnIndex,
+  isPivoted,
+  data,
+) {
+  const { rows, cols } = series.data;
+
+  // if pivoted, we need to find the original rowIndex from the pivoted row/columnIndex
+  const originalRowIndex = isPivoted
+    ? data.sourceRows[rowIndex][columnIndex]
+    : rowIndex;
+
+  // originalRowIndex may be null if the pivot table is empty in that cell
+  if (originalRowIndex === null) {
+    return null;
+  } else {
+    return rows[originalRowIndex].map((value, index) => ({
+      value,
+      col: cols[index],
+    }));
+  }
+}
+
 export function getTableCellClickedObject(
-  data: DatasetData,
-  settings: VisualizationSettings,
-  rowIndex: number,
-  columnIndex: number,
-  isPivoted: boolean,
-): ClickObject {
+  data,
+  settings,
+  rowIndex,
+  columnIndex,
+  isPivoted,
+  clickedRowData,
+) {
   const { rows, cols } = data;
 
   const column = cols[columnIndex];
   const row = rows[rowIndex];
   const value = row[columnIndex];
-  const dataForClick = row.map((value, index) => ({ value, col: cols[index] }));
 
   if (isPivoted) {
     // if it's a pivot table, the first column is
     if (columnIndex === 0) {
-      // $FlowFixMe: _dimension
       return row._dimension;
     } else {
       return {
         value,
         column,
         settings,
-        // $FlowFixMe: _dimension
         dimensions: [row._dimension, column._dimension],
-        data: dataForClick,
+        data: clickedRowData,
       };
     }
   } else if (column.source === "aggregation") {
@@ -43,7 +61,7 @@ export function getTableCellClickedObject(
         .map((column, index) => ({ value: row[index], column }))
         .filter(dimension => dimension.column.source === "breakout"),
       origin: { rowIndex, row, cols },
-      data: dataForClick,
+      data: clickedRowData,
     };
   } else {
     return {
@@ -51,21 +69,16 @@ export function getTableCellClickedObject(
       column,
       settings,
       origin: { rowIndex, row, cols },
-      data: dataForClick,
+      data: clickedRowData,
     };
   }
 }
 
-export function getTableHeaderClickedObject(
-  data: DatasetData,
-  columnIndex: number,
-  isPivoted: boolean,
-): ?ClickObject {
+export function getTableHeaderClickedObject(data, columnIndex, isPivoted) {
   const column = data.cols[columnIndex];
   if (isPivoted) {
     // if it's a pivot table, the first column is
     if (columnIndex >= 0 && column) {
-      // $FlowFixMe: _dimension
       return column._dimension;
     } else {
       return null; // FIXME?
@@ -79,10 +92,9 @@ export function getTableHeaderClickedObject(
  * Returns whether the column should be right-aligned in a table.
  * Includes numbers and lat/lon coordinates, but not zip codes, IDs, etc.
  */
-export function isColumnRightAligned(column: Column) {
+export function isColumnRightAligned(column) {
   // handle remapped columns
   if (column && column.remapped_to_column) {
-    // $FlowFixMe: remapped_to_column
     column = column.remapped_to_column;
   }
   return isNumber(column) || isCoordinate(column);

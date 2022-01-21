@@ -8,7 +8,7 @@
             [metabase.plugins.classloader :as classloader]
             [potemkin.types :as p.types])
   (:import java.text.MessageFormat
-           [java.util Locale MissingResourceException ResourceBundle]
+           java.util.Locale
            org.apache.commons.lang3.LocaleUtils))
 
 (p.types/defprotocol+ CoerceToLocale
@@ -22,7 +22,7 @@
     (normalized-locale-string \"EN-US\") ;-> \"en_US\"
 
   Returns `nil` for invalid strings -- you can use this to check whether a String is valid."
-  [s]
+  ^String [s]
   {:pre [((some-fn nil? string?) s)]}
   (when (string? s)
     (when-let [[_ language country] (re-matches #"^(\w{2})(?:[-_](\w{2}))?$" s)]
@@ -40,7 +40,7 @@
 
   String
   (locale [^String s]
-    (LocaleUtils/toLocale (normalized-locale-string s)))
+    (some-> (normalized-locale-string s) LocaleUtils/toLocale))
 
   ;; Support namespaced keywords like `:en/US` and `:en/UK` because we can
   clojure.lang.Keyword
@@ -57,52 +57,96 @@
    (when-let [locale (locale locale-or-name)]
      (LocaleUtils/isAvailableLocale locale))))
 
-(defn parent-locale
-  "For langugage + country Locales, returns the language-only Locale. Otherwise returns `nil`.
+(defn- available-locale-names*
+  []
+  (log/info "Reading available locales from locales.clj...")
+  (some-> (io/resource "locales.clj") slurp edn/read-string :locales (->> (apply sorted-set))))
 
-    (parent-locale \"en/US\") ; -> #object[java.util.Locale 0x79301688 \"en\"]"
+(def ^{:arglists '([])} available-locale-names
+  "Return sorted set of available locales, as Strings.
+
+    (available-locale-names) ; -> #{\"en\" \"nl\" \"pt-BR\" \"zh\"}"
+  (let [locales (delay (available-locale-names*))]
+    (fn [] @locales)))
+
+(defn- find-fallback-locale*
+  ^Locale [^Locale a-locale]
+  (some (fn [locale-name]
+          (let [try-locale (locale locale-name)]
+            ;; The language-only Locale is tried first by virtue of the
+            ;; list being sorted.
+            (when (and (= (.getLanguage try-locale) (.getLanguage a-locale))
+                       (not (= try-locale a-locale)))
+              try-locale)))
+        (available-locale-names)))
+
+(def ^:private ^{:arglists '([a-locale])} find-fallback-locale
+  (memoize find-fallback-locale*))
+
+(defn fallback-locale
+  "Find a translated fallback Locale in the following order:
+    1) If it is a language + country Locale, try the language-only Locale
+    2) If the language-only Locale isn't translated or the input is a language-only Locale,
+       find the first language + country Locale we have a translation for.
+   Return `nil` if no fallback Locale can be found or the input is invalid.
+
+    (fallback-locale \"en_US\") ; -> #locale\"en\"
+    (fallback-locale \"pt\") ; -> #locale\"pt_BR\"
+    (fallback-locale \"pt_PT\") ; -> #locale\"pt_BR\""
   ^Locale [locale-or-name]
   (when-let [a-locale (locale locale-or-name)]
-    (when (seq (.getCountry a-locale))
-      (locale (.getLanguage a-locale)))))
+    (find-fallback-locale a-locale)))
 
-(def ^:private ^:const ^String i18n-bundle-name "metabase.Messages")
+(defn- locale-edn-resource
+  "The resource URL for the edn file containing translations for `locale-or-name`. These files are built by the
+  scripts in `bin/i18n` from `.po` files from POEditor.
 
-(defn- bundle* [^Locale locale]
-  (try
-    (ResourceBundle/getBundle i18n-bundle-name locale (classloader/the-classloader))
-    (catch MissingResourceException _
-      (log/error (format "Error translating to %s: no resource bundle" locale)))))
+    (locale-edn-resources \"es\") ;-> #object[java.net.URL \"file:/home/cam/metabase/resources/metabase/es.edn\"]"
+  ^java.net.URL [locale-or-name]
+  (when-let [a-locale (locale locale-or-name)]
+    (let [locale-name (-> (normalized-locale-string (str a-locale))
+                          (str/replace #"_" "-"))
+          filename    (format "i18n/%s.edn" locale-name)]
+      (io/resource filename (classloader/the-classloader)))))
 
-(defn- bundle
-  "Get the Metabase i18n resource bundle associated with `locale`. Returns `nil` if no such bundle can be found."
-  ^ResourceBundle [locale-or-name]
-  (when-let [locale (locale locale-or-name)]
-    (bundle* locale)))
+(defn- translations* [a-locale]
+  (when-let [resource (locale-edn-resource a-locale)]
+    (edn/read-string (slurp resource))))
 
-(defn translated-format-string
-  "Find the translated version of `format-string` in the bundle for `locale-or-name`, or `nil` if none can be found.
-  Does not search 'parent' (country-only) locale bundle."
+(def ^:private ^{:arglists '([locale-or-name])} translations
+  "Fetch a map of original untranslated message format string -> translated message format string for `locale-or-name`
+  by reading the corresponding EDN resource file. Does not include translations for parent locale(s). Memoized.
+
+    (translations \"es\") ;-> {\"Username\" \"Nombre Usuario\", ...}"
+  (comp (memoize translations*) locale))
+
+(defn- translated-format-string*
+  "Find the translated version of `format-string` for `locale-or-name`, or `nil` if none can be found.
+  Does not search 'parent' (language-only) translations."
   ^String [locale-or-name format-string]
   (when (seq format-string)
     (when-let [locale (locale locale-or-name)]
-      (when-let [bundle (bundle locale)]
-        (try
-          (.getString bundle format-string)
-          ;; no translated version available
-          (catch MissingResourceException _))))))
+      (when-let [translations (translations locale)]
+        (get translations format-string)))))
+
+(defn- translated-format-string
+  "Find the translated version of `format-string` for `locale-or-name`, or `nil` if none can be found. Searches parent
+  (language-only) translations if none exist for a language + country locale."
+  ^String [locale-or-name format-string]
+  (when-let [a-locale (locale locale-or-name)]
+    (or (when (= (.getLanguage a-locale) "en")
+          format-string)
+        (translated-format-string* a-locale format-string)
+        (when-let [fallback-locale (fallback-locale a-locale)]
+          (log/tracef "No translated string found, trying fallback locale %s" (pr-str fallback-locale))
+          (translated-format-string* fallback-locale format-string))
+        format-string)))
 
 (defn- message-format ^MessageFormat [locale-or-name ^String format-string]
-  (if-let [locale (locale locale-or-name)]
-    (let [^String translated (or (when (= (.getLanguage locale) "en")
-                                   format-string)
-                                 (translated-format-string locale format-string)
-                                 (when-let [parent-locale (parent-locale locale)]
-                                   (log/tracef "No translated string found, trying parent locale %s" (pr-str parent-locale))
-                                   (translated-format-string parent-locale format-string))
-                                 format-string)]
-      (MessageFormat. translated locale))
-    (MessageFormat. format-string)))
+  (or (when-let [a-locale (locale locale-or-name)]
+        (when-let [^String translated (translated-format-string a-locale format-string)]
+          (MessageFormat. translated a-locale)))
+      (MessageFormat. format-string)))
 
 (defn translate
   "Find the translated version of `format-string` for a `locale-or-name`, then format it. Translates using the resource
@@ -130,18 +174,6 @@
           (catch Throwable _
             (log/errorf e "Invalid format string %s" (pr-str format-string))
             format-string))))))
-
-(defn- available-locale-names*
-  []
-  (log/info "Reading available locales from locales.clj...")
-  (some-> (io/resource "locales.clj") slurp edn/read-string :locales set))
-
-(def ^{:arglists '([])} available-locale-names
-  "Return set of available locales, as Strings.
-
-    (available-locale-names) ; -> #{\"nl\" \"pt\" \"en\" \"zh\"}"
-  (let [locales (delay (available-locale-names*))]
-    (fn [] @locales)))
 
 ;; We can't fetch the system locale until the application DB has been initiailized. Once that's done, we don't need to
 ;; do the check anymore -- swapping out the getter fn with the simpler one speeds things up substantially

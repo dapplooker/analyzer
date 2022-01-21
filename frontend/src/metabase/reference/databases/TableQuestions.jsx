@@ -51,10 +51,7 @@ const mapDispatchToProps = {
   ...metadataActions,
 };
 
-@connect(
-  mapStateToProps,
-  mapDispatchToProps,
-)
+@connect(mapStateToProps, mapDispatchToProps)
 export default class TableQuestions extends Component {
   static propTypes = {
     table: PropTypes.object.isRequired,
@@ -95,7 +92,7 @@ export default class TableQuestions extends Component {
                             description={t`Created ${moment(
                               entity.created_at,
                             ).fromNow()} by ${entity.creator.common_name}`}
-                            url={Urls.question(entity.id)}
+                            url={Urls.question(entity)}
                             icon={visualizations.get(entity.display).iconName}
                           />
                         </li>

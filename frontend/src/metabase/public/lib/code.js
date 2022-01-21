@@ -1,19 +1,6 @@
-/* @flow */
-
 import { optionsToHashParams } from "./embed";
 
-export type CodeSampleOption = {
-  name: string,
-  source: () => string,
-  mode?: string,
-  embedOption?: string,
-};
-
-export const getPublicEmbedOptions = ({
-  iframeUrl,
-}: {
-  iframeUrl: string,
-}): CodeSampleOption[] => [
+export const getPublicEmbedOptions = ({ iframeUrl }) => [
   {
     name: "HTML",
     source: () => html({ iframeUrl: `"${iframeUrl}"` }),
@@ -21,7 +8,7 @@ export const getPublicEmbedOptions = ({
   },
 ];
 
-export const getSignedEmbedOptions = (): CodeSampleOption[] => [
+export const getSignedEmbedOptions = () => [
   {
     name: "Mustache",
     source: () => html({ iframeUrl: `"{{iframeUrl}}"`, mode: "ace/mode/html" }),
@@ -34,7 +21,7 @@ export const getSignedEmbedOptions = (): CodeSampleOption[] => [
   },
 ];
 
-export const getSignTokenOptions = (params: any): CodeSampleOption[] => [
+export const getSignTokenOptions = params => [
   {
     name: "Node.js",
     source: () => node(params),
@@ -51,7 +38,7 @@ export const getSignTokenOptions = (params: any): CodeSampleOption[] => [
   { name: "Clojure", source: () => clojure(params), mode: "ace/mode/clojure" },
 ];
 
-export const getPublicEmbedHTML = (iframeUrl: string): string =>
+export const getPublicEmbedHTML = iframeUrl =>
   html({ iframeUrl: JSON.stringify(iframeUrl) });
 
 const html = ({ iframeUrl }) =>
@@ -175,7 +162,7 @@ payload = {
 }
 token = jwt.encode(payload, METABASE_SECRET_KEY, algorithm="HS256")
 
-iframeUrl = METABASE_SITE_URL + "/embed/${resourceType}/" + token.decode("utf8")${
+iframeUrl = METABASE_SITE_URL + "/embed/${resourceType}/" + token${
     optionsToHashParams(displayOptions)
       ? " + " + JSON.stringify(optionsToHashParams(displayOptions))
       : ""

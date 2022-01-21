@@ -1,13 +1,7 @@
-/* @flow */
-
+/* eslint-disable react/prop-types */
 import { t } from "ttag";
 import { TYPE, isa } from "metabase/lib/types";
 import _ from "underscore";
-
-import type {
-  ClickAction,
-  ClickActionProps,
-} from "metabase-types/types/Visualization";
 
 const DENYLIST_TYPES = [
   TYPE.PK,
@@ -16,13 +10,12 @@ const DENYLIST_TYPES = [
   TYPE.Comment,
 ];
 
-export default ({ question, clicked }: ClickActionProps): ClickAction[] => {
+export default ({ question, clicked }) => {
   if (
     !clicked ||
     !clicked.column ||
     clicked.value !== undefined ||
     clicked.column.source !== "fields" ||
-    // $FlowFixMe: flow thinks `clicked` or `clicked.column` may be null even though we checked it above
     _.any(DENYLIST_TYPES, t => isa(clicked.column.semantic_type, t))
   ) {
     return [];

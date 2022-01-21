@@ -1,7 +1,8 @@
+/* eslint-disable react/prop-types */
 import React from "react";
 import { t } from "ttag";
 
-import DashCardCardParameterMapper from "../containers/DashCardCardParameterMapper";
+import DashCardCardParameterMapper from "../components/DashCardCardParameterMapper";
 
 import { color } from "metabase/lib/colors";
 

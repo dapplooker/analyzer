@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
 import PropTypes from "prop-types";
 import cx from "classnames";
@@ -28,6 +29,7 @@ function getModalContent(props) {
 export class WindowModal extends Component {
   static propTypes = {
     isOpen: PropTypes.bool,
+    enableMouseEvents: PropTypes.bool,
   };
 
   static defaultProps = {
@@ -76,12 +78,15 @@ export class WindowModal extends Component {
   }
 
   render() {
-    const { backdropClassName, isOpen, style } = this.props;
+    const { enableMouseEvents, backdropClassName, isOpen, style } = this.props;
     const backdropClassnames =
       "flex justify-center align-center fixed top left bottom right";
 
     return (
-      <SandboxedPortal container={this._modalElement}>
+      <SandboxedPortal
+        container={this._modalElement}
+        enableMouseEvents={enableMouseEvents}
+      >
         <CSSTransitionGroup
           transitionName="Modal"
           transitionAppear={true}
@@ -136,22 +141,19 @@ export class FullPageModal extends Component {
   }
 
   componentDidUpdate() {
+    if (!this.state.isOpen) {
+      document.body.style.overflow = "";
+    }
     this.setTopOfModalToBottomOfNav();
   }
 
   componentWillUnmount() {
     this._modalElement.parentNode.removeChild(this._modalElement);
+    document.body.style.overflow = "";
   }
 
   handleDismissal = () => {
     this.setState({ isOpen: false });
-
-    // restore scroll position and scrolling
-    document.body.style.overflow = "";
-    // On IE11 a timeout is required for the scroll to happen after the change of overflow setting
-    setTimeout(() => {
-      window.scrollTo(this._scrollX, this._scrollY);
-    }, 0);
 
     // wait for animations to complete before unmounting
     setTimeout(() => this.props.onClose && this.props.onClose(), 300);

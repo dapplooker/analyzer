@@ -1,5 +1,4 @@
-/* @flow */
-
+/* eslint-disable react/prop-types */
 import React from "react";
 import { t } from "ttag";
 import { connect } from "react-redux";
@@ -11,11 +10,7 @@ const mapStateToProps = (state, props) => ({
   message: getErrorMessage(state, props),
 });
 
-type Props = {
-  message?: string,
-};
-
-const PublicError = ({ message = t`An error occurred` }: Props) => (
+const PublicError = ({ message = t`An error occurred` }) => (
   <EmbedFrame className="spread">
     <div className="flex layout-centered flex-full flex-column">
       <div className="QueryError-image QueryError-image--noRows" />

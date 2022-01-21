@@ -1,5 +1,4 @@
-/* @flow */
-
+/* eslint-disable react/prop-types */
 import React from "react";
 import { t } from "ttag";
 
@@ -8,16 +7,7 @@ import Filter from "metabase-lib/lib/queries/structured/Filter";
 
 import FilterPopover from "metabase/query_builder/components/filters/FilterPopover";
 
-import type {
-  ClickAction,
-  ClickActionProps,
-  ClickActionPopoverProps,
-} from "metabase-types/types/Visualization";
-
-export default function QuickFilterDrill({
-  question,
-  clicked,
-}: ClickActionProps): ClickAction[] {
+export default function QuickFilterDrill({ question, clicked }) {
   const query = question.query();
   if (
     !(query instanceof StructuredQuery) ||
@@ -30,10 +20,11 @@ export default function QuickFilterDrill({
   }
 
   const { column } = clicked;
-  const initialFilter = new Filter([], null, query).setDimension(
-    column.field_ref,
-    { useDefaultOperator: true },
-  );
+  const initialFilter = new Filter(
+    [],
+    null,
+    query,
+  ).setDimension(column.field_ref, { useDefaultOperator: true });
 
   return [
     {
@@ -43,7 +34,7 @@ export default function QuickFilterDrill({
       buttonType: "horizontal",
       icon: "filter",
       // eslint-disable-next-line react/display-name
-      popover: ({ onChangeCardAndRun, onClose }: ClickActionPopoverProps) => (
+      popover: ({ onChangeCardAndRun, onClose }) => (
         <FilterPopover
           query={query}
           filter={initialFilter}

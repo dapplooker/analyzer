@@ -1,18 +1,17 @@
 import {
   restore,
-  signInAsNormalUser,
   popover,
   modal,
   openOrdersTable,
-} from "__support__/cypress";
+} from "__support__/e2e/cypress";
 
 describe("scenarios > question > saved", () => {
   beforeEach(() => {
     restore();
-    signInAsNormalUser();
+    cy.signInAsNormalUser();
   });
 
-  it.skip("should should correctly display 'Save' modal (metabase#13817)", () => {
+  it("should should correctly display 'Save' modal (metabase#13817)", () => {
     openOrdersTable({ mode: "notebook" });
     cy.findByText("Summarize").click();
     cy.findByText("Count of rows").click();
@@ -39,7 +38,7 @@ describe("scenarios > question > saved", () => {
 
     modal().within(() => {
       cy.findByText("Save question");
-      cy.findByRole("button", { name: /save/i }).as("saveButton");
+      cy.button("Save").as("saveButton");
       cy.get("@saveButton").should("not.be.disabled");
 
       cy.log(
@@ -95,13 +94,59 @@ describe("scenarios > question > saved", () => {
     cy.visit("/question/1");
     cy.wait("@query");
 
-    cy.get(".Icon-pencil").click();
-    cy.findByText("Duplicate this question").click();
+    cy.findByTestId("saved-question-header-button").click();
+    cy.icon("segment").click();
 
     modal().within(() => {
       cy.findByLabelText("Name").should("have.value", "Orders - Duplicate");
       cy.findByText("Duplicate").click();
       cy.wait("@cardCreate");
     });
+  });
+
+  it("should revert a saved question to a previous version", () => {
+    cy.intercept("PUT", "/api/card/**").as("updateQuestion");
+
+    cy.visit("/question/1");
+    cy.findByTestId("saved-question-header-button").click();
+    cy.findByText("History").click();
+
+    cy.findByTestId("edit-details-button").click();
+    cy.findByLabelText("Description")
+      .click()
+      .type("This is a question");
+
+    cy.button("Save").click();
+    cy.wait("@updateQuestion");
+
+    cy.findByText(/added a description/i);
+
+    cy.findByRole("button", { name: "Revert" }).click();
+
+    cy.findByText(/Reverted to an earlier revision/i);
+  });
+
+  it("should be able to use integer filter on a saved native query (metabase#15808)", () => {
+    cy.createNativeQuestion({
+      name: "15808",
+      native: { query: "select * from products" },
+    });
+    cy.visit("/question/new");
+    cy.findByText("Simple question").click();
+    cy.findByText("Saved Questions").click();
+    cy.findByText("15808").click();
+    cy.findAllByText("Filter")
+      .first()
+      .click();
+    cy.findByTestId("sidebar-right")
+      .findByText(/Rating/i)
+      .click();
+    cy.get(".AdminSelect").findByText("Equal to");
+    cy.findByPlaceholderText("Enter a number").type("4");
+    cy.button("Add filter")
+      .should("not.be.disabled")
+      .click();
+    cy.findByText("Synergistic Granite Chair");
+    cy.findByText("Rustic Paper Wallet").should("not.exist");
   });
 });

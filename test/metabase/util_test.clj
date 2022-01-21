@@ -1,9 +1,22 @@
 (ns metabase.util-test
   "Tests for functions in `metabase.util`."
   (:require [clojure.test :refer :all]
+            [clojure.test.check.clojure-test :refer [defspec]]
+            [clojure.test.check.generators :as gen]
+            [clojure.test.check.properties :as prop]
             [flatland.ordered.map :refer [ordered-map]]
             [metabase.test :as mt]
             [metabase.util :as u]))
+
+(deftest add-period-test
+  (is (= "This sentence needs a period."
+         (u/add-period "This sentence needs a period")))
+  (is (= "This sentence doesn't need a period!"
+         (u/add-period "This sentence doesn't need a period!")))
+  (is (= "What about this one?"
+         (u/add-period "What about this one?")))
+  (is (= "   "
+         (u/add-period "   "))))
 
 (deftest decolorize-test
   (is (= "[31mmessage[0m"
@@ -40,6 +53,13 @@
     "http://localhost:3000/auth/reset_password/144_f98987de-53ca-4335-81da-31bb0de8ea2b#new" true
     "http://192.168.1.10/"                                                                   true
     "http://metabase.intranet/"                                                              true
+    "http://under_score.ca/"                                                                 true
+    "http://under__score.ca/"                                                                true
+    "http://_under_score.ca/"                                                                true
+    "http://__under_score.ca/"                                                               true
+    "http://hy-phen.ca/"                                                                     true
+    "http://hy--phen.ca/"                                                                    true
+    "http://two..dots.ca"                                                                    false
     ;; missing protocol
     "google.com"                                                                             false
     ;; protocol isn't HTTP/HTTPS
@@ -124,9 +144,28 @@
           (is (= expected
                  (u/slugify s))))))))
 
+(deftest full-exception-chain-test
+  (testing "Not an Exception"
+    (is (= nil
+           (u/full-exception-chain nil)))
+    (is (= nil
+           (u/full-exception-chain 100))))
+  (testing "No causes"
+    (let [e (ex-info "A" {:a 1})]
+      (is (= ["A"]
+             (map ex-message (u/full-exception-chain e))))
+      (is (= [{:a 1}]
+             (map ex-data (u/full-exception-chain e))))))
+  (testing "w/ causes"
+    (let [e (ex-info "A" {:a 1} (ex-info "B" {:b 2} (ex-info "C" {:c 3})))]
+      (is (= ["A" "B" "C"]
+             (map ex-message (u/full-exception-chain e))))
+      (is (= [{:a 1} {:b 2} {:c 3}]
+             (map ex-data (u/full-exception-chain e)))))))
+
 (deftest select-nested-keys-test
   (mt/are+ [m keyseq expected] (= expected
-                               (u/select-nested-keys m keyseq))
+                                  (u/select-nested-keys m keyseq))
     {:a 100, :b {:c 200, :d 300}}              [:a [:b :d] :c]   {:a 100, :b {:d 300}}
     {:a 100, :b {:c 200, :d 300}}              [:b]              {:b {:c 200, :d 300}}
     {:a 100, :b {:c 200, :d 300}}              [[:b :c :d]]      {:b {:c 200, :d 300}}
@@ -154,6 +193,9 @@
     "QQ"           false
     "QQ="          false
     "QQ=="         true
+    ;; line breaks and spaces should be OK
+    "Q\rQ\n=\r\n=" true
+    " Q Q = = "    true
     ;; padding has to go at the end
     "==QQ"         false))
 
@@ -245,7 +287,7 @@
 
 (deftest or-with-test
   (testing "empty case"
-    (is (= (or) (u/or-with identity))))
+    (is (= nil (u/or-with identity))))
   (testing "short-circuiting"
     (let [counter (atom [])
           expensive-fn (fn [x] (swap! counter conj x) x)
@@ -258,6 +300,67 @@
   (testing "failure"
     (is (nil? (u/or-with even? 1 3 5)))))
 
-;; Local Variables:
-;; eval: (add-to-list (make-local-variable 'clojure-align-cond-forms) "mt/are+")
-;; End:
+(deftest ip-address?-test
+  (mt/are+ [x expected] (= expected
+                           (u/ip-address? x))
+    "8.8.8.8"              true
+    "185.233.100.23"       true
+    "500.1.1.1"            false
+    "192.168.1.a"          false
+    "0:0:0:0:0:0:0:1"      true
+    "52.206.149.9"         true
+    "2001:4860:4860::8844" true
+    "wow"                  false
+    "   "                  false
+    ""                     false
+    nil                    false
+    100                    false))
+
+;; this would be such a good spot for test.check
+(deftest sorted-take-test
+  (testing "It ensures there are never more than `size` items in the priority queue"
+    (let [limit 5
+          rf    (u/sorted-take limit compare)]
+      (reduce (fn [q x]
+                (let [q' (rf q x)]
+                  ;; a bit internal but this is really what we're after: bounded size while we look for the biggest
+                  ;; elements
+                  (is (<= (count q) limit))
+                  q))
+              (rf)
+              (shuffle (range 30))))))
+
+(defspec sorted-take-test-size
+  (prop/for-all [coll (gen/list (gen/tuple gen/int gen/string))
+                 size (gen/fmap inc gen/nat)]
+    (= (vec (take-last size (sort coll)))
+       (transduce (map identity)
+                  (u/sorted-take size compare)
+                  coll))))
+
+(defspec sorted-take-test-comparator
+  (prop/for-all [coll (gen/list (gen/fmap (fn [x] {:score x}) gen/int))
+                 size (gen/fmap inc gen/nat)]
+    (let [coll    (shuffle coll)
+          kompare (fn [{score-1 :score} {score-2 :score}]
+                    (compare score-1 score-2))]
+      (= (vec (take-last size (sort-by identity kompare coll)))
+         (transduce (map identity)
+                    (u/sorted-take size kompare)
+                    coll)))))
+(deftest email->domain-test
+  (are [domain email] (is (= domain
+                             (u/email->domain email))
+                          (format "Domain of email address '%s'" email))
+    nil              nil
+    "metabase.com"   "cam@metabase.com"
+    "metabase.co.uk" "cam@metabase.co.uk"
+    "metabase.com"   "cam.saul+1@metabase.com"))
+
+(deftest email-in-domain-test
+  (are [in-domain? email domain] (is (= in-domain?
+                                        (u/email-in-domain? email domain))
+                                     (format "Is email '%s' in domain '%s'?" email domain))
+    true  "cam@metabase.com"          "metabase.com"
+    false "cam.saul+1@metabase.co.uk" "metabase.com"
+    true  "cam.saul+1@metabase.com"   "metabase.com"))

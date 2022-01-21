@@ -124,8 +124,8 @@ export default class PulseCardPreview extends Component {
               </RenderedPulseCardPreviewHeader>
               <RenderedPulseCardPreviewMessage>
                 {isAttachmentOnly
-                  ? t`This question will be added as a file attachment`
-                  : t`This question won't be included in your Pulse`}
+                  ? t`This chart will be added as a file attachment`
+                  : t`This chart won't be included in your Report`}
               </RenderedPulseCardPreviewMessage>
             </RenderedPulseCardPreview>
           ) : (

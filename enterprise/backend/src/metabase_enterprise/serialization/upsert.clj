@@ -16,6 +16,7 @@
             [metabase.models.field :refer [Field]]
             [metabase.models.field-values :refer [FieldValues]]
             [metabase.models.metric :refer [Metric]]
+            [metabase.models.native-query-snippet :refer [NativeQuerySnippet]]
             [metabase.models.pulse :refer [Pulse]]
             [metabase.models.pulse-card :refer [PulseCard]]
             [metabase.models.pulse-channel :refer [PulseChannel]]
@@ -29,14 +30,14 @@
             [toucan.models :as models]))
 
 (def ^:private identity-condition
-  {Database            [:name]
+  {Database            [:name :engine]
    Table               [:schema :name :db_id]
    Field               [:name :table_id]
    Metric              [:name :table_id]
    Segment             [:name :table_id]
-   Collection          [:name :location]
+   Collection          [:name :location :namespace]
    Dashboard           [:name :collection_id]
-   DashboardCard       [:card_id :dashboard_id :visualiation_settings]
+   DashboardCard       [:card_id :dashboard_id :visualization_settings]
    DashboardCardSeries [:dashboardcard_id :card_id]
    FieldValues         [:field_id]
    Dimension           [:field_id :human_readable_field_id]
@@ -46,7 +47,8 @@
    PulseCard           [:pulse_id :card_id]
    PulseChannel        [:pulse_id :channel_type :details]
    Card                [:name :collection_id]
-   User                [:email]})
+   User                [:email]
+   NativeQuerySnippet  [:name :collection_id]})
 
 ;; This could potentially be unrolled into one giant select
 (defn- select-identical
@@ -70,7 +72,7 @@
   `(try
      (do ~@body)
      (catch Throwable e#
-       (log/error (u/format-color 'red "%s: %s" ~message (.getMessage e#)))
+       (log/error e# (u/format-color 'red "%s: %s" ~message (.getMessage e#)))
        nil)))
 
 (defn- insert-many-individually!
@@ -81,7 +83,7 @@
                         (with-error-handling
                           (trs "Error inserting {0}" (name-for-logging model entity))
                           (db/insert! model entity)))]
-      (u/get-id entity))))
+      (u/the-id entity))))
 
 (defn- maybe-insert-many!
   [model on-error entities]
@@ -95,25 +97,40 @@
         (catch Throwable _
           (insert-many-individually! model on-error entities))))))
 
-(defn maybe-upsert-many!
-  "Batch upsert-or-skip"
+(defn- group-by-action
+  "Return `entities` grouped by the action that needs to be done given the `context`."
   [{:keys [mode on-error]} model entities]
-  (let [same?                        (comp nil? second diff/diff)
-        {:keys [update insert skip]} (->> entities
-                                          (map-indexed (fn [position entity]
-                                                         [position
-                                                          entity
-                                                          (select-identical model entity)]))
-                                          (group-by (fn [[_ entity existing]]
-                                                      (case mode
-                                                        :update (cond
-                                                                  (same? existing entity) :skip
-                                                                  existing                :update
-                                                                  :else                   :insert)
-                                                        :skip   (if existing
-                                                                  :skip
-                                                                  :insert)))))]
+  (let [same?                        (comp nil? second diff/diff)]
+    (->> entities
+         (map-indexed (fn [position entity]
+                        [position
+                         entity
+                         (select-identical model entity)]))
+         (group-by (fn [[_ entity existing]]
+                     (case mode
+                       :update (cond
+                                 (same? existing entity) :skip
+                                 existing                :update
+                                 :else                   :insert)
+                       :skip   (if existing
+                                 :skip
+                                 :insert)))))))
 
+(defn maybe-upsert-many!
+  "Batch upsert many entities.
+
+  Within the `context` map, the following keys are recognized:
+  `mode` indicates mode of operation for existing entities (`:upsert` or `:skip`), as per the `identity-condition`
+  `on-error` indicates what to do in case of upsert error (`:continue` or `:abort`)
+  `pre-insert-fn` (optional) is a function to call on each entity to be inserted, before it is inserted
+  `post-insert-fn` (optional) is a function to call on each entity to be inserted, after it is inserted"
+  [{:keys [mode on-error pre-insert-fn post-insert-fn]
+    :or   {pre-insert-fn  identity
+           post-insert-fn identity}
+    :as context}
+   model
+   entities]
+  (let [{:keys [update insert skip]} (group-by-action context model entities)]
     (doseq [[_ entity _] insert]
       (log/info (trs "Inserting {0}" (name-for-logging (name model) entity))))
     (doseq [[_ _ existing] skip]
@@ -124,11 +141,12 @@
       (log/info (trs "Updating {0}" (name-for-logging (name model) existing))))
 
     (->> (concat (for [[position _ existing] skip]
-                   [(u/get-id existing) position])
-                 (map vector (maybe-insert-many! model on-error (map second insert))
+                   [(u/the-id existing) position])
+                 (map vector (map post-insert-fn
+                                  (maybe-insert-many! model on-error (map (comp pre-insert-fn second) insert)))
                       (map first insert))
                  (for [[position entity existing] update]
-                   (let [id (u/get-id existing)]
+                   (let [id (u/the-id existing)]
                      (if (= on-error :abort)
                        (db/update! model id entity)
                        (with-error-handling

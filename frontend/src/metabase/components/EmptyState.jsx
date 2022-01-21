@@ -1,4 +1,4 @@
-/* @flow */
+/* eslint-disable react/prop-types */
 import React from "react";
 import { Box, Flex } from "grid-styled";
 
@@ -6,15 +6,6 @@ import Button from "metabase/components/Button";
 import Icon from "metabase/components/Icon";
 import Link from "metabase/components/Link";
 import Text from "metabase/components/type/Text";
-
-type EmptyStateProps = {
-  message?: React$Element<any>,
-  title?: string,
-  action?: string,
-  link?: string,
-  illustrationElement: React$Element<any>,
-  onActionClick?: () => void,
-};
 
 // Don't break existing empty states
 // TODO - remove these and update empty states with proper usage of illustrationElement
@@ -42,7 +33,7 @@ const EmptyState = ({
   illustrationElement,
   onActionClick,
   ...rest
-}: EmptyStateProps) => (
+}) => (
   <Box>
     <Flex justify="center" flexDirection="column" align="center">
       {illustrationElement && <Box mb={[2, 3]}>{illustrationElement}</Box>}

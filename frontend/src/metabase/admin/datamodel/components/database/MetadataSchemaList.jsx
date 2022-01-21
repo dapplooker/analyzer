@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
 
 import Icon from "metabase/components/Icon";
@@ -58,7 +59,7 @@ export default class MetadataSchemaList extends Component {
             <li key={schema}>
               <a
                 className={cx(
-                  "AdminList-item flex align-center no-decoration",
+                  "AdminList-item flex align-center no-decoration text-wrap",
                   {
                     selected: selectedSchema && selectedSchema === schema,
                   },

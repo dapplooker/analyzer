@@ -1,5 +1,6 @@
 (ns metabase.driver.h2-test
   (:require [clojure.java.jdbc :as jdbc]
+            [clojure.string :as str]
             [clojure.test :refer :all]
             [honeysql.core :as hsql]
             [metabase.db.spec :as db.spec]
@@ -69,11 +70,17 @@
 
 (deftest add-interval-honeysql-form-test
   (testing "Should convert fractional seconds to milliseconds"
-    (is (= (hsql/call :dateadd (hx/literal "millisecond") (hsql/call :cast 100500.0 (hsql/raw "long")) :%now)
+    (is (= (hsql/call :dateadd
+             (hx/literal "millisecond")
+             (hx/with-database-type-info (hsql/call :cast 100500.0 (hsql/raw "long")) "long")
+             :%now)
            (sql.qp/add-interval-honeysql-form :h2 :%now 100.5 :second))))
 
   (testing "Non-fractional seconds should remain seconds, but be cast to longs"
-    (is (= (hsql/call :dateadd (hx/literal "second") (hsql/call :cast 100.0 (hsql/raw "long")) :%now)
+    (is (= (hsql/call :dateadd
+             (hx/literal "second")
+             (hx/with-database-type-info (hsql/call :cast 100.0 (hsql/raw "long")) "long")
+             :%now)
            (sql.qp/add-interval-honeysql-form :h2 :%now 100.0 :second)))))
 
 (deftest clob-test
@@ -86,6 +93,7 @@
         (testing "cols"
           (is (= [{:display_name "NAME"
                    :base_type    :type/Text
+                   :effective_type :type/Text
                    :source       :native
                    :field_ref    [:field "NAME" {:base-type :type/Text}]
                    :name         "NAME"}]
@@ -96,6 +104,7 @@
     (testing "A native query that doesn't return a column class name metadata should work correctly (#12150)"
       (is (= [{:display_name "D"
                :base_type    :type/DateTime
+               :effective_type :type/DateTime
                :source       :native
                :field_ref    [:field "D" {:base-type :type/DateTime}]
                :name         "D"}]
@@ -118,7 +127,26 @@
                             :template-tags {"date" {:name         "date"
                                                     :display-name "date"
                                                     :type         :dimension
+                                                    :widget-type  :date/all-options
                                                     :dimension    [:field (mt/id :checkins :date) nil]}}}
                :parameters [{:type :date/all-options
                              :target [:dimension [:template-tag "date"]]
                              :value "past30years"}]}))))))
+
+(defn- pretty-sql [s]
+  (-> s
+      (str/replace #"\"" "")
+      (str/replace #"PUBLIC\." "")))
+
+(deftest do-not-cast-to-date-if-column-is-already-a-date-test
+  (mt/test-driver :h2
+    (testing "Don't wrap Field in date() if it's already a DATE (#11502)"
+      (mt/dataset attempted-murders
+        (let [query (mt/mbql-query attempts
+                      {:aggregation [[:count]]
+                       :breakout    [!day.date]})]
+          (is (= (str "SELECT ATTEMPTS.DATE AS DATE, count(*) AS count "
+                      "FROM ATTEMPTS "
+                      "GROUP BY ATTEMPTS.DATE "
+                      "ORDER BY ATTEMPTS.DATE ASC")
+                 (some-> (qp/query->native query) :query pretty-sql))))))))

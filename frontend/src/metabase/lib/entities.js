@@ -1,5 +1,3 @@
-/* @flow */
-
 import {
   combineReducers,
   handleEntities,
@@ -32,161 +30,8 @@ import _ from "underscore";
 // schema: normalizr schema, defaults to `new schema.Entity(entity.name)`
 //
 
-import type { APIMethod } from "metabase/lib/api";
-import type { FormDefinition } from "metabase/containers/Form";
-
-type EntityName = string;
-
-type ActionType = string;
-type ActionCreator = Function;
-type ObjectActionCreator = Function;
-type ObjectSelector = Function;
-
-type Action = any;
-export type Reducer = (state: any, action: Action) => any;
-
-type EntityDefinition = {
-  name: EntityName,
-
-  nameOne?: string,
-  nameMany?: string,
-
-  form?: FormDefinition,
-  forms?: { [key: string]: FormDefinition },
-
-  displayNameOne?: string,
-  displayNameMany?: string,
-
-  schema?: schema.Entity,
-  path?: string,
-  api?: { [method: string]: APIMethod },
-  actions?: {
-    [name: string]: ActionCreator,
-  },
-  selectors?: {
-    [name: string]: Function,
-  },
-  createSelectors?: ({ [name: string]: Function }) => {
-    [name: string]: Function,
-  },
-  objectActions?: {
-    [name: string]: ObjectActionCreator,
-  },
-  objectSelectors?: {
-    [name: string]: ObjectSelector,
-  },
-  reducer?: Reducer,
-  wrapEntity?: (object: EntityObject) => any,
-  actionShouldInvalidateLists?: (action: Action) => boolean,
-
-  // list of properties for this object which should be persisted
-  writableProperties?: string[],
-};
-
-type EntityObject = any;
-
-type EntityQuery = {
-  [name: string]: string | number | boolean | null,
-};
-
-type FetchOptions = {
-  reload?: boolean,
-};
-type UpdateOptions = {
-  notify?:
-    | { verb?: string, subject?: string, undo?: boolean, message?: any }
-    | false,
-};
-
-type Result = any; // FIXME
-
-export type Entity = {
-  name: EntityName,
-
-  nameOne: string,
-  nameMany: string,
-
-  displayNameOne: string,
-  displayNameMany: string,
-
-  form?: FormDefinition,
-  forms?: { [key: string]: FormDefinition },
-
-  path?: string,
-  api: {
-    list: APIMethod,
-    create: APIMethod,
-    get: APIMethod,
-    update: APIMethod,
-    delete: APIMethod,
-    [method: string]: APIMethod,
-  },
-  schema: schema.Entity,
-  actionTypes: {
-    [name: string]: ActionType,
-    CREATE: ActionType,
-    FETCH: ActionType,
-    UPDATE: ActionType,
-    DELETE: ActionType,
-    FETCH_LIST: ActionType,
-  },
-  actionDecorators: {
-    [name: string]: Function, // TODO: better type
-  },
-  actions: {
-    [name: string]: ActionCreator,
-    fetchList: (
-      entityQuery?: EntityQuery,
-      options?: FetchOptions,
-    ) => Promise<Result>,
-  },
-  reducers: { [name: string]: Reducer },
-  selectors: {
-    getList: Function,
-    getObject: Function,
-    getLoading: Function,
-    getLoaded: Function,
-    getFetched: Function,
-    getError: Function,
-    [name: string]: Function,
-  },
-  objectActions: {
-    [name: string]: ObjectActionCreator,
-    create: (entityObject: EntityObject) => Promise<Result>,
-    fetch: (
-      entityObject: EntityObject,
-      options?: FetchOptions,
-    ) => Promise<Result>,
-    update: (
-      entityObject: EntityObject,
-      updatedObject: EntityObject,
-      options?: UpdateOptions,
-    ) => Promise<Result>,
-    delete: (entityObject: EntityObject) => Promise<Result>,
-  },
-  objectSelectors: {
-    [name: string]: ObjectSelector,
-  },
-  wrapEntity: (object: EntityObject) => any,
-
-  requestsReducer: Reducer,
-  actionShouldInvalidateLists: (action: Action) => boolean,
-
-  writableProperties?: string[],
-  getAnalyticsMetadata?: () => any,
-
-  normalize: (object: EntityObject, schema?: schema.Entity) => any, // FIXME: return type
-  normalizeList: (list: EntityObject[], schema?: schema.Entity) => any, // FIXME: return type
-
-  getObjectStatePath: Function,
-  getListStatePath: Function,
-
-  HACK_getObjectFromAction: (action: Action) => any,
-};
-
-export function createEntity(def: EntityDefinition): Entity {
-  // $FlowFixMe
-  const entity: Entity = { ...def };
+export function createEntity(def) {
+  const entity = { ...def };
 
   if (!entity.nameOne) {
     entity.nameOne = inflection.singularize(entity.name);
@@ -309,8 +154,8 @@ export function createEntity(def: EntityDefinition): Entity {
         ({ id }) => [...getObjectStatePath(id), "fetch"],
       ),
       withEntityActionDecorators("fetch"),
-    )(entityObject => async (dispatch, getState) =>
-      entity.normalize(await entity.api.get({ id: entityObject.id })),
+    )((entityObject, options = {}) => async (dispatch, getState) =>
+      entity.normalize(await entity.api.get({ id: entityObject.id }, options)),
     ),
 
     create: compose(
@@ -353,7 +198,6 @@ export function createEntity(def: EntityDefinition): Entity {
         if (notify) {
           if (notify.undo) {
             // pick only the attributes that were updated
-            // $FlowFixMe
             const undoObject = _.pick(
               originalObject,
               ...Object.keys(updatedObject || {}),
@@ -409,12 +253,24 @@ export function createEntity(def: EntityDefinition): Entity {
       // for now at least paginated endpoints have a 'data' property that
       // contains the actual entries, if that is on the response we should
       // use that as the 'results'
-      const results = fetched.data ? fetched.data : fetched;
+
+      let results;
+      let metadata = {};
+
+      if (fetched.data) {
+        const { data, ...rest } = fetched;
+        results = data;
+        metadata = rest;
+      } else {
+        results = fetched;
+      }
+
       if (!Array.isArray(results)) {
         throw `Invalid response listing ${entity.name}`;
       }
       return {
         ...entity.normalizeList(results),
+        metadata,
         entityQuery,
       };
     }),
@@ -481,9 +337,19 @@ export function createEntity(def: EntityDefinition): Entity {
     entities => entities[`${entity.name}_list`],
   );
 
-  const getEntityIds = createSelector(
+  const getEntityList = createSelector(
     [getEntityQueryId, getEntityLists],
     (entityQueryId, lists) => lists[entityQueryId],
+  );
+
+  const getEntityIds = createSelector(
+    [getEntityList],
+    entities => entities && entities.list,
+  );
+
+  const getListMetadata = createSelector(
+    [getEntityList],
+    entities => entities && entities.metadata,
   );
 
   const getList = createSelector(
@@ -540,6 +406,7 @@ export function createEntity(def: EntityDefinition): Entity {
     getLoading,
     getLoaded,
     getError,
+    getListMetadata,
   };
   entity.selectors = {
     ...defaultSelectors,
@@ -552,7 +419,7 @@ export function createEntity(def: EntityDefinition): Entity {
       return object.name;
     },
     getIcon(object) {
-      return "unknown";
+      return { name: "unknown" };
     },
     getColor(object) {
       return undefined;
@@ -582,9 +449,13 @@ export function createEntity(def: EntityDefinition): Entity {
     }
     if (type === FETCH_LIST_ACTION) {
       if (payload && payload.result) {
+        const { entityQuery, metadata, result: list } = payload;
         return {
           ...state,
-          [getIdForQuery(payload.entityQuery)]: payload.result,
+          [getIdForQuery(entityQuery)]: {
+            list,
+            metadata,
+          },
         };
       }
       // NOTE: only add/remove from the "default" list (no entityQuery)
@@ -637,7 +508,7 @@ export function createEntity(def: EntityDefinition): Entity {
     // dispatched using it, otherwise the actions will be returned
     //
     class EntityWrapper {
-      _dispatch: ?(action: any) => any;
+      _dispatch;
 
       constructor(object, dispatch = null) {
         Object.assign(this, object);
@@ -647,9 +518,7 @@ export function createEntity(def: EntityDefinition): Entity {
     // object selectors
     for (const [methodName, method] of Object.entries(entity.objectSelectors)) {
       if (method) {
-        // $FlowFixMe
         EntityWrapper.prototype[methodName] = function(...args) {
-          // $FlowFixMe
           return method(this, ...args);
         };
       }
@@ -657,15 +526,12 @@ export function createEntity(def: EntityDefinition): Entity {
     // object actions
     for (const [methodName, method] of Object.entries(entity.objectActions)) {
       if (method) {
-        // $FlowFixMe
         EntityWrapper.prototype[methodName] = function(...args) {
           if (this._dispatch) {
             // if dispatch was provided to the constructor go ahead and dispatch
-            // $FlowFixMe
             return this._dispatch(method(this, ...args));
           } else {
             // otherwise just return the action
-            // $FlowFixMe
             return method(this, ...args);
           }
         };
@@ -682,14 +548,7 @@ export function createEntity(def: EntityDefinition): Entity {
   return entity;
 }
 
-type CombinedEntities = {
-  entities: { [key: EntityName]: Entity },
-  reducers: { [name: string]: Reducer },
-  reducer: Reducer,
-  requestsReducer: Reducer,
-};
-
-export function combineEntities(entities: Entity[]): CombinedEntities {
+export function combineEntities(entities) {
   const entitiesMap = {};
   const reducersMap = {};
 
@@ -721,10 +580,10 @@ export function combineEntities(entities: Entity[]): CombinedEntities {
 
 // OBJECT ACTION DECORATORS
 
-export const notify = (opts: any = {}, subject: string, verb: string) =>
+export const notify = (opts = {}, subject, verb) =>
   merge({ notify: { subject, verb, undo: false } }, opts || {});
 
-export const undo = (opts: any = {}, subject: string, verb: string) =>
+export const undo = (opts = {}, subject, verb) =>
   merge({ notify: { subject, verb, undo: true } }, opts || {});
 
 // decorator versions disabled due to incompatibility with current version of flow

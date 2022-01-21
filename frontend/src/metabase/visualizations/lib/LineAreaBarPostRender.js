@@ -1,5 +1,3 @@
-/* @flow weak */
-
 import d3 from "d3";
 import _ from "underscore";
 
@@ -163,7 +161,6 @@ const VORONOI_MAX_POINTS = 300;
 /// dispatchUIEvent used below in the "Voroni Hover" stuff
 function dispatchUIEvent(element, eventName) {
   const e = document.createEvent("UIEvents");
-  // $FlowFixMe
   e.initUIEvent(eventName, true, true, window, 1);
   element.dispatchEvent(e);
 }
@@ -195,7 +192,10 @@ function onRenderVoronoiHover(chart) {
     ? parent.node().getBBox()
     : { width: 0, height: 0 };
 
-  const voronoi = d3.geom.voronoi().clipExtent([[0, 0], [width, height]]);
+  const voronoi = d3.geom.voronoi().clipExtent([
+    [0, 0],
+    [width, height],
+  ]);
 
   // circular clip paths to limit distance from actual point
   parent
@@ -371,6 +371,22 @@ function onRenderAddExtraClickHandlers(chart) {
   }
 }
 
+function onRenderSetZeroGridLineClassName(chart) {
+  const yAxis = chart.y();
+  if (!yAxis) {
+    return;
+  }
+
+  const yZero = yAxis(0).toString();
+  chart
+    .select(".grid-line.horizontal")
+    .selectAll("line")
+    .filter(function() {
+      return d3.select(this).attr("y1") === yZero;
+    })
+    .attr("class", "zero");
+}
+
 // the various steps that get called
 function onRender(
   chart,
@@ -401,6 +417,7 @@ function onRender(
   onRenderSetClassName(chart, isStacked);
   onRenderRotateAxis(chart);
   onRenderAddExtraClickHandlers(chart);
+  onRenderSetZeroGridLineClassName(chart);
 }
 
 // +-------------------------------------------------------------------------------------------------------------------+
@@ -460,6 +477,11 @@ function computeXAxisLabelMaxSize(chart) {
   let maxWidth = 0;
   let maxHeight = 0;
   chart.selectAll("g.x text").each(function() {
+    // jsdom doesn't support getBBox https://github.com/jsdom/jsdom/issues/918
+    if (!this.getBBox) {
+      return;
+    }
+
     const { width, height } = this.getBBox();
     maxWidth = Math.max(maxWidth, width);
     maxHeight = Math.max(maxHeight, height);
@@ -487,7 +509,14 @@ function computeXAxisMargin(chart) {
 export function checkXAxisLabelOverlap(chart, selector = "g.x text") {
   const rects = [];
   for (const elem of chart.selectAll(selector)[0]) {
-    rects.push(elem.getBoundingClientRect());
+    const rect = elem.getBoundingClientRect();
+
+    // Skip empty ticks because of their wrong positioning in Firefox
+    if (rect.width === 0 && rect.height === 0) {
+      continue;
+    }
+
+    rects.push(rect);
     if (
       rects.length > 1 &&
       rects[rects.length - 2].right + X_LABEL_MIN_SPACING >

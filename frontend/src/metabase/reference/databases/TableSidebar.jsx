@@ -3,7 +3,6 @@ import React from "react";
 import PropTypes from "prop-types";
 import { t } from "ttag";
 import cx from "classnames";
-import pure from "recompose/pure";
 
 import MetabaseSettings from "metabase/lib/settings";
 
@@ -43,7 +42,7 @@ const TableSidebar = ({ database, table, style, className }) => (
         key={`/reference/databases/${database.id}/tables/${table.id}/questions`}
         href={`/reference/databases/${database.id}/tables/${table.id}/questions`}
         icon="all"
-        name={t`Questions about this table`}
+        name={t`charts about this table`}
       />
       {MetabaseSettings.get("enable-xrays") && (
         <SidebarItem
@@ -64,4 +63,4 @@ TableSidebar.propTypes = {
   style: PropTypes.object,
 };
 
-export default pure(TableSidebar);
+export default React.memo(TableSidebar);

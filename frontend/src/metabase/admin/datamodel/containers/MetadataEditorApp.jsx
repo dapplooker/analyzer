@@ -4,7 +4,7 @@ import { connect } from "react-redux";
 import { push, replace } from "react-router-redux";
 
 import { t } from "ttag";
-import MetabaseAnalytics from "metabase/lib/analytics";
+import * as MetabaseAnalytics from "metabase/lib/analytics";
 
 import AdminEmptyText from "metabase/components/AdminEmptyText";
 import MetadataHeader from "../components/database/MetadataHeader";
@@ -16,6 +16,18 @@ import {
   databases as Databases,
   fields as Fields,
 } from "metabase/entities";
+
+const propTypes = {
+  databaseId: PropTypes.number,
+  database: PropTypes.object,
+  loading: PropTypes.bool,
+  tableId: PropTypes.number,
+  selectDatabase: PropTypes.func.isRequired,
+  selectTable: PropTypes.func.isRequired,
+  idfields: PropTypes.array,
+  updateField: PropTypes.func.isRequired,
+  onRetireMetric: PropTypes.func.isRequired,
+};
 
 const mapStateToProps = (state, { params }) => {
   const databaseId = params.databaseId
@@ -41,11 +53,12 @@ const mapDispatchToProps = {
     Metrics.actions.setArchived({ id }, true, rest),
 };
 
-@connect(
-  mapStateToProps,
-  mapDispatchToProps,
-)
-export default class MetadataEditor extends Component {
+@connect(mapStateToProps, mapDispatchToProps)
+@Databases.load({
+  id: (state, props) => props.databaseId,
+  loadingAndErrorWrapper: false,
+})
+class MetadataEditor extends Component {
   constructor(props, context) {
     super(props, context);
     this.toggleShowSchema = this.toggleShowSchema.bind(this);
@@ -55,19 +68,9 @@ export default class MetadataEditor extends Component {
     };
   }
 
-  static propTypes = {
-    databaseId: PropTypes.number,
-    tableId: PropTypes.number,
-    selectDatabase: PropTypes.func.isRequired,
-    selectTable: PropTypes.func.isRequired,
-    idfields: PropTypes.array,
-    updateField: PropTypes.func.isRequired,
-    onRetireMetric: PropTypes.func.isRequired,
-  };
-
   toggleShowSchema() {
     this.setState({ isShowingSchema: !this.state.isShowingSchema });
-    MetabaseAnalytics.trackEvent(
+    MetabaseAnalytics.trackStructEvent(
       "Data Model",
       "Show OG Schema",
       !this.state.isShowingSchema,
@@ -75,11 +78,11 @@ export default class MetadataEditor extends Component {
   }
 
   render() {
-    const { databaseId, tableId } = this.props;
+    const { databaseId, tableId, database, loading } = this.props;
+    const hasLoadedDatabase = !loading && database;
     return (
       <div className="p4">
         <MetadataHeader
-          ref="header"
           databaseId={databaseId}
           selectDatabase={this.props.selectDatabase}
           isShowingSchema={this.state.isShowingSchema}
@@ -89,7 +92,7 @@ export default class MetadataEditor extends Component {
           style={{ minHeight: "60vh" }}
           className="flex flex-row flex-full mt2 full-height"
         >
-          {databaseId && (
+          {hasLoadedDatabase && (
             <MetadataTablePicker
               tableId={tableId}
               databaseId={databaseId}
@@ -110,9 +113,15 @@ export default class MetadataEditor extends Component {
             )
           ) : (
             <div style={{ paddingTop: "10rem" }} className="full text-centered">
-              <AdminEmptyText
-                message={t`Select any table to see its schema and add or edit metadata.`}
-              />
+              {!loading && (
+                <AdminEmptyText
+                  message={
+                    hasLoadedDatabase
+                      ? t`Select any table to see its schema and add or edit metadata.`
+                      : t`The page you asked for couldn't be found.`
+                  }
+                />
+              )}
             </div>
           )}
         </div>
@@ -120,3 +129,7 @@ export default class MetadataEditor extends Component {
     );
   }
 }
+
+MetadataEditor.propTypes = propTypes;
+
+export default MetadataEditor;

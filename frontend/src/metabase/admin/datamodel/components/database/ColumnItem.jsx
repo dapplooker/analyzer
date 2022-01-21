@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
 import PropTypes from "prop-types";
 import { Link, withRouter } from "react-router";
@@ -7,16 +8,16 @@ import InputBlurChange from "metabase/components/InputBlurChange";
 import Select, { Option } from "metabase/components/Select";
 import Button from "metabase/components/Button";
 import * as MetabaseCore from "metabase/lib/core";
-import { isNumericBaseType, isCurrency } from "metabase/lib/schema_metadata";
-import { TYPE, isa, isFK } from "metabase/lib/types";
-import currency from "metabase/lib/currency";
+import { isCurrency } from "metabase/lib/schema_metadata";
+import { isFK } from "metabase/lib/types";
 import { getGlobalSettingsForColumn } from "metabase/visualizations/lib/settings/column";
+
+import { currency } from "cljs/metabase.shared.util.currency";
 
 import _ from "underscore";
 import cx from "classnames";
 
-import type { Field } from "metabase-types/types/Field";
-import MetabaseAnalytics from "metabase/lib/analytics";
+import * as MetabaseAnalytics from "metabase/lib/analytics";
 
 @withRouter
 export default class Column extends Component {
@@ -103,12 +104,6 @@ export default class Column extends Component {
 // FieldVisibilityPicker and SemanticTypeSelect are also used in FieldApp
 
 export class FieldVisibilityPicker extends Component {
-  props: {
-    field: Field,
-    updateField: Field => void,
-    className?: string,
-  };
-
   handleChangeVisibility = ({ target: { value: visibility_type } }) => {
     this.props.updateField({ visibility_type });
   };
@@ -130,13 +125,6 @@ export class FieldVisibilityPicker extends Component {
 }
 
 export class SemanticTypeAndTargetPicker extends Component {
-  props: {
-    field: Field,
-    updateField: Field => void,
-    className?: string,
-    selectSeparator?: React$Element<any>,
-  };
-
   handleChangeSemanticType = async ({ target: { value: semantic_type } }) => {
     const { field, updateField } = this.props;
 
@@ -150,7 +138,7 @@ export class SemanticTypeAndTargetPicker extends Component {
       await updateField({ semantic_type });
     }
 
-    MetabaseAnalytics.trackEvent(
+    MetabaseAnalytics.trackStructEvent(
       "Data Model",
       "Update Field Special-Type",
       semantic_type,
@@ -165,7 +153,7 @@ export class SemanticTypeAndTargetPicker extends Component {
         currency,
       },
     });
-    MetabaseAnalytics.trackEvent(
+    MetabaseAnalytics.trackStructEvent(
       "Data Model",
       "Update Currency Type",
       currency,
@@ -174,13 +162,13 @@ export class SemanticTypeAndTargetPicker extends Component {
 
   handleChangeTarget = async ({ target: { value: fk_target_field_id } }) => {
     await this.props.updateField({ fk_target_field_id });
-    MetabaseAnalytics.trackEvent("Data Model", "Update Field Target");
+    MetabaseAnalytics.trackStructEvent("Data Model", "Update Field Target");
   };
 
   render() {
     const { field, className, selectSeparator } = this.props;
 
-    let semanticTypes = [
+    const semanticTypes = [
       ...MetabaseCore.field_semantic_types,
       {
         id: null,
@@ -188,10 +176,6 @@ export class SemanticTypeAndTargetPicker extends Component {
         section: t`Other`,
       },
     ];
-    // if we don't have a numeric base-type then prevent the options for unix timestamp conversion (#823)
-    if (!isNumericBaseType(field)) {
-      semanticTypes = semanticTypes.filter(f => !isa(f.id, TYPE.UNIXTimestamp));
-    }
 
     const showFKTargetSelect = isFK(field.semantic_type);
 
@@ -241,7 +225,7 @@ export class SemanticTypeAndTargetPicker extends Component {
             searchProp="name"
             searchCaseSensitive={false}
           >
-            {Object.values(currency).map(c => (
+            {currency.map(([_, c]) => (
               <Option name={c.name} value={c.code} key={c.code}>
                 <span className="flex full align-center">
                   <span>{c.name}</span>
@@ -260,7 +244,11 @@ export class SemanticTypeAndTargetPicker extends Component {
               className,
             )}
             placeholder={t`Select a target`}
-            searchProp="name"
+            searchProp={[
+              "display_name",
+              "table.display_name",
+              "table.schema_name",
+            ]}
             value={field.fk_target_field_id}
             onChange={this.handleChangeTarget}
             options={idfields}

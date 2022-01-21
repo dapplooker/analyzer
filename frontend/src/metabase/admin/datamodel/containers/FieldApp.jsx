@@ -1,17 +1,16 @@
-/* @flow */
-
 /**
  * Settings editor for a single database field. Lets you change field type, visibility and display values / remappings.
  *
  * TODO Atte Keinänen 7/6/17: This uses the standard metadata API; we should migrate also other parts of admin section
  */
-
+/* eslint-disable react/prop-types */
 import React from "react";
 import { Link } from "react-router";
 import { connect } from "react-redux";
 
 import _ from "underscore";
 import { t } from "ttag";
+import { humanizeCoercionStrategy } from "./humanizeCoercionStrategy";
 
 // COMPONENTS
 
@@ -26,6 +25,9 @@ import AdminLayout from "metabase/components/AdminLayout";
 import { LeftNavPane, LeftNavPaneItem } from "metabase/components/LeftNavPane";
 import Section, { SectionHeader } from "../components/Section";
 import SelectSeparator from "../components/SelectSeparator";
+
+import { is_coerceable, coercions_for_type } from "cljs/metabase.types";
+import { isFK } from "metabase/lib/types";
 
 import {
   FieldVisibilityPicker,
@@ -42,15 +44,10 @@ import { getMetadata } from "metabase/selectors/metadata";
 import { rescanFieldValues, discardFieldValues } from "../field";
 
 // LIB
-import Metadata from "metabase-lib/lib/metadata/Metadata";
 import { has_field_values_options } from "metabase/lib/core";
 import { getGlobalSettingsForColumn } from "metabase/visualizations/lib/settings/column";
 import { isCurrency } from "metabase/lib/schema_metadata";
 
-import type { ColumnSettings as ColumnSettingsType } from "metabase-types/types/Dataset";
-import type { DatabaseId } from "metabase-types/types/Database";
-import type { TableId } from "metabase-types/types/Table";
-import type { FieldId } from "metabase-types/types/Field";
 import Databases from "metabase/entities/databases";
 import Tables from "metabase/entities/tables";
 import Fields from "metabase/entities/fields";
@@ -80,41 +77,18 @@ const mapDispatchToProps = {
   discardFieldValues,
 };
 
-@connect(
-  mapStateToProps,
-  mapDispatchToProps,
-)
+@connect(mapStateToProps, mapDispatchToProps)
 export default class FieldApp extends React.Component {
   state = {
     tab: "general",
   };
 
-  saveStatus: null;
+  constructor(props) {
+    super(props);
+    this.saveStatusRef = React.createRef();
+  }
 
-  props: {
-    databaseId: DatabaseId,
-    tableId: TableId,
-    fieldId: FieldId,
-    field: Object,
-    metadata: Metadata,
-    idfields: Object[],
-
-    fetchDatabaseMetadata: Object => Promise<void>,
-    fetchTableMetadata: Object => Promise<void>,
-    fetchFieldValues: Object => Promise<void>,
-    updateField: any => Promise<void>,
-    updateFieldValues: any => Promise<void>,
-    updateFieldDimension: (Object, any) => Promise<void>,
-    deleteFieldDimension: Object => Promise<void>,
-
-    rescanFieldValues: FieldId => Promise<void>,
-    discardFieldValues: FieldId => Promise<void>,
-
-    location: any,
-    params: any,
-  };
-
-  async UNSAFE_componentWillMount() {
+  async componentDidMount() {
     const {
       databaseId,
       tableId,
@@ -145,10 +119,10 @@ export default class FieldApp extends React.Component {
     ]);
   }
 
-  linkWithSaveStatus = (saveMethod: Function) => async (...args: any[]) => {
-    this.saveStatus && this.saveStatus.setSaving();
+  linkWithSaveStatus = saveMethod => async (...args) => {
+    this.saveStatusRef.current && this.saveStatusRef.current.setSaving();
     await saveMethod(...args);
-    this.saveStatus && this.saveStatus.setSaved();
+    this.saveStatusRef.current && this.saveStatusRef.current.setSaved();
   };
 
   onUpdateFieldProperties = this.linkWithSaveStatus(async fieldProps => {
@@ -175,8 +149,7 @@ export default class FieldApp extends React.Component {
     this.props.deleteFieldDimension,
   );
 
-  // $FlowFixMe
-  onUpdateFieldSettings = (settings: ColumnSettingsType): void => {
+  onUpdateFieldSettings = settings => {
     return this.onUpdateFieldProperties({ settings });
   };
 
@@ -238,7 +211,7 @@ export default class FieldApp extends React.Component {
                 </div>
               )}
               <div className="absolute top right mt4 mr4">
-                <SaveStatus ref={ref => (this.saveStatus = ref)} />
+                <SaveStatus ref={this.saveStatusRef} />
               </div>
 
               {section == null || section === "general" ? (
@@ -315,6 +288,35 @@ const FieldGeneralPane = ({
       />
     </Section>
 
+    {!isFK(field.semantic_type) && is_coerceable(field.base_type) && (
+      <Section>
+        <SectionHeader title={t`Cast to a specific data type`} />
+        <Select
+          className="inline-block"
+          placeholder={t`Select a conversion`}
+          searchProp="name"
+          value={field.coercion_strategy}
+          onChange={({ target: { value } }) =>
+            onUpdateFieldProperties({
+              coercion_strategy: value,
+            })
+          }
+          options={[
+            ...coercions_for_type(field.base_type).map(c => ({
+              id: c,
+              name: c,
+            })),
+            {
+              id: null,
+              name: t`Don't cast`,
+            },
+          ]}
+          optionValueFn={field => field.id}
+          optionNameFn={field => humanizeCoercionStrategy(field.name)}
+          optionIconFn={field => null}
+        />
+      </Section>
+    )}
     <Section>
       <SectionHeader
         title={t`Filtering on this field`}
@@ -380,13 +382,7 @@ const FieldSettingsPane = ({ field, onUpdateFieldSettings }) => (
 
 // TODO: Should this invoke goBack() instead?
 // not sure if it's possible to do that neatly with Link component
-export const BackButton = ({
-  databaseId,
-  tableId,
-}: {
-  databaseId: DatabaseId,
-  tableId: TableId,
-}) => (
+export const BackButton = ({ databaseId, tableId }) => (
   <Link
     to={`/admin/datamodel/database/${databaseId}/table/${tableId}`}
     className="circle text-white p2 flex align-center justify-center bg-dark bg-brand-hover"
@@ -396,10 +392,10 @@ export const BackButton = ({
 );
 
 export class FieldHeader extends React.Component {
-  onNameChange = (e: { target: HTMLInputElement }) => {
+  onNameChange = e => {
     this.updateNameDebounced(e.target.value);
   };
-  onDescriptionChange = (e: { target: HTMLInputElement }) => {
+  onDescriptionChange = e => {
     this.updateDescriptionDebounced(e.target.value);
   };
 

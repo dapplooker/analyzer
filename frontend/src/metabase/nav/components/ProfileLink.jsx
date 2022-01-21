@@ -8,7 +8,6 @@ import { capitalize } from "metabase/lib/formatting";
 import { color, darken } from "metabase/lib/colors";
 
 import MetabaseSettings from "metabase/lib/settings";
-import * as Urls from "metabase/lib/urls";
 import Modal from "metabase/components/Modal";
 
 import LogoIcon from "metabase/components/LogoIcon";
@@ -37,7 +36,7 @@ export default class ProfileLink extends Component {
   generateOptionsForUser = () => {
     const { tag } = MetabaseSettings.get("version");
     const admin = this.props.user.is_superuser;
-    const adminContext = this.props.context === "admin";
+
     return [
       // {
       //   title: t`Account settings`,
@@ -45,35 +44,40 @@ export default class ProfileLink extends Component {
       //   link: Urls.accountSettings(),
       //   event: `Navbar;Profile Dropdown;Edit Profile`,
       // },
-      ...(admin && [
-        {
-          title: adminContext ? t`Exit admin` : t`Admin`,
-          icon: null,
-          link: adminContext ? "/" : "/admin",
-          event: `Navbar;Profile Dropdown;${
-            adminContext ? "Exit Admin" : "Enter Admin"
-            }`,
-        },
-      ]),
+      admin && {
+        title: t`Admin settings`,
+        icon: null,
+        link: "/admin",
+        event: `Navbar;Profile Dropdown;Enter Admin`,
+      },
       {
         title: t`Activity`,
         icon: null,
         link: "/activity",
         event: `Navbar;Profile Dropdown;Activity ${tag}`,
       },
-      // {
-      //   title: t`Help`,
-      //   icon: null,
-      //   link: MetabaseSettings.docsUrl(),
-      //   externalLink: true,
-      //   event: `Navbar;Profile Dropdown;About ${tag}`,
-      // },
-      // {
-      //   title: t`About Metabase`,
-      //   icon: null,
-      //   action: () => this.openModal("about"),
-      //   event: `Navbar;Profile Dropdown;About ${tag}`,
-      // },
+      {
+        title: t`Need Help?`,
+        icon: null,
+        link: 'https://dapplooker.com/#contact_us',
+        externalLink: true,
+        event: `Navbar;Profile Dropdown;About ${tag}`,
+      },
+      {
+        title: t`Documentation`,
+        icon: null,
+        link: 'https://dapplooker.notion.site/dapplooker/Dapplooker-Documentation-f3113336bdce4ecea688fa0ba69cec98',
+        externalLink: true,
+        event: `Navbar;Profile Dropdown;About ${tag}`,
+      },
+      {
+        title: t`FAQ`,
+        icon: null,
+        link: 'https://dapplooker.com/faq/',
+        externalLink: true,
+        event: `Navbar;Profile Dropdown;About ${tag}`,
+      },
+     
       // {
       //   title: t`Sign out`,
       //   icon: null,
@@ -85,10 +89,9 @@ export default class ProfileLink extends Component {
 
   render() {
     const { modalOpen } = this.state;
-    const adminContext = this.props.context === "admin";
     const { tag, date, ...versionExtra } = MetabaseSettings.get("version");
     // don't show trademark if application name is whitelabeled
-    const showTrademark = t`Metabase` === "Metabase";
+    const showTrademark = t`Metabase` === "";
     return (
       <Box>
         <EntityMenu
@@ -97,9 +100,7 @@ export default class ProfileLink extends Component {
           triggerIcon="gear"
           triggerProps={{
             hover: {
-              backgroundColor: adminContext
-                ? darken(color("accent7"))
-                : darken(color("brand")),
+              backgroundColor: darken(color("brand")),
               color: "white",
             },
           }}
@@ -141,7 +142,7 @@ export default class ProfileLink extends Component {
                   <span className="text-bold">Metabase</span>{" "}
                   {t`is a Trademark of`} Metabase, Inc
                 </span>
-                <span>{t`and is built with care in San Francisco, CA`}</span>
+                <span>{t`and is built with care by a team from all across this pale blue dot.`}</span>
               </div>
             )}
           </Modal>

@@ -1,22 +1,8 @@
-/* @flow */
-
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
 
 import Select, { Option } from "./Select";
 import InputBlurChange from "./InputBlurChange";
-
-type Props = {
-  onChange: (value: any) => void,
-  value: string,
-  prefixes: string[],
-  defaultPrefix: string,
-  caseInsensitivePrefix?: boolean,
-};
-
-type State = {
-  prefix: string,
-  rest: string,
-};
 
 function splitValue({
   value,
@@ -38,10 +24,7 @@ function splitValue({
 }
 
 export default class InputWithSelectPrefix extends Component {
-  props: Props;
-  state: State;
-
-  constructor(props: Props) {
+  constructor(props) {
     super(props);
 
     const [prefix, rest] = splitValue(props);
@@ -57,7 +40,7 @@ export default class InputWithSelectPrefix extends Component {
     }
   }
 
-  componentDidUpdate(prevProps: Props, prevState: State) {
+  componentDidUpdate(prevProps, prevState) {
     const { prefix, rest } = this.state;
     if (prevState.rest !== rest || prevState.prefix !== prefix) {
       const value = prefix + rest;
@@ -80,7 +63,9 @@ export default class InputWithSelectPrefix extends Component {
           buttonProps={{ className: "borderless" }}
         >
           {prefixes.map(p => (
-            <Option value={p}>{p}</Option>
+            <Option key={p} value={p}>
+              {p}
+            </Option>
           ))}
         </Select>
         <InputBlurChange

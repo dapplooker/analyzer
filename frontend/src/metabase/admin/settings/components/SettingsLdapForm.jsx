@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React from "react";
 import { t } from "ttag";
 
@@ -6,10 +7,7 @@ import { updateLdapSettings } from "metabase/admin/settings/settings";
 
 import SettingsBatchForm from "./SettingsBatchForm";
 
-@connect(
-  null,
-  { updateSettings: updateLdapSettings },
-)
+@connect(null, { updateSettings: updateLdapSettings })
 export default class SettingsLdapForm extends React.Component {
   render() {
     return (
@@ -50,6 +48,9 @@ export default class SettingsLdapForm extends React.Component {
             settings: [
               "ldap-group-sync",
               "ldap-group-base",
+              "ldap-group-membership-filter" in this.props.settingValues
+                ? "ldap-group-membership-filter"
+                : null,
               "ldap-sync-admin-group" in this.props.settingValues
                 ? "ldap-sync-admin-group"
                 : null,

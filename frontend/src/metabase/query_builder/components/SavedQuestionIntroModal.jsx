@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
 
 import Modal from "metabase/components/Modal";
@@ -13,7 +14,7 @@ export default class SavedQuestionIntroModal extends Component {
           className="Modal-content text-centered py2"
         >
           <div className="px2 pb2 text-paragraph">
-            {t`You won't make any permanent changes to a saved question unless you click Save and choose to replace the original question.`}
+            {t`You won't make any permanent changes to a saved chart unless you click Save and choose to replace the original chart.`}
           </div>
           <div className="Form-actions flex justify-center py1">
             <button

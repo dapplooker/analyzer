@@ -47,20 +47,20 @@ describe("getXValues", () => {
   });
 
   it("should correctly merge multiple series of ascending numbers", () => {
-    expect(getXValuesForRows([[[2], [11], [12]], [[1], [2], [11]]])).toEqual([
-      1,
-      2,
-      11,
-      12,
-    ]);
+    expect(
+      getXValuesForRows([
+        [[2], [11], [12]],
+        [[1], [2], [11]],
+      ]),
+    ).toEqual([1, 2, 11, 12]);
   });
   it("should correctly merge multiple series of descending numbers", () => {
-    expect(getXValuesForRows([[[12], [11], [2]], [[11], [2], [1]]])).toEqual([
-      12,
-      11,
-      2,
-      1,
-    ]);
+    expect(
+      getXValuesForRows([
+        [[12], [11], [2]],
+        [[11], [2], [1]],
+      ]),
+    ).toEqual([12, 11, 2, 1]);
   });
   it("should use raw row ordering rather than broken out series", () => {
     const series = [
@@ -114,7 +114,10 @@ describe("getXValues", () => {
   it("should sort values according to parsed value", () => {
     expect(
       getXValuesForRows(
-        [[["2019-W33"], ["2019-08-13"]], [["2019-08-11"], ["2019-W33"]]],
+        [
+          [["2019-W33"], ["2019-08-13"]],
+          [["2019-08-11"], ["2019-W33"]],
+        ],
         { "graph.x_axis.scale": "timeseries" },
       ).map(x => x.format()),
     ).toEqual([
@@ -123,8 +126,9 @@ describe("getXValues", () => {
       "2019-08-13T00:00:00Z",
     ]);
   });
-  it("should include nulls by default", () => {
-    const xValues = getXValuesForRows([[["foo"], [null], ["bar"]]]);
+  it("should include nulls for ordinal", () => {
+    const settings = { "graph.x_axis.scale": "ordinal" };
+    const xValues = getXValuesForRows([[["foo"], [null], ["bar"]]], settings);
     expect(xValues).toEqual(["foo", "(empty)", "bar"]);
   });
   it("should exclude nulls for histograms", () => {
@@ -162,8 +166,8 @@ describe("parseXValue", () => {
 });
 
 describe("getDatas", () => {
-  it("should include rows with a null dimension by default", () => {
-    const settings = {};
+  it("should include rows with a null dimension for ordinal axis", () => {
+    const settings = { "graph.x_axis.scale": "ordinal" };
     const series = [{ data: { rows: [["foo"], [null], ["bar"]], cols: [{}] } }];
     const warn = jest.fn();
     const xValues = getDatas({ settings, series }, warn);

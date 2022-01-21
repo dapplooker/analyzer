@@ -1,5 +1,3 @@
-/* @flow */
-
 import {
   compose,
   withAction,
@@ -21,6 +19,8 @@ import {
   getCollectionType,
   normalizedCollection,
 } from "metabase/entities/collections";
+
+import forms from "./dashboards/forms";
 
 const FAVORITE_ACTION = `metabase/entities/dashboards/FAVORITE`;
 const UNFAVORITE_ACTION = `metabase/entities/dashboards/UNFAVORITE`;
@@ -132,41 +132,19 @@ const Dashboards = createEntity({
   objectSelectors: {
     getFavorited: dashboard => dashboard && dashboard.favorite,
     getName: dashboard => dashboard && dashboard.name,
-    getUrl: dashboard => dashboard && Urls.dashboard(dashboard.id),
+    getUrl: dashboard => dashboard && Urls.dashboard(dashboard),
     getCollection: dashboard =>
       dashboard && normalizedCollection(dashboard.collection),
-    getIcon: dashboard => "dashboard",
+    getIcon: dashboard => ({ name: "dashboard" }),
     getColor: () => color("dashboard"),
-  },
-
-  form: {
-    fields: [
-      {
-        name: "name",
-        title: t`Name`,
-        placeholder: t`What is the name of your dashboard?`,
-        validate: name => (!name ? "Name is required" : null),
-      },
-      {
-        name: "description",
-        title: t`Description`,
-        type: "text",
-        placeholder: t`It's optional but oh, so helpful`,
-      },
-      {
-        name: "collection_id",
-        title: t`Which collection should this go in?`,
-        type: "collection",
-        validate: collectionId =>
-          collectionId === undefined ? "Collection is required" : null,
-      },
-    ],
   },
 
   getAnalyticsMetadata([object], { action }, getState) {
     const type = object && getCollectionType(object.collection_id, getState());
     return type && `collection=${type}`;
   },
+
+  forms,
 });
 
 export default Dashboards;

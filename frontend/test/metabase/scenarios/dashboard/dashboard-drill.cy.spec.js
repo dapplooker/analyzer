@@ -1,19 +1,26 @@
 import {
-  signIn,
   restore,
   modal,
   popover,
-  createNativeQuestion,
-} from "__support__/cypress";
+  filterWidget,
+  showDashboardCardActions,
+} from "__support__/e2e/cypress";
 
-import { SAMPLE_DATASET } from "__support__/cypress_sample_dataset";
+import { SAMPLE_DATASET } from "__support__/e2e/cypress_sample_dataset";
 
-const { ORDERS, PRODUCTS, PRODUCTS_ID, REVIEWS, REVIEWS_ID } = SAMPLE_DATASET;
+const {
+  ORDERS,
+  ORDERS_ID,
+  PRODUCTS,
+  PRODUCTS_ID,
+  REVIEWS,
+  REVIEWS_ID,
+} = SAMPLE_DATASET;
 
 describe("scenarios > dashboard > dashboard drill", () => {
   beforeEach(() => {
     restore();
-    signIn();
+    cy.signInAsAdmin();
   });
 
   it("should handle URL click through on a table", () => {
@@ -21,7 +28,8 @@ describe("scenarios > dashboard > dashboard drill", () => {
       cy.visit(`/dashboard/${dashboardId}`),
     );
     cy.icon("pencil").click();
-    cy.icon("click").click({ force: true });
+    showDashboardCardActions();
+    cy.icon("click").click();
 
     // configure a URL click through on the  "MY_NUMBER" column
     cy.findByText("On-click behavior for each column")
@@ -55,82 +63,92 @@ describe("scenarios > dashboard > dashboard drill", () => {
     cy.location("pathname").should("eq", "/foo/111/param-value");
   });
 
-  it.skip("should insert values from hidden column on custom destination URL click through (metabase#13927)", () => {
-    cy.log("Create a question");
+  it("should insert values from hidden column on custom destination URL click through (metabase#13927)", () => {
+    const questionDetails = {
+      name: "13927",
+      native: { query: "SELECT PEOPLE.STATE, PEOPLE.CITY from PEOPLE;" },
+    };
 
-    createNativeQuestion(
-      "13927",
-      `SELECT PEOPLE.STATE, PEOPLE.CITY from PEOPLE;`,
-    ).then(({ body: { id: QUESTION_ID } }) => {
-      cy.log("Create a dashboard");
+    const clickBehavior = {
+      "table.cell_column": "CITY",
+      "table.pivot_column": "STATE",
+      column_settings: {
+        '["name","CITY"]': {
+          click_behavior: {
+            type: "link",
+            linkType: "url",
+            linkTextTemplate:
+              "Click to find out which state does {{CITY}} belong to.",
+            linkTemplate: "/test/{{STATE}}",
+          },
+        },
+      },
+      "table.columns": [
+        {
+          name: "STATE",
+          fieldRef: ["field", "STATE", { "base-type": "type/Text" }],
+          enabled: false,
+        },
+        {
+          name: "CITY",
+          fieldRef: ["field", "CITY", { "base-type": "type/Text" }],
+          enabled: true,
+        },
+      ],
+    };
 
-      cy.request("POST", "/api/dashboard", {
-        name: "13927D",
-      }).then(({ body: { id: DASHBOARD_ID } }) => {
-        cy.log("Add question to the dashboard");
+    cy.createNativeQuestionAndDashboard({ questionDetails }).then(
+      ({ body: dashboardCard }) => {
+        const { dashboard_id } = dashboardCard;
 
-        cy.request("POST", `/api/dashboard/${DASHBOARD_ID}/cards`, {
-          cardId: QUESTION_ID,
-        }).then(({ body: { id: DASH_CARD_ID } }) => {
-          cy.log("Set card parameters");
-
-          cy.request("PUT", `/api/dashboard/${DASHBOARD_ID}/cards`, {
-            cards: [
-              {
-                id: DASH_CARD_ID,
-                card_id: QUESTION_ID,
-                row: 0,
-                col: 0,
-                sizeX: 6,
-                sizeY: 8,
-                series: [],
-                visualization_settings: {
-                  "table.cell_column": "CITY",
-                  "table.pivot_column": "STATE",
-                  column_settings: {
-                    '["name","CITY"]': {
-                      click_behavior: {
-                        type: "link",
-                        linkType: "url",
-                        linkTextTemplate:
-                          "Click to find out which state does {{CITY}} belong to.",
-                        linkTemplate: "/test/{{STATE}}",
-                      },
-                    },
-                  },
-                  "table.columns": [
-                    {
-                      name: "STATE",
-                      fieldRef: [
-                        "field",
-                        "STATE",
-                        { "base-type": "type/Text" },
-                      ],
-                      enabled: false,
-                    },
-                    {
-                      name: "CITY",
-                      fieldRef: ["field", "CITY", { "base-type": "type/Text" }],
-                      enabled: true,
-                    },
-                  ],
-                },
-                parameter_mappings: [],
-              },
-            ],
-          });
+        cy.editDashboardCard(dashboardCard, {
+          visualization_settings: clickBehavior,
         });
 
-        cy.visit(`/dashboard/${DASHBOARD_ID}`);
+        cy.visit(`/dashboard/${dashboard_id}`);
+      },
+    );
 
-        cy.findByText(
-          "Click to find out which state does Rye belong to.",
-        ).click();
+    cy.findByText("Click to find out which state does Rye belong to.").click();
 
-        cy.log("Reported failing on v0.37.2");
-        cy.location("pathname").should("eq", "/test/CO");
-      });
-    });
+    cy.log("Reported failing on v0.37.2");
+    cy.location("pathname").should("eq", "/test/CO");
+  });
+
+  it("should insert data from the correct row in the URL for pivot tables (metabase#17920)", () => {
+    const query =
+      "SELECT STATE, SOURCE, COUNT(*) AS CNT from PEOPLE GROUP BY STATE, SOURCE";
+    const questionSettings = {
+      "table.pivot": true,
+      "table.pivot_column": "SOURCE",
+      "table.cell_column": "CNT",
+    };
+    const columnKey = JSON.stringify(["name", "CNT"]);
+    const dashCardSettings = {
+      column_settings: {
+        [columnKey]: {
+          click_behavior: {
+            type: "link",
+            linkType: "url",
+            linkTemplate: "/test/{{CNT}}/{{STATE}}/{{SOURCE}}",
+          },
+        },
+      },
+    };
+    createQuestion(
+      { query, visualization_settings: questionSettings },
+      questionId => {
+        createDashboard(
+          { questionId, visualization_settings: dashCardSettings },
+          dashboardIdA => cy.visit(`/dashboard/${dashboardIdA}`),
+        );
+      },
+    );
+
+    cy.findAllByText("18")
+      .first()
+      .click();
+    cy.location("pathname").should("eq", "/test/18/CO/Organic");
   });
 
   it("should handle question click through on a table", () => {
@@ -138,7 +156,8 @@ describe("scenarios > dashboard > dashboard drill", () => {
       cy.visit(`/dashboard/${dashboardId}`),
     );
     cy.icon("pencil").click();
-    cy.icon("click").click({ force: true });
+    showDashboardCardActions();
+    cy.icon("click").click();
 
     // configure a dashboard target for the "MY_NUMBER" column
     cy.findByText("On-click behavior for each column")
@@ -154,10 +173,9 @@ describe("scenarios > dashboard > dashboard drill", () => {
     popover().within(() => cy.findByText("My Param").click());
 
     // set the text template
-    cy.findByPlaceholderText("E.x. Details for {{Column Name}}").type(
-      "num: {{my_number}}",
-      { parseSpecialCharSequences: false },
-    );
+    cy.findByPlaceholderText(
+      "E.x. Details for {{Column Name}}",
+    ).type("num: {{my_number}}", { parseSpecialCharSequences: false });
     cy.findByText("Save").click();
 
     // wait to leave editing mode and set a param value
@@ -168,7 +186,7 @@ describe("scenarios > dashboard > dashboard drill", () => {
     cy.findByText("num: 111").click();
 
     // show filtered question
-    cy.findByText("Orders");
+    cy.findAllByText("Orders");
     cy.findByText("User ID is 111");
     cy.findByText("Category is Widget");
     cy.findByText("Showing 5 rows");
@@ -189,7 +207,8 @@ describe("scenarios > dashboard > dashboard drill", () => {
       );
     });
     cy.icon("pencil").click();
-    cy.icon("click").click({ force: true });
+    showDashboardCardActions();
+    cy.icon("click").click();
 
     // configure clicks on "MY_NUMBER to update the param
     cy.findByText("On-click behavior for each column")
@@ -207,10 +226,9 @@ describe("scenarios > dashboard > dashboard drill", () => {
     popover().within(() => cy.findByText("MY_STRING").click());
 
     // set the text template
-    cy.findByPlaceholderText("E.x. Details for {{Column Name}}").type(
-      "text: {{my_string}}",
-      { parseSpecialCharSequences: false },
-    );
+    cy.findByPlaceholderText(
+      "E.x. Details for {{Column Name}}",
+    ).type("text: {{my_string}}", { parseSpecialCharSequences: false });
     cy.findByText("Save").click();
 
     // click on table value
@@ -231,7 +249,8 @@ describe("scenarios > dashboard > dashboard drill", () => {
       cy.visit(`/dashboard/${dashboardId}`),
     );
     cy.icon("pencil").click();
-    cy.icon("click").click({ force: true });
+    showDashboardCardActions();
+    cy.icon("click").click();
 
     // configure clicks on "MY_NUMBER to update the param
     cy.findByText("On-click behavior for each column")
@@ -255,96 +274,79 @@ describe("scenarios > dashboard > dashboard drill", () => {
       .within(() => cy.findByText("foo"));
   });
 
-  it("should pass multiple filters for numeric column on drill-through (metabase#13062)", () => {
-    // Preparation for the test: "Arrange and Act phase" - see repro steps in #13062
-    // 1. set "Rating" Field type to: "Category"
-
-    cy.request("PUT", `/api/field/${REVIEWS.RATING}`, {
-      semantic_type: "type/Category",
-    });
-    // 2. create a question based on Reviews
-    cy.request("POST", `/api/card`, {
+  describe("should pass multiple filters for numeric column on drill-through (metabase#13062)", () => {
+    const questionDetails = {
       name: "13062Q",
-      dataset_query: {
-        database: 1,
-        query: {
-          "source-table": REVIEWS_ID,
-        },
-        type: "query",
+      query: {
+        "source-table": REVIEWS_ID,
       },
-      display: "table",
-      visualization_settings: {},
-    }).then(({ body: { id: questionId } }) => {
-      // 3. create a dashboard
-      cy.request("POST", "/api/dashboard", {
-        name: "13062D",
-      }).then(({ body: { id: dashboardId } }) => {
-        // add filter to the dashboard
-        cy.request("PUT", `/api/dashboard/${dashboardId}`, {
-          parameters: [
-            {
-              id: "18024e69",
-              name: "Category",
-              slug: "category",
-              type: "category",
-            },
-          ],
-        });
+    };
 
-        // add previously created question to the dashboard
-        cy.request("POST", `/api/dashboard/${dashboardId}/cards`, {
-          cardId: questionId,
-        }).then(({ body: { id: dashCardId } }) => {
-          // connect filter to that question
-          cy.request("PUT", `/api/dashboard/${dashboardId}/cards`, {
+    const filter = {
+      id: "18024e69",
+      name: "Category",
+      slug: "category",
+      type: "category",
+    };
+
+    beforeEach(() => {
+      // Set "Rating" Field type to: "Category"
+      cy.request("PUT", `/api/field/${REVIEWS.RATING}`, {
+        semantic_type: "type/Category",
+      });
+
+      cy.createQuestionAndDashboard({ questionDetails }).then(
+        ({ body: { id, card_id, dashboard_id } }) => {
+          // Add filter to the dashboard
+          cy.request("PUT", `/api/dashboard/${dashboard_id}`, {
+            parameters: [filter],
+          });
+
+          // Connect filter to the dashboard card
+          cy.request("PUT", `/api/dashboard/${dashboard_id}/cards`, {
             cards: [
               {
-                id: dashCardId,
-                card_id: questionId,
+                id,
+                card_id,
                 row: 0,
                 col: 0,
                 sizeX: 8,
                 sizeY: 6,
                 parameter_mappings: [
                   {
-                    parameter_id: "18024e69",
-                    card_id: questionId,
+                    parameter_id: filter.id,
+                    card_id,
                     target: ["dimension", ["field", REVIEWS.RATING, null]],
                   },
                 ],
               },
             ],
           });
-        });
 
-        // NOTE: The actual "Assertion" phase begins here
-        cy.log("Reported failing on Metabase 1.34.3 and 0.36.2");
+          // set filter values (ratings 5 and 4) directly through the URL
+          cy.visit(`/dashboard/${dashboard_id}?category=5&category=4`);
+          cy.findByText("2 selections");
+        },
+      );
+    });
 
-        cy.log("The first case");
-        // set filter values (ratings 5 and 4) directly through the URL
-        cy.visit(`/dashboard/${dashboardId}?category=5&category=4`);
+    it("when clicking on the field value (metabase#13062-1)", () => {
+      cy.findByText("xavier").click();
+      cy.findByText("=").click();
 
-        // drill-through
-        cy.findByText("xavier").click();
-        cy.findByText("=").click();
+      cy.findByText("Reviewer is xavier");
+      cy.findByText("Rating is equal to 2 selections");
+      cy.contains("Reprehenderit non error"); // xavier's review
+    });
 
-        cy.findByText("Reviewer is xavier");
-        cy.findByText("Rating is equal to 2 selections");
-        cy.contains("Reprehenderit non error"); // xavier's review
-
-        cy.log("The second case");
-        // go back to the dashboard
-        cy.visit(`/dashboard/${dashboardId}?category=5&category=4`);
-        cy.findByText("2 selections");
-
-        cy.findByText("13062Q").click(); // the card title
-        cy.findByText("Rating is equal to 2 selections");
-        cy.contains("Ad perspiciatis quis et consectetur."); // 5 star review
-      });
+    it("when clicking on the card title (metabase#13062-2)", () => {
+      cy.findByText(questionDetails.name).click();
+      cy.findByText("Rating is equal to 2 selections");
+      cy.contains("Ad perspiciatis quis et consectetur."); // 5 star review
     });
   });
 
-  it.skip("should drill-through on a foreign key (metabase#8055)", () => {
+  it("should drill-through on a foreign key (metabase#8055)", () => {
     // In this test we're using already present dashboard ("Orders in a dashboard")
     const FILTER_ID = "7c9ege62";
 
@@ -404,30 +406,19 @@ describe("scenarios > dashboard > dashboard drill", () => {
     cy.findByText("Fantastic Wool Shirt");
   });
 
-  it.skip("should apply correct date range on a graph drill-through (metabase#13785)", () => {
+  it("should apply correct date range on a graph drill-through (metabase#13785)", () => {
     cy.log("Create a question");
 
-    cy.request("POST", "/api/card", {
+    cy.createQuestion({
       name: "13785",
-      dataset_query: {
-        database: 1,
-        query: {
-          "source-table": REVIEWS_ID,
-          aggregation: [["count"]],
-          breakout: [
-            ["field", REVIEWS.CREATED_AT, { "temporal-unit": "month" }],
-          ],
-        },
-        type: "query",
+      query: {
+        "source-table": REVIEWS_ID,
+        aggregation: [["count"]],
+        breakout: [["field", REVIEWS.CREATED_AT, { "temporal-unit": "month" }]],
       },
       display: "bar",
-      visualization_settings: {},
     }).then(({ body: { id: QUESTION_ID } }) => {
-      cy.log("Create a dashboard");
-
-      cy.request("POST", "/api/dashboard", {
-        name: "13785D",
-      }).then(({ body: { id: DASHBOARD_ID } }) => {
+      cy.createDashboard().then(({ body: { id: DASHBOARD_ID } }) => {
         cy.log("Add filter to the dashboard");
 
         cy.request("PUT", `/api/dashboard/${DASHBOARD_ID}`, {
@@ -490,7 +481,10 @@ describe("scenarios > dashboard > dashboard drill", () => {
           });
         });
         cy.server();
-        cy.route("POST", `/api/card/${QUESTION_ID}/query`).as("cardQuery");
+        cy.route(
+          "POST",
+          `/api/dashboard/${DASHBOARD_ID}/card/${QUESTION_ID}/query`,
+        ).as("cardQuery");
 
         cy.visit(`/dashboard/${DASHBOARD_ID}`);
 
@@ -499,8 +493,8 @@ describe("scenarios > dashboard > dashboard drill", () => {
           .eq(14) // August 2017 (Total of 12 reviews, 9 unique days)
           .click({ force: true });
 
-        cy.wait("@cardQuery.2");
-        cy.url().should("include", "2017-08-01~2017-08-31");
+        cy.wait("@cardQuery");
+        cy.url().should("include", "2017-08");
         cy.get(".bar").should("have.length", 1);
         // Since hover doesn't work in Cypress we can't assert on the popover that's shown when one hovers the bar
         // But when this issue gets fixed, Y-axis should definitely show "12" (total count of reviews)
@@ -544,24 +538,14 @@ describe("scenarios > dashboard > dashboard drill", () => {
     cy.location("pathname").should("eq", "/it/worked");
   });
 
-  it.skip("should not remove click behavior on 'reset to defaults' (metabase#14919)", () => {
+  it("should not remove click behavior on 'reset to defaults' (metabase#14919)", () => {
     const LINK_NAME = "Home";
 
-    // Create question
-    cy.request("POST", "/api/card", {
+    cy.createQuestion({
       name: "14919",
-      dataset_query: {
-        database: 1,
-        query: { "source-table": PRODUCTS_ID },
-        type: "query",
-      },
-      display: "table",
-      visualization_settings: {},
+      query: { "source-table": PRODUCTS_ID },
     }).then(({ body: { id: QUESTION_ID } }) => {
-      // Create a dashboard
-      cy.request("POST", "/api/dashboard", {
-        name: "14919D",
-      }).then(({ body: { id: DASHBOARD_ID } }) => {
+      cy.createDashboard().then(({ body: { id: DASHBOARD_ID } }) => {
         // Add previously added question to the dashboard
         cy.request("POST", `/api/dashboard/${DASHBOARD_ID}/cards`, {
           cardId: QUESTION_ID,
@@ -598,18 +582,289 @@ describe("scenarios > dashboard > dashboard drill", () => {
         cy.visit(`/dashboard/${DASHBOARD_ID}`);
         cy.icon("pencil").click();
         // Edit "Visualization options"
-        cy.get(".DashCard .Icon-palette").click({ force: true });
+        showDashboardCardActions();
+        cy.icon("palette").click();
         cy.get(".Modal").within(() => {
           cy.findByText("Reset to defaults").click();
-          cy.findByRole("button", { name: "Done" }).click();
+          cy.button("Done").click();
         });
         // Save the whole dashboard
-        cy.findByRole("button", { name: "Save" }).click();
+        cy.button("Save").click();
         cy.findByText("You're editing this dashboard.").should("not.exist");
         cy.log("Reported failing on v0.38.0 - link gets dropped");
         cy.get(".DashCard").findAllByText(LINK_NAME);
       });
     });
+  });
+
+  it('should drill-through on PK/FK to the "object detail" when filtered by explicit joined column (metabase#15331)', () => {
+    cy.server();
+    cy.route("POST", "/api/dataset").as("dataset");
+
+    cy.createQuestion({
+      name: "15331",
+      query: {
+        "source-table": ORDERS_ID,
+        joins: [
+          {
+            fields: "all",
+            "source-table": PRODUCTS_ID,
+            condition: [
+              "=",
+              ["field-id", ORDERS.PRODUCT_ID],
+              ["joined-field", "Products", ["field-id", PRODUCTS.ID]],
+            ],
+            alias: "Products",
+          },
+        ],
+      },
+    }).then(({ body: { id: QUESTION_ID } }) => {
+      cy.createDashboard().then(({ body: { id: DASHBOARD_ID } }) => {
+        // Add filter to the dashboard
+        cy.request("PUT", `/api/dashboard/${DASHBOARD_ID}`, {
+          parameters: [
+            {
+              name: "Date Filter",
+              slug: "date_filter",
+              id: "354cb21f",
+              type: "date/all-options",
+            },
+          ],
+        });
+        // Add question to the dashboard
+        cy.request("POST", `/api/dashboard/${DASHBOARD_ID}/cards`, {
+          cardId: QUESTION_ID,
+        }).then(({ body: { id: DASH_CARD_ID } }) => {
+          // Connect dashboard filter to the question
+          cy.request("PUT", `/api/dashboard/${DASHBOARD_ID}/cards`, {
+            cards: [
+              {
+                id: DASH_CARD_ID,
+                card_id: QUESTION_ID,
+                row: 0,
+                col: 0,
+                sizeX: 14,
+                sizeY: 10,
+                series: [],
+                visualization_settings: {},
+                parameter_mappings: [
+                  {
+                    parameter_id: "354cb21f",
+                    card_id: QUESTION_ID,
+                    target: [
+                      "dimension",
+                      [
+                        "joined-field",
+                        "Products",
+                        ["field-id", PRODUCTS.CREATED_AT],
+                      ],
+                    ],
+                  },
+                ],
+              },
+            ],
+          });
+        });
+        // Set the filter to `previous 30 years` directly through the url
+        cy.visit(`/dashboard/${DASHBOARD_ID}?date_filter=past30years`);
+      });
+    });
+    cy.get(".Table-ID")
+      .first()
+      // Mid-point check that this cell actually contains ID = 1
+      .contains("1")
+      .click();
+
+    cy.wait("@dataset").then(xhr => {
+      expect(xhr.response.body.error).to.not.exist;
+    });
+    cy.findByText("37.65");
+    cy.findByText("No relationships found.");
+  });
+
+  it("should display correct tooltip value for multiple series charts on dashboard (metabase#15612)", () => {
+    cy.createNativeQuestion({
+      name: "15612_1",
+      native: { query: "select 1 as axis, 5 as value" },
+      display: "bar",
+      visualization_settings: {
+        "graph.dimensions": ["AXIS"],
+        "graph.metrics": ["VALUE"],
+      },
+    }).then(({ body: { id: QUESTION1_ID } }) => {
+      cy.createNativeQuestion({
+        name: "15612_2",
+        native: { query: "select 1 as axis, 10 as value" },
+        display: "bar",
+        visualization_settings: {
+          "graph.dimensions": ["AXIS"],
+          "graph.metrics": ["VALUE"],
+        },
+      }).then(({ body: { id: QUESTION2_ID } }) => {
+        cy.createDashboard().then(({ body: { id: DASHBOARD_ID } }) => {
+          // Add the first question to the dashboard
+          cy.request("POST", `/api/dashboard/${DASHBOARD_ID}/cards`, {
+            cardId: QUESTION1_ID,
+          }).then(({ body: { id: DASH_CARD1_ID } }) => {
+            cy.request("PUT", `/api/dashboard/${DASHBOARD_ID}/cards`, {
+              cards: [
+                {
+                  id: DASH_CARD1_ID,
+                  card_id: QUESTION1_ID,
+                  row: 0,
+                  col: 0,
+                  sizeX: 12,
+                  sizeY: 8,
+                  series: [
+                    {
+                      id: QUESTION2_ID,
+                    },
+                  ],
+                  visualization_settings: {},
+                  parameter_mappings: [],
+                },
+              ],
+            });
+          });
+          cy.intercept(
+            "POST",
+            `/api/dashboard/${DASHBOARD_ID}/card/${QUESTION2_ID}/query`,
+          ).as("secondCardQuery");
+
+          cy.visit(`/dashboard/${DASHBOARD_ID}`);
+          cy.wait("@secondCardQuery");
+
+          cy.get(".bar")
+            .first()
+            .trigger("mousemove");
+
+          popover().within(() => {
+            testPairedTooltipValues("AXIS", "1");
+            testPairedTooltipValues("VALUE", "5");
+          });
+
+          cy.get(".bar")
+            .last()
+            .trigger("mousemove");
+
+          popover().within(() => {
+            testPairedTooltipValues("AXIS", "1");
+            testPairedTooltipValues("VALUE", "10");
+          });
+        });
+      });
+    });
+  });
+
+  describe("should preserve dashboard filter and apply it to the question on a drill-through (metabase#11503)", () => {
+    const ordersIdFilter = {
+      name: "Orders ID",
+      slug: "orders_id",
+      id: "82a5a271",
+      type: "id",
+      sectionId: "id",
+    };
+
+    const productsIdFilter = {
+      name: "Products ID",
+      slug: "products_id",
+      id: "a4dc1976",
+      type: "id",
+      sectionId: "id",
+    };
+
+    const parameters = [ordersIdFilter, productsIdFilter];
+
+    beforeEach(() => {
+      // Add filters to the dashboard
+      cy.request("PUT", "/api/dashboard/1", {
+        parameters,
+      });
+
+      // Connect those filters to the existing dashboard card
+      cy.request("PUT", "/api/dashboard/1/cards", {
+        cards: [
+          {
+            id: 1,
+            card_id: 1,
+            row: 0,
+            col: 0,
+            sizeX: 12,
+            sizeY: 8,
+            series: [],
+            visualization_settings: {},
+            parameter_mappings: [
+              {
+                parameter_id: ordersIdFilter.id,
+                card_id: 1,
+                target: ["dimension", ["field", ORDERS.ID, null]],
+              },
+              {
+                parameter_id: productsIdFilter.id,
+                card_id: 1,
+                target: [
+                  "dimension",
+                  [
+                    "field",
+                    PRODUCTS.ID,
+                    {
+                      "source-field": ORDERS.PRODUCT_ID,
+                    },
+                  ],
+                ],
+              },
+            ],
+          },
+        ],
+      });
+
+      cy.visit("/dashboard/1");
+    });
+
+    it("should correctly drill-through on Orders filter (metabase#11503-1)", () => {
+      setFilterValue(ordersIdFilter.name);
+
+      drillThroughCardTitle("Orders");
+
+      cy.findByText("37.65");
+      cy.findByText("110.93");
+      cy.findByText("52.72").should("not.exist");
+      cy.findByText("Showing 2 rows");
+
+      postDrillAssertion();
+    });
+
+    it("should correctly drill-through on Products filter (metabase#11503-2)", () => {
+      setFilterValue(productsIdFilter.name);
+
+      drillThroughCardTitle("Orders");
+
+      cy.findByText("37.65").should("not.exist");
+      cy.findAllByText("105.12");
+      cy.findByText("Showing 191 rows");
+
+      postDrillAssertion();
+    });
+
+    function setFilterValue(filterName) {
+      filterWidget()
+        .contains(filterName)
+        .click();
+      cy.findByPlaceholderText("Enter an ID").type("1,2,");
+      cy.button("Add filter").click();
+      cy.findByText("2 selections");
+    }
+
+    function postDrillAssertion() {
+      cy.findByText("ID is 2 selections").click();
+      popover().within(() => {
+        cy.get("li")
+          .should("have.length", 3) // The third one is an input field
+          .and("contain", "1")
+          .and("contain", "2");
+        cy.findByText("Update filter");
+      });
+    }
   });
 });
 
@@ -627,7 +882,9 @@ function createQuestion(options, callback) {
     dataset_query: {
       database: 1,
       type: "native",
-      native: { query: "select 111 as my_number, 'foo' as my_string" },
+      native: {
+        query: options.query || "select 111 as my_number, 'foo' as my_string",
+      },
     },
     display: "table",
     visualization_settings: options.visualization_settings || {},
@@ -642,47 +899,47 @@ function createDashboard(
   { dashboardName = "dashboard", questionId, visualization_settings },
   callback,
 ) {
-  cy.request("POST", "/api/dashboard", {
-    name: dashboardName,
-  }).then(({ body: { id: dashboardId } }) => {
-    cy.request("PUT", `/api/dashboard/${dashboardId}`, {
-      parameters: [
-        {
-          name: "My Param",
-          slug: "my_param",
-          id: "e8f79be9",
-          type: "category",
-        },
-      ],
-    });
-
-    cy.request("POST", `/api/dashboard/${dashboardId}/cards`, {
-      cardId: questionId,
-    }).then(({ body: { id: dashCardId } }) => {
-      cy.request("PUT", `/api/dashboard/${dashboardId}/cards`, {
-        cards: [
+  cy.createDashboard({ name: dashboardName }).then(
+    ({ body: { id: dashboardId } }) => {
+      cy.request("PUT", `/api/dashboard/${dashboardId}`, {
+        parameters: [
           {
-            id: dashCardId,
-            card_id: questionId,
-            row: 0,
-            col: 0,
-            sizeX: 6,
-            sizeY: 6,
-            parameter_mappings: [
-              {
-                parameter_id: "e8f79be9",
-                card_id: questionId,
-                target: ["dimension", ["field", 22, { "source-field": 11 }]],
-              },
-            ],
-            visualization_settings,
+            name: "My Param",
+            slug: "my_param",
+            id: "e8f79be9",
+            type: "category",
           },
         ],
       });
 
-      callback(dashboardId);
-    });
-  });
+      cy.request("POST", `/api/dashboard/${dashboardId}/cards`, {
+        cardId: questionId,
+      }).then(({ body: { id: dashCardId } }) => {
+        cy.request("PUT", `/api/dashboard/${dashboardId}/cards`, {
+          cards: [
+            {
+              id: dashCardId,
+              card_id: questionId,
+              row: 0,
+              col: 0,
+              sizeX: 6,
+              sizeY: 6,
+              parameter_mappings: [
+                {
+                  parameter_id: "e8f79be9",
+                  card_id: questionId,
+                  target: ["dimension", ["field", 22, { "source-field": 11 }]],
+                },
+              ],
+              visualization_settings,
+            },
+          ],
+        });
+
+        callback(dashboardId);
+      });
+    },
+  );
 }
 
 function setParamValue(paramName, text) {
@@ -693,4 +950,18 @@ function setParamValue(paramName, text) {
     cy.findByPlaceholderText("Search by Name").type(text);
     cy.findByText("Add filter").click();
   });
+}
+
+function drillThroughCardTitle(title) {
+  cy.findByTestId("legend-caption")
+    .contains(title)
+    .click();
+  cy.contains(`Started from ${title}`);
+}
+
+function testPairedTooltipValues(val1, val2) {
+  cy.contains(val1)
+    .closest("td")
+    .siblings("td")
+    .findByText(val2);
 }

@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React from "react";
 import { Box, Flex } from "grid-styled";
 import { t, msgid, ngettext } from "ttag";
@@ -35,12 +36,12 @@ const BulkActionControls = ({ onArchive, onMove }) => (
 
 const SelectionControls = ({
   selected,
-  deselected,
+  hasUnselected,
   onSelectAll,
   onSelectNone,
   size = 18,
 }) =>
-  deselected.length === 0 ? (
+  !hasUnselected ? (
     <StackedCheckBox checked onChange={onSelectNone} size={size} />
   ) : selected.length === 0 ? (
     <StackedCheckBox onChange={onSelectAll} size={size} />
@@ -48,15 +49,16 @@ const SelectionControls = ({
     <StackedCheckBox checked indeterminate onChange={onSelectAll} size={size} />
   );
 
-export default function BulkActions(props) {
+function BulkActions(props) {
   const {
     selected,
     selectedItems,
     selectedAction,
-    handleBulkArchive,
-    handleBulkMoveStart,
-    handleCloseModal,
-    handleBulkMove,
+    onArchive,
+    onMoveStart,
+    onCloseModal,
+    onMove,
+    onCopy,
   } = props;
   return (
     <BulkActionBar showing={selected.length > 0}>
@@ -64,19 +66,17 @@ export default function BulkActions(props) {
                    to the main content above to ensure the bulk checkbox lines up */}
       <Box px={[2, 4]} py={1}>
         <Grid>
-          <GridItem w={[1, 1 / 3]} />
-          <GridItem w={[1, 2 / 3]} px={[1, 2]}>
+          <GridItem width={[1, 1 / 3]} />
+          <GridItem width={[1, 2 / 3]} px={[1, 2]}>
             <Flex align="center" justify="center" px={2}>
               <SelectionControls {...props} />
               <BulkActionControls
                 onArchive={
-                  _.all(selected, item => item.setArchived)
-                    ? handleBulkArchive
-                    : null
+                  _.all(selected, item => item.setArchived) ? onArchive : null
                 }
                 onMove={
                   _.all(selected, item => item.setCollection)
-                    ? handleBulkMoveStart
+                    ? onMoveStart
                     : null
                 }
               />
@@ -92,30 +92,32 @@ export default function BulkActions(props) {
         </Grid>
       </Box>
       {!_.isEmpty(selectedItems) && selectedAction === "copy" && (
-        <Modal onClose={handleCloseModal}>
+        <Modal onClose={onCloseModal}>
           <CollectionCopyEntityModal
             entityObject={selectedItems[0]}
-            onClose={handleCloseModal}
-            onSaved={newEntityObject => {
-              this.handleCloseModal();
-              this.handleBulkActionSuccess();
+            onClose={onCloseModal}
+            onSaved={() => {
+              onCloseModal();
+              onCopy();
             }}
           />
         </Modal>
       )}
       {!_.isEmpty(selectedItems) && selectedAction === "move" && (
-        <Modal onClose={handleCloseModal}>
+        <Modal onClose={onCloseModal}>
           <CollectionMoveModal
             title={
               selectedItems.length > 1
                 ? t`Move ${selectedItems.length} items?`
                 : t`Move "${selectedItems[0].getName()}"?`
             }
-            onClose={handleCloseModal}
-            onMove={handleBulkMove}
+            onClose={onCloseModal}
+            onMove={onMove}
           />
         </Modal>
       )}
     </BulkActionBar>
   );
 }
+
+export default React.memo(BulkActions);

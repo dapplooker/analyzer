@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React from "react";
 import { Route, IndexRoute } from "react-router";
 import { connect } from "react-redux";
@@ -16,10 +17,7 @@ import EntityObjectLoader from "metabase/entities/containers/EntityObjectLoader"
 import EntityForm from "metabase/entities/containers/EntityForm";
 
 const withPush = ComposedComponent =>
-  connect(
-    null,
-    { push },
-  )(ComposedComponent);
+  connect(null, { push })(ComposedComponent);
 
 export default class EntitiesApp extends React.Component {
   render() {
@@ -151,7 +149,7 @@ const EntitySidebarLayout = ({ params, children }) => (
   </div>
 );
 
-EntitiesApp.routes = [
+EntitiesApp.routes = (
   <Route path="entities">
     <IndexRoute component={EntitiesApp} />
     <Route path=":entityType">
@@ -165,5 +163,5 @@ EntitiesApp.routes = [
         />
       </Route>
     </Route>
-  </Route>,
-];
+  </Route>
+);

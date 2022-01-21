@@ -224,29 +224,22 @@
    :lowerStrict (not inclusive?)
    :upperStrict (not inclusive?)})
 
-(defmulti ^:private parse-filter
+(defmulti ^:private parse-filter*
   "Parse an MBQL `filter-clause` and generate an appropriate Druid filter map.
 
-    (parse-filter [:= [:field 1 null] 2]) ; -> {:type :selector, :dimension \"venue_price\", :value 2}"
+    (parse-filter* [:= [:field 1 nil] 2]) ; -> {:type :selector, :dimension \"venue_price\", :value 2}"
   {:arglists '([filter-clause])}
-  ;; dispatch function first checks to make sure this is a valid filter clause, then dispatches off of the clause name
-  ;; if it is.
-  (fn [[clause-name & args, :as filter-clause]]
-    (let [fields (mbql.u/match args :field)]
-      ;; and make sure none of the Fields are datetime Fields We'll handle :timestamp separately. It needs to go in
-      ;; :intervals instead
-      (when (empty? (mbql.u/match fields [:field _ (_ :guard :temporal-unit)]))
-        clause-name))))
+  mbql.u/dispatch-by-clause-name-or-class)
 
-(defmethod parse-filter nil
+(defmethod parse-filter* nil
   [_]
   nil)
 
-(defmethod parse-filter :between
+(defmethod parse-filter* :between
   [[_ field min-val max-val]]
   (filter:bound field, :lower min-val, :upper max-val))
 
-(defmethod parse-filter :contains
+(defmethod parse-filter* :contains
   [[_ field string-or-field options]]
   {:type      :search
    :dimension (->rvalue field)
@@ -254,56 +247,74 @@
                :value         (->rvalue string-or-field)
                :caseSensitive (get options :case-sensitive true)}})
 
-(defmethod parse-filter :starts-with
+(defmethod parse-filter* :starts-with
   [[_ field string-or-field options]]
   (filter:like field
                (str (escape-like-filter-pattern (->rvalue string-or-field)) \%)
                (get options :case-sensitive true)))
 
-(defmethod parse-filter :ends-with
+(defmethod parse-filter* :ends-with
   [[_ field string-or-field options]]
   (filter:like field
                (str \% (escape-like-filter-pattern (->rvalue string-or-field)))
                (get options :case-sensitive true)))
 
-(defmethod parse-filter :=
+(defmethod parse-filter* :=
   [[_ field value-or-field]]
   (filter:= field value-or-field))
 
-(defmethod parse-filter :!=
+(defmethod parse-filter* :!=
   [[_ field value-or-field]]
   (filter:not (filter:= field value-or-field)))
 
-(defmethod parse-filter :<
+(defmethod parse-filter* :<
   [[_ field value-or-field]]
   (filter:bound field, :upper value-or-field, :inclusive? false))
 
-(defmethod parse-filter :>
+(defmethod parse-filter* :>
   [[_ field value-or-field]]
   (filter:bound field, :lower value-or-field, :inclusive? false))
 
-(defmethod parse-filter :<=
+(defmethod parse-filter* :<=
   [[_ field value-or-field]]
   (filter:bound field, :upper value-or-field))
 
-(defmethod parse-filter :>=
+(defmethod parse-filter* :>=
   [[_ field value-or-field]]
   (filter:bound field, :lower value-or-field))
 
-(defmethod parse-filter :and
+(defmethod parse-filter* :and
   [[_ & args]]
-  (when-let [fields (seq (keep identity (map parse-filter args)))]
+  (when-let [fields (seq (keep identity (map parse-filter* args)))]
     {:type :and, :fields (vec fields)}))
 
-(defmethod parse-filter :or
+(defmethod parse-filter* :or
   [[_ & args]]
-  (when-let [fields (seq (keep identity (map parse-filter args)))]
+  (when-let [fields (seq (keep identity (map parse-filter* args)))]
     {:type :or, :fields (vec fields)}))
 
-(defmethod parse-filter :not
+(defmethod parse-filter* :not
   [[_ subclause]]
-  (when-let [subclause (parse-filter subclause)]
+  (when-let [subclause (parse-filter* subclause)]
     (filter:not subclause)))
+
+(defn- parse-filter [filter-clause]
+  ;; strip out all the filters against temporal fields. Those are handled separately, as intervals
+  (-> (mbql.u/replace filter-clause
+        [_ [:field _ (_ :guard :temporal-unit)] & _]
+        nil)
+      mbql.u/simplify-compound-filter
+      parse-filter*))
+
+(s/defn ^:private add-datetime-units* :- mbql.s/DateTimeValue
+  "Return a `relative-datetime` clause with `n` units added to it."
+  [absolute-or-relative-datetime :- mbql.s/DateTimeValue
+   n                             :- s/Num]
+  (if (mbql.u/is-clause? :relative-datetime absolute-or-relative-datetime)
+    (let [[_ original-n unit] absolute-or-relative-datetime]
+      [:relative-datetime (+ n original-n) unit])
+    (let [[_ t unit] absolute-or-relative-datetime]
+      [:absolute-datetime (u.date/add t unit n) unit])))
 
 (defn- add-datetime-units
   "Adding `n` `:default` units doesn't make sense. So if an `:absoulte-datetime` has `:default` as its unit, add `n`
@@ -314,7 +325,7 @@
     [:absolute-datetime (u.date/add t :millisecond n) :millisecond]
 
     _
-    (mbql.u/add-datetime-units clause n)))
+    (add-datetime-units* clause n)))
 
 (defn- ->absolute-timestamp ^java.time.temporal.Temporal [clause]
   (mbql.u/match-one clause
@@ -1084,11 +1095,18 @@
   {:arglists '([query-type original-query druid-query])}
   query-type-dispatch-fn)
 
+(defn- adjust-limit
+  "No joke, Druid queries do not work if limit is `1048575`, but they work if limit is `1048576`. They fail with an
+  'Invalid type marker byte 0x3c for expected value token` error. So if we see the updated `absolute-max-results` from
+  #15414, adjust it back to the old known working value. had to work around."
+  [limit]
+  (cond-> limit
+    (= limit i/absolute-max-results) inc))
+
 (defmethod handle-limit ::scan
   [_ {limit :limit} druid-query]
-  (if-not limit
-    druid-query
-    (assoc-in druid-query [:query :limit] limit)))
+  (cond-> druid-query
+    limit (assoc-in [:query :limit] (adjust-limit limit))))
 
 (defmethod handle-limit ::timeseries
   [_ {limit :limit} druid-query]
@@ -1100,18 +1118,14 @@
 
 (defmethod handle-limit ::topN
   [_ {limit :limit} druid-query]
-  (if-not limit
-    druid-query
-    (assoc-in druid-query [:query :threshold] limit)))
+  (cond-> druid-query
+    limit (assoc-in [:query :threshold] (adjust-limit limit))))
 
 (defmethod handle-limit ::groupBy
   [_ {limit :limit} druid-query]
-  (if-not limit
-    (-> druid-query
-        (assoc-in [:query :limitSpec :type]  :default))
-    (-> druid-query
-        (assoc-in [:query :limitSpec :type]  :default)
-        (assoc-in [:query :limitSpec :limit] limit))))
+  (cond-> druid-query
+    true  (assoc-in [:query :limitSpec :type]  :default)
+    limit (assoc-in [:query :limitSpec :limit] (adjust-limit limit))))
 
 
 ;;; -------------------------------------------------- handle-page ---------------------------------------------------

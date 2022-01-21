@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React from "react";
 
 import EntityMenu from "metabase/components/EntityMenu";
@@ -22,7 +23,7 @@ export const examples = {
         triggerIcon="pencil"
         items={[
           {
-            title: t`Edit this question`,
+            title: t`Edit this chart`,
             icon: "edit_document",
             action: () => alert(t`Action type`),
           },
@@ -78,7 +79,7 @@ export const examples = {
         triggerIcon="pencil"
         items={[
           {
-            title: t`Edit this question`,
+            title: t`Edit this chart`,
             icon: "edit_document",
             action: () => alert(t`Action type`),
           },

@@ -1,6 +1,6 @@
-/* @flow */
-
+/* eslint-disable react/prop-types */
 import React from "react";
+import PropTypes from "prop-types";
 
 import HistoryModal from "metabase/components/HistoryModal";
 import Revision from "metabase/entities/revisions";
@@ -13,17 +13,25 @@ import Revision from "metabase/entities/revisions";
   wrapped: true,
 })
 export default class HistoryModalContainer extends React.Component {
+  static propTypes = {
+    canRevert: PropTypes.bool.isRequired,
+  };
+
+  onRevert = async revision => {
+    const { onReverted, reload } = this.props;
+    await revision.revert();
+    if (onReverted) {
+      onReverted();
+    }
+    await reload();
+  };
+
   render() {
-    const { revisions, onClose, onReverted } = this.props;
+    const { revisions, canRevert, onClose } = this.props;
     return (
       <HistoryModal
         revisions={revisions}
-        onRevert={async revision => {
-          await revision.revert();
-          if (onReverted) {
-            onReverted();
-          }
-        }}
+        onRevert={canRevert ? this.onRevert : null}
         onClose={onClose}
       />
     );

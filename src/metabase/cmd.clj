@@ -1,14 +1,13 @@
 (ns metabase.cmd
-  "Functions for commands that can be ran from the command-line with `lein` or the Metabase JAR. These are ran as
-  follows:
+  "Functions for commands that can be ran from the command-line with the Clojure CLI or the Metabase JAR. These are ran
+  as follows:
 
     <metabase> <command> <options>
 
   for example, running the `migrate` command and passing it `force` can be done using one of the following ways:
 
-    lein run migrate force
+    clojure -M:run migrate force
     java -jar metabase.jar migrate force
-
 
   Logic below translates resolves the command itself to a function marked with `^:command` metadata and calls the
   function with arguments as appropriate.
@@ -18,6 +17,7 @@
   (:refer-clojure :exclude [load])
   (:require [clojure.string :as str]
             [clojure.tools.logging :as log]
+            [environ.core :as env]
             [medley.core :as m]
             [metabase.config :as config]
             [metabase.mbql.util :as mbql.u]
@@ -52,20 +52,19 @@
   (classloader/require 'metabase.cmd.dump-to-h2)
   (try
     (let [options        {:keep-existing? (boolean (some #{"--keep-existing"} opts))
-                          :dump-plaintext? (boolean (some #{"--dump-plaintext"} opts)) }]
+                          :dump-plaintext? (boolean (some #{"--dump-plaintext"} opts))}]
       ((resolve 'metabase.cmd.dump-to-h2/dump-to-h2!) h2-filename options)
       (println "Dump complete")
       (system-exit! 0))
     (catch Throwable e
-      (log/error e "MB_ENCRYPTION_SECRET_KEY does not correcty decrypt the existing data")
+      (log/error e "Failed to dump application database to H2 file")
       (system-exit! 1))))
 
 (defn ^:command profile
   "Start Metabase the usual way and exit. Useful for profiling Metabase launch time."
   []
   ;; override env var that would normally make Jetty block forever
-  (classloader/require 'environ.core 'metabase.core)
-  (alter-var-root #'environ.core/env assoc :mb-jetty-join "false")
+  (alter-var-root #'env/env assoc :mb-jetty-join "false")
   (u/profile "start-normally" ((resolve 'metabase.core/start-normally))))
 
 (defn ^:command reset-password
@@ -141,8 +140,9 @@
 (defn ^:command load
   "Load serialized metabase instance as created by `dump` command from directory `path`.
 
-   `mode` can be one of `:update` (default) or `:skip`."
-  ([path] (load path :update))
+   `--mode` can be one of `:update` or `:skip` (default). `--on-error` can be `:abort` or `:continue` (default)."
+  ([path] (load path {"--mode" :skip
+                      "--on-error" :continue}))
 
   ([path & args]
    (let [cmd (resolve-enterprise-command 'metabase-enterprise.serialization.cmd/load)]
@@ -151,11 +151,13 @@
                     (m/map-vals mbql.u/normalize-token))))))
 
 (defn ^:command dump
-  "Serialized metabase instance into directory `path`."
-  [path & args]
-  (let [cmd (resolve-enterprise-command 'metabase-enterprise.serialization.cmd/dump)
-        {:keys [user]} (cmd-args->map args)]
-    (cmd path user)))
+  "Serialized metabase instance into directory `path`. `args` options may contain --state option with one of
+  `active` (default), `all`. With `active` option, do not dump archived entities."
+  ([path] (dump path {"--state" :active}))
+  ([path & args]
+   (let [cmd (resolve-enterprise-command 'metabase-enterprise.serialization.cmd/dump)
+         {:keys [user]} (cmd-args->map args)]
+     (cmd path user))))
 
 (defn ^:command rotate-encryption-key
   "Rotate the encryption key of a metabase database. The MB_ENCRYPTION_SECRET_KEY environment variable has to be set to
@@ -182,7 +184,7 @@
           (System/exit 1))))
 
 (defn run-cmd
-  "Run `cmd` with `args`. This is a function above. e.g. `lein run metabase migrate force` becomes
+  "Run `cmd` with `args`. This is a function above. e.g. `clojure -M:run metabase migrate force` becomes
   `(migrate \"force\")`."
   [cmd args]
   (try (apply (cmd->fn cmd) args)

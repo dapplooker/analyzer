@@ -1,5 +1,4 @@
-/* @flow */
-
+/* eslint-disable react/prop-types */
 import React from "react";
 
 import AuditContent from "../components/AuditContent";
@@ -10,11 +9,7 @@ import EntityName from "metabase/entities/containers/EntityName";
 
 import * as UserDetailCards from "../lib/cards/user_detail";
 
-type Props = {
-  params: { [key: string]: string },
-};
-
-const AuditUserDetail = ({ params, ...props }: Props) => {
+const AuditUserDetail = ({ params, ...props }) => {
   const userId = parseInt(params.userId);
   return (
     <AuditContent

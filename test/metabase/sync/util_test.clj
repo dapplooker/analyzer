@@ -5,9 +5,12 @@
             [java-time :as t]
             [metabase.driver :as driver]
             [metabase.models.database :as mdb :refer [Database]]
+            [metabase.models.table :refer [Table]]
             [metabase.models.task-history :refer [TaskHistory]]
             [metabase.sync :as sync]
-            [metabase.sync.util :as sync-util :refer :all]
+            [metabase.sync.sync-metadata :as sync-metadata]
+            [metabase.sync.util :as sync-util]
+            [metabase.test :as mt]
             [metabase.test.util :as tu]
             [toucan.db :as db]
             [toucan.util.test :as tt]))
@@ -28,6 +31,8 @@
   {:tables #{}})
 
 (defmethod driver/describe-table ::concurrent-sync-test [& _] nil)
+
+(defmethod driver/table-rows-seq ::concurrent-sync-test [& _] [])
 
 (deftest concurrent-sync-test
   (testing "only one sync process be going on at a time"
@@ -106,11 +111,11 @@
   (let [process-name (tu/random-name)
         step-1-name  (tu/random-name)
         step-2-name  (tu/random-name)
-        sync-steps   [(create-sync-step step-1-name (fn [_] (Thread/sleep 10) {:foo "bar"}))
-                      (create-sync-step step-2-name (fn [_] (Thread/sleep 10)))]
+        sync-steps   [(sync-util/create-sync-step step-1-name (fn [_] (Thread/sleep 10) {:foo "bar"}))
+                      (sync-util/create-sync-step step-2-name (fn [_] (Thread/sleep 10)))]
         mock-db      (mdb/map->DatabaseInstance {:name "test", :id 1, :engine :h2})
         [results]    (:operation-results
-                      (call-with-operation-info #(run-sync-operation process-name mock-db sync-steps)))]
+                      (call-with-operation-info #(sync-util/run-sync-operation process-name mock-db sync-steps)))]
     (testing "valid operation metadata?"
       (is (= true
              (validate-times results))))
@@ -188,3 +193,107 @@
         (testing "has-step-duration?"
           (is (= true
                  (str/includes? results "4.0 s"))))))))
+
+(deftest error-handling-test
+  (testing "A ConnectException will cause sync to stop"
+    (mt/dataset sample-dataset
+      (let [expected           (java.io.IOException.
+                                "outer"
+                                (java.net.ConnectException.
+                                 "inner, this one triggers the failure"))
+            actual             (sync-util/sync-operation :sync-error-handling (mt/db) "sync error handling test"
+                                 (sync-util/run-sync-operation
+                                  "sync"
+                                  (mt/db)
+                                  [(sync-util/create-sync-step "failure-step"
+                                                               (fn [_]
+                                                                 (throw expected)))
+                                   (sync-util/create-sync-step "should-not-run"
+                                                               (fn [_]
+                                                                 {}))]))
+            [step-name result] (first (:steps actual))]
+        (is (= 1 (count (:steps actual))))
+        (is (= "failure-step" step-name))
+        (is (= {:throwable expected :log-summary-fn nil}
+               (dissoc result :start-time :end-time))))))
+
+  (doseq [ex [(java.io.IOException.
+               "outer, does not trigger"
+               (java.net.SocketException. "inner, this one does not trigger"))
+              (java.lang.IllegalArgumentException. "standalone, does not trigger")
+              (java.sql.SQLException.
+               "outer, does not trigger"
+               (java.sql.SQLException.
+                "inner, does not trigger"
+                (java.lang.IllegalArgumentException.
+                 "third level, does not trigger")))]]
+    (testing "Other errors will not cause sync to stop"
+      (let [actual             (sync-util/sync-operation :sync-error-handling (mt/db) "sync error handling test"
+                                 (sync-util/run-sync-operation
+                                  "sync"
+                                  (mt/db)
+                                  [(sync-util/create-sync-step "failure-step"
+                                                               (fn [_]
+                                                                 (throw ex)))
+                                   (sync-util/create-sync-step "should-continue"
+                                                               (fn [_]
+                                                                 {}))]))]
+
+        ;; make sure we've ran two steps. the first one will have thrown an exception,
+        ;; but it wasn't an exception that can cause an abort.
+        (is (= 2 (count (:steps actual))))
+        (let [[step-name result] (first (:steps actual))]
+          (is (= "failure-step" step-name))
+          (is (= {:throwable ex :log-summary-fn nil}
+                 (dissoc result :start-time :end-time))))
+        (let [[step-name result] (second (:steps actual))]
+          (is (= "should-continue" step-name))
+          (is (= {:log-summary-fn nil} (dissoc result :start-time :end-time))))))))
+
+(deftest initial-sync-status-test
+  (mt/dataset sample-dataset
+   (testing "If `initial-sync-status` on a DB is `incomplete`, it is marked as `complete` when sync-metadata has finished"
+      (let [_  (db/update! Database (:id (mt/db)) :initial_sync_status "incomplete")
+            db (Database (:id (mt/db)))]
+        (sync/sync-database! db)
+        (is (= "complete" (db/select-one-field :initial_sync_status Database :id (:id db))))))
+
+   (testing "If `initial-sync-status` on a DB is `complete`, it remains `complete` when sync is run again"
+      (let [_  (db/update! Database (:id (mt/db)) :initial_sync_status "complete")
+            db (Database (:id (mt/db)))]
+        (sync/sync-database! db)
+        (is (= "complete" (db/select-one-field :initial_sync_status Database :id (:id db))))))
+
+   (testing "If `initial-sync-status` on a table is `incomplete`, it is marked as `complete` after the sync-fks step
+            has finished"
+      (let [table-id (db/select-one-field :id Table :db_id (:id (mt/db)))
+            _        (db/update! Table table-id :initial_sync_status "incomplete")
+            table    (Table table-id)]
+        (sync/sync-database! (mt/db))
+        (is (= "complete" (db/select-one-field :initial_sync_status Table :id table-id)))))
+
+   (testing "Database and table syncs are marked as complete even if the initial scan is :schema only"
+      (let [_        (db/update! Database (:id (mt/db)) :initial_sync_status "incomplete")
+            db       (Database (:id (mt/db)))
+            table-id (db/select-one-field :id Table :db_id (:id (mt/db)))
+            _        (db/update! Table table-id :initial_sync_status "incomplete")
+            table    (Table table-id)]
+        (sync/sync-database! db {:scan :schema})
+        (is (= "complete" (db/select-one-field :initial_sync_status Database :id (:id db))))
+        (is (= "complete" (db/select-one-field :initial_sync_status Table :id table-id)))))
+
+   (testing "If a non-recoverable error occurs during sync, `initial-sync-status` on the database is set to `aborted`"
+      (let [_  (db/update! Database (:id (mt/db)) :initial_sync_status "incomplete")
+            db (Database (:id (mt/db)))]
+        (with-redefs [sync-metadata/sync-steps [(sync-util/create-sync-step
+                                                 "fake-step"
+                                                 (fn [_] (throw (java.net.ConnectException.))))]]
+          (sync/sync-database! db)
+          (is (= "aborted" (db/select-one-field :initial_sync_status Database :id (:id db)))))))
+
+   (testing "If `initial-sync-status` is `aborted` for a database, it is set to `complete` the next time sync finishes
+           without error"
+      (let [_  (db/update! Database (:id (mt/db)) :initial_sync_status "complete")
+            db (Database (:id (mt/db)))]
+        (sync/sync-database! db)
+        (is (= "complete" (db/select-one-field :initial_sync_status Database :id (:id db))))))))

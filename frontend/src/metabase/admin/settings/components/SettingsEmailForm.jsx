@@ -9,7 +9,7 @@ import MarginHostingCTA from "metabase/admin/settings/components/widgets/MarginH
 
 import SettingsBatchForm from "./SettingsBatchForm";
 
-import MetabaseAnalytics from "metabase/lib/analytics";
+import * as MetabaseAnalytics from "metabase/lib/analytics";
 import MetabaseSettings from "metabase/lib/settings";
 
 import {
@@ -24,10 +24,7 @@ const SEND_TEST_BUTTON_STATES = {
   success: t`Sent!`,
 };
 
-@connect(
-  null,
-  { sendTestEmail, updateEmailSettings, clearEmailSettings },
-)
+@connect(null, { sendTestEmail, updateEmailSettings, clearEmailSettings })
 export default class SettingsEmailForm extends Component {
   state = {
     sendingEmail: "default",
@@ -56,12 +53,20 @@ export default class SettingsEmailForm extends Component {
     try {
       await this.props.sendTestEmail();
       this.setState({ sendingEmail: "success" });
-      MetabaseAnalytics.trackEvent("Email Settings", "Test Email", "success");
+      MetabaseAnalytics.trackStructEvent(
+        "Email Settings",
+        "Test Email",
+        "success",
+      );
 
       // show a confirmation for 3 seconds, then return to normal
       setTimeout(() => this.setState({ sendingEmail: "default" }), 3000);
     } catch (error) {
-      MetabaseAnalytics.trackEvent("Email Settings", "Test Email", "error");
+      MetabaseAnalytics.trackStructEvent(
+        "Email Settings",
+        "Test Email",
+        "error",
+      );
       this.setState({ sendingEmail: "default" });
       // NOTE: reaching into form component is not ideal
       this._form.setFormErrors(this._form.handleFormErrors(error));
@@ -78,9 +83,9 @@ export default class SettingsEmailForm extends Component {
           {...this.props}
           updateSettings={this.props.updateEmailSettings}
           disable={sendingEmail !== "default"}
-          renderExtraButtons={({ disabled, valid, dirty, submitting }) => {
-            return [
-              valid && !dirty && submitting === "default" ? (
+          renderExtraButtons={({ disabled, valid, pristine, submitting }) => (
+            <React.Fragment>
+              {valid && pristine && submitting === "default" ? (
                 <Button
                   mr={1}
                   success={sendingEmail === "success"}
@@ -89,16 +94,16 @@ export default class SettingsEmailForm extends Component {
                 >
                   {SEND_TEST_BUTTON_STATES[sendingEmail]}
                 </Button>
-              ) : null,
+              ) : null}
               <Button
                 mr={1}
                 disabled={disabled}
                 onClick={() => this.clearEmailSettings()}
               >
                 {t`Clear`}
-              </Button>,
-            ];
-          }}
+              </Button>
+            </React.Fragment>
+          )}
         />
         {!MetabaseSettings.isHosted() && !MetabaseSettings.isEnterprise() && (
           <MarginHostingCTA tagline={t`Have your email configured for you.`} />

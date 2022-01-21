@@ -1,5 +1,6 @@
 (ns metabase.search.scoring-test
-  (:require [clojure.test :refer :all]
+  (:require [cheshire.core :as json]
+            [clojure.test :refer :all]
             [java-time :as t]
             [metabase.search.config :as search-config]
             [metabase.search.scoring :as search]))
@@ -26,9 +27,8 @@
 
 (defn scorer->score
   [scorer]
-  (comp (fn [s] (when s (* s search/text-score-max)))
-        :text-score
-        (partial #'search/text-score-with [scorer])))
+  (comp :score
+        (partial #'search/text-score-with [{:weight 1 :scorer scorer}])))
 
 (deftest consecutivity-scorer-test
   (let [score (scorer->score #'search/consecutivity-scorer)]
@@ -55,8 +55,8 @@
     (testing "misses"
       (is (nil?
            (score ["rasta"]
-                  (result-row "just a straight-up imposter")))
-          (nil?
+                  (result-row "just a straight-up imposter"))))
+      (is (nil?
            (score ["rasta" "the" "toucan"]
                   (result-row "")))))))
 
@@ -82,6 +82,24 @@
       (is (= 1
              (score ["rasta" "the" "toucan"]
                     (result-row "Rasta may be my favorite of the toucans")))))
+    (testing "misses"
+      (is (nil?
+           (score ["rasta"]
+                  (result-row "just a straight-up imposter"))))
+      (is (nil?
+           (score ["rasta" "the" "toucan"]
+                  (result-row "")))))))
+
+(deftest fullness-scorer-test
+  (let [score (scorer->score #'search/fullness-scorer)]
+    (testing "partial matches"
+      (is (= 1/8
+             (score ["rasta" "el" "tucan"]
+                    (result-row "Here is Rasta the hero of many lands")))))
+    (testing "full matches"
+      (is (= 1
+             (score ["rasta" "the" "toucan"]
+                    (result-row "Rasta the Toucan")))))
     (testing "misses"
       (is (nil?
            (score ["rasta"]
@@ -129,6 +147,7 @@
 
 (deftest match-context-test
   (let [context  #'search/match-context
+        tokens   (partial map str)
         match    (fn [text] {:text text :is_match true})
         no-match (fn [text] {:text text :is_match false})]
     (testing "it groups matches together"
@@ -145,7 +164,20 @@
       (is (= [(no-match "aviary stats")]
              (context
                  ["rasta" "toucan"]
-                 ["aviary" "stats"]))))))
+                 ["aviary" "stats"]))))
+    (testing "it abbreviates when necessary"
+      (is (= [(no-match "one two…eleven twelve")
+              (match "rasta toucan")
+              (no-match "alpha beta…the end")]
+             (context
+                 (tokens '(rasta toucan))
+                 (tokens '(one two
+                           this should not be included
+                           eleven twelve
+                           rasta toucan
+                           alpha beta
+                           some other noise
+                           the end))))))))
 
 (deftest test-largest-common-subseq-length
   (let [subseq-length (partial #'search/largest-common-subseq-length =)]
@@ -168,18 +200,22 @@
 
 (deftest pinned-score-test
   (let [score #'search/pinned-score
-        item (fn [collection-position] {:collection_position collection-position})]
-    (testing "it provides a sortable score"
-      (is (= [1 2 3 nil 0]
-             (->> [(item 0)
-                    ;; nil and 0 could theoretically be in either order, but it's a stable sort, so this is fine
-                   (item nil)
-                   (item 3)
-                   (item 1)
-                   (item 2)]
-                  (sort-by score)
-                  reverse
-                  (map :collection_position)))))))
+        item (fn [collection-position] {:collection_position collection-position
+                                        :model "card"})]
+    (testing "it provides a sortable score, but doesn't favor magnitude"
+      (let [result (->> [(item 0)
+                         (item nil)
+                         (item 3)
+                         (item 1)
+                         (item 2)]
+                        shuffle
+                        (sort-by score)
+                        reverse
+                        (map :collection_position))]
+        (is (= #{1 2 3}
+               (set (take 3 result))))
+        (is (= #{nil 0}
+               (set (take-last 2 result))))))))
 
 (deftest recency-score-test
   (let [score    #'search/recency-score
@@ -228,3 +264,25 @@
                 reverse
                 (map :result)
                 (map :name))))))
+
+(deftest score-and-result-test
+  (testing "If all scores are 0, does not divide by zero"
+    (let [scorer (reify search/ResultScore
+                   (score-result [_ search-result]
+                     [{:weight 100 :score 0 :name "Some score type"}
+                      {:weight 100 :score 0 :name "Some other score type"}]))]
+      (is (= 0 (:score (search/score-and-result scorer "" {:name "racing yo" :model "card"})))))))
+
+(deftest serialize-test
+  (testing "It normalizes dataset queries from strings"
+    (let [query  {:type     :query
+                  :query    {:source-query {:source-table 1}}
+                  :database 1}
+          result {:name          "card"
+                  :model         "card"
+                  :dataset_query (json/generate-string query)}]
+      (is (= query (-> result (#'search/serialize {} {}) :dataset_query)))))
+  (testing "Doesn't error on other models without a query"
+    (is (nil? (-> {:name "dash" :model "dashboard"}
+                  (#'search/serialize {} {})
+                  :dataset_query)))))

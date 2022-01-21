@@ -3,14 +3,16 @@
   (:require [cemerick.friend.credentials :as creds]
             [compojure.core :refer [DELETE GET POST PUT]]
             [honeysql.helpers :as hh]
+            [metabase.analytics.snowplow :as snowplow]
             [metabase.api.common :as api]
-            [metabase.api.session :as session-api]
             [metabase.email.messages :as email]
+            [metabase.integrations.google :as google]
             [metabase.integrations.ldap :as ldap]
             [metabase.models.collection :as collection :refer [Collection]]
             [metabase.models.permissions-group :as group]
             [metabase.models.user :as user :refer [User]]
             [metabase.plugins.classloader :as classloader]
+            [metabase.server.middleware.offset-paging :as offset-paging]
             [metabase.util :as u]
             [metabase.util.i18n :as i18n :refer [tru]]
             [metabase.util.schema :as su]
@@ -20,7 +22,7 @@
 
 (u/ignore-exceptions (classloader/require 'metabase-enterprise.sandbox.api.util))
 
-(defn- check-self-or-superuser
+(defn check-self-or-superuser
   "Check that `user-id` is *current-user-id*` or that `*current-user*` is a superuser, or throw a 403."
   [user-id]
   {:pre [(integer? user-id)]}
@@ -37,11 +39,11 @@
   ;; agrees with is_superuser -- don't want to have ambiguous behavior
   (when (and (some? is-superuser?)
              new-groups-or-ids)
-    (api/checkp (= is-superuser? (contains? (set new-groups-or-ids) (u/get-id (group/admin))))
+    (api/checkp (= is-superuser? (contains? (set new-groups-or-ids) (u/the-id (group/admin))))
       "is_superuser" (tru "Value of is_superuser must correspond to presence of Admin group ID in group_ids.")))
   (when (some? new-groups-or-ids)
     (when-not (= (user/group-ids user-or-id)
-                 (set (map u/get-id new-groups-or-ids)))
+                 (set (map u/the-id new-groups-or-ids)))
       (api/check-superuser)
       (user/set-permissions-groups! user-or-id new-groups-or-ids))))
 
@@ -57,7 +59,7 @@
 (defn- maybe-update-user-personal-collection-name! [user-before-update first_name last_name]
   ;; If the user name is updated, we shall also update the personal collection name (if such collection exists).
   (when-some [[first_name last_name] (updated-user-name user-before-update first_name last_name)]
-    (when-some [collection (collection/user->existing-personal-collection (u/get-id user-before-update))]
+    (when-some [collection (collection/user->existing-personal-collection (u/the-id user-before-update))]
       (let [new-collection-name (collection/format-personal-collection-name first_name last_name)]
         (when-not (= new-collection-name (:name collection))
           (db/update! Collection (:id collection) :name new-collection-name))))))
@@ -66,32 +68,91 @@
 ;;; |                   Fetching Users -- GET /api/user, GET /api/user/current, GET /api/user/:id                    |
 ;;; +----------------------------------------------------------------------------------------------------------------+
 
+(defn- status-clause
+  "Figure out what `where` clause to add to the user query when
+  we get a fiddly status and include_deactivated query.
+
+  This is to keep backwards compatibility with `include_deactivated` while adding `status."
+  [status include_deactivated]
+  (if include_deactivated
+    nil
+    (case status
+      "all"         nil
+      "deactivated" [:= :is_active false]
+      "active"      [:= :is_active true]
+      [:= :is_active true])))
+
+(defn- wildcard-query [query] (str "%" (clojure.string/lower-case query) "%"))
+
+(defn- query-clause
+  "Honeysql clause to shove into user query if there's a query"
+  [query]
+  [:or
+   [:like [:%lower.first_name] [(wildcard-query query)]]
+   [:like [:%lower.last_name] [(wildcard-query query)]]
+   [:like [:%lower.email] [(wildcard-query query)]]])
+
+(defn- user-visible-columns
+  "Columns of user table visible to current caller of API"
+  []
+  (if api/*is-superuser?* user/admin-or-self-visible-columns user/non-admin-or-self-visible-columns))
+
+(defn- user-clauses
+  "Honeysql clauses for filtering on users
+  - with a status,
+  - with a query,
+  - with a group_id,
+  - with include_deactivatved"
+  [status query group_id include_deactivated]
+  (cond-> {}
+        true (hh/merge-where (status-clause status include_deactivated))
+        true (hh/merge-where (when-let [segmented-user? (resolve 'metabase-enterprise.sandbox.api.util/segmented-user?)]
+                               (when (segmented-user?)
+                                 [:= :id api/*current-user-id*])))
+        (some? query) (hh/merge-where (query-clause query))
+        (some? group_id) (hh/merge-right-join :permissions_group_membership
+                                              [:= :core_user.id :permissions_group_membership.user_id])
+        (some? group_id) (hh/merge-where [:= :group_id group_id])))
+
+
 (api/defendpoint GET "/"
-  "Fetch a list of `Users` for the admin People page or for Pulses. By default returns only active users. If
-  `include_deactivated` is true, return all Users (active and inactive). (Using `include_deactivated` requires
-  superuser permissions.). For users with segmented permissions, return only themselves."
-  [include_deactivated]
-  {include_deactivated (s/maybe su/BooleanString)}
-  (when include_deactivated
+  "Fetch a list of `Users`. By default returns every active user but only active users.
+
+  If `status` is `deactivated`, include deactivated users only.
+  If `status` is `all`, include all users (active and inactive).
+  Also supports `include_deactivated`, which if true, is equivalent to `status=all`.
+  `status` and `included_deactivated` requires superuser permissions.
+
+  For users with segmented permissions, return only themselves.
+
+  Takes `limit`, `offset` for pagination.
+  Takes `query` for filtering on first name, last name, email.
+  Also takes `group_id`, which filters on group id."
+  [status query group_id include_deactivated]
+  {status                 (s/maybe s/Str)
+   query                  (s/maybe s/Str)
+   group_id               (s/maybe su/IntGreaterThanZero)
+   include_deactivated    (s/maybe su/BooleanString)}
+  (when (or status include_deactivated)
     (api/check-superuser))
-  (cond-> (db/select (vec (cons User (if api/*is-superuser?*
-                                       user/admin-or-self-visible-columns
-                                       user/non-admin-or-self-visible-columns)))
-            (-> {}
-                (hh/merge-order-by [:%lower.last_name :asc] [:%lower.first_name :asc])
-                (hh/merge-where (when-not include_deactivated
-                                  [:= :is_active true]))
-                (hh/merge-where (when-let [segmented-user? (resolve 'metabase-enterprise.sandbox.api.util/segmented-user?)]
-                                  (when (segmented-user?)
-                                    [:= :id api/*current-user-id*])))))
-    ;; For admins, also include the IDs of the  Users' Personal Collections
-    api/*is-superuser?* (hydrate :personal_collection_id :group_ids)))
+  {:data   (cond-> (db/select
+                     (vec (cons User (user-visible-columns)))
+                     (cond-> (user-clauses status query group_id include_deactivated)
+                       true (hh/merge-order-by [:%lower.last_name :asc] [:%lower.first_name :asc])
+                       (some? offset-paging/*limit*)  (hh/limit offset-paging/*limit*)
+                       (some? offset-paging/*offset*) (hh/offset offset-paging/*offset*)))
+             ;; For admins, also include the IDs of the  Users' Personal Collections
+             api/*is-superuser?* (hydrate :personal_collection_id :group_ids))
+   :total  (db/count User (user-clauses status query group_id include_deactivated))
+   :limit  offset-paging/*limit*
+   :offset offset-paging/*offset*})
+
 
 (api/defendpoint GET "/current"
   "Fetch the current `User`."
   []
   (-> (api/check-404 @api/*current-user*)
-      (hydrate :personal_collection_id :group_ids)))
+      (hydrate :personal_collection_id :group_ids :has_invited_second_user)))
 
 (api/defendpoint GET "/:id"
   "Fetch a `User`. You must be fetching yourself *or* be a superuser."
@@ -117,11 +178,13 @@
   (api/checkp (not (db/exists? User :%lower.email (u/lower-case-en email)))
     "email" (tru "Email address already in use."))
   (db/transaction
-    (let [new-user-id (u/get-id (user/create-and-invite-user!
+    (let [new-user-id (u/the-id (user/create-and-invite-user!
                                  (u/select-keys-when body
                                    :non-nil [:first_name :last_name :email :password :login_attributes])
-                                 @api/*current-user*))]
+                                 @api/*current-user*
+                                 false))]
       (maybe-set-user-permissions-groups! new-user-id group_ids)
+      (snowplow/track-event! ::snowplow/invite-sent api/*current-user-id* {:invited-user-id new-user-id})
       (-> (fetch-user :id new-user-id)
           (hydrate :group_ids)))))
 
@@ -180,18 +243,18 @@
 ;;; +----------------------------------------------------------------------------------------------------------------+
 
 (defn- reactivate-user! [existing-user]
-  (db/update! User (u/get-id existing-user)
+  (db/update! User (u/the-id existing-user)
     :is_active     true
     :is_superuser  false
     ;; if the user orignally logged in via Google Auth and it's no longer enabled, convert them into a regular user
     ;; (see metabase#3323)
     :google_auth   (boolean (and (:google_auth existing-user)
                                  ;; if google-auth-client-id is set it means Google Auth is enabled
-                                 (session-api/google-auth-client-id)))
+                                 (google/google-auth-client-id)))
     :ldap_auth     (boolean (and (:ldap_auth existing-user)
                                  (ldap/ldap-configured?))))
   ;; now return the existing user whether they were originally active or not
-  (fetch-user :id (u/get-id existing-user)))
+  (fetch-user :id (u/the-id existing-user)))
 
 (api/defendpoint PUT "/:id/reactivate"
   "Reactivate user at `:id`"
@@ -212,7 +275,7 @@
 (api/defendpoint PUT "/:id/password"
   "Update a user's password."
   [id :as {{:keys [password old_password]} :body}]
-  {password su/ComplexPassword}
+  {password su/ValidPassword}
   (check-self-or-superuser id)
   (api/let-404 [user (db/select-one [User :password_salt :password], :id id, :is_active true)]
     ;; admins are allowed to reset anyone's password (in the admin people list) so no need to check the value of
@@ -242,11 +305,17 @@
 ;;; +----------------------------------------------------------------------------------------------------------------+
 
 ;; TODO - This could be handled by PUT /api/user/:id, we don't need a separate endpoint
-(api/defendpoint PUT "/:id/qbnewb"
+(api/defendpoint PUT "/:id/modal/:modal"
   "Indicate that a user has been informed about the vast intricacies of 'the' Query Builder."
-  [id]
+  [id modal]
   (check-self-or-superuser id)
-  (api/check-500 (db/update! User id, :is_qbnewb false))
+  (let [k (or (get {"qbnewb"      :is_qbnewb
+                    "datasetnewb" :is_datasetnewb}
+                   modal)
+              (throw (ex-info (tru "Unrecognized modal: {0}" modal)
+                              {:modal modal
+                               :allowable-modals #{"qbnewb" "datasetnewb"}})))]
+    (api/check-500 (db/update! User id, k false)))
   {:success true})
 
 (api/defendpoint POST "/:id/send_invite"
@@ -257,8 +326,7 @@
     (let [reset-token (user/set-password-reset-token! id)
           ;; NOTE: the new user join url is just a password reset with an indicator that this is a first time user
           join-url    (str (user/form-password-reset-url reset-token) "#new")]
-      (email/send-new-user-email! user @api/*current-user* join-url)))
+      (email/send-new-user-email! user @api/*current-user* join-url false)))
   {:success true})
-
 
 (api/define-routes)

@@ -2,10 +2,12 @@
   "A `PermissionsGroup` is a group (or role) that can be assigned certain permissions. Users can be members of one or
   more of these groups.
 
-  A few 'magic' groups exist: `all-users`, which predicably contains All Users; `admin`, which contains all
-  superusers, and `metabot`, which is used to set permissions for the MetaBot. These groups are 'magic' in the sense
+  A few 'magic' groups exist: [[all-users]], which predicably contains All Users; [[admin]], which contains all
+  superusers, and [[metabot]], which is used to set permissions for the MetaBot. These groups are 'magic' in the sense
   that you cannot add users to them yourself, nor can you delete them; they are created automatically. You can,
-  however, set permissions for them. "
+  however, set permissions for them.
+
+  See documentation in [[metabase.models.permissions]] for more information about the Metabase permissions system."
   (:require [clojure.string :as str]
             [clojure.tools.logging :as log]
             [metabase.db.connection :as mdb.connection]
@@ -34,20 +36,35 @@
     (fn []
       (f (mdb.connection/db-type) (mdb.connection/jdbc-spec)))))
 
+(def ^{:const true
+       :doc   "The name of the \"All Users\" magic group."
+       :added "0.41.0"} all-users-group-name
+  "All Users")
+
 (def ^{:arglists '([])} ^metabase.models.permissions_group.PermissionsGroupInstance
   all-users
   "Fetch the `All Users` permissions group, creating it if needed."
-  (get-or-create-magic-group! "All Users"))
+  (get-or-create-magic-group! all-users-group-name))
+
+(def ^{:const true
+       :doc   "The name of the \"Administrators\" magic group."
+       :added "0.41.0"} admin-group-name
+  "Administrators")
 
 (def ^{:arglists '([])} ^metabase.models.permissions_group.PermissionsGroupInstance
   admin
   "Fetch the `Administators` permissions group, creating it if needed."
-  (get-or-create-magic-group! "Administrators"))
+  (get-or-create-magic-group! admin-group-name))
+
+(def ^{:const true
+       :doc   "The name of the \"MetaBot\" magic group."
+       :added "0.41.0"} metabot-group-name
+  "MetaBot")
 
 (def ^{:arglists '([])} ^metabase.models.permissions_group.PermissionsGroupInstance
   metabot
   "Fetch the `MetaBot` permissions group, creating it if needed."
-  (get-or-create-magic-group! "MetaBot"))
+  (get-or-create-magic-group! metabot-group-name))
 
 
 ;;; --------------------------------------------------- Validation ---------------------------------------------------
@@ -119,6 +136,6 @@
              :from      [[:core_user :user]]
              :left-join [[:permissions_group_membership :pgm] [:= :user.id :pgm.user_id]]
              :where     [:and [:= :user.is_active true]
-                              [:= :pgm.group_id (u/get-id group-or-id)]]
+                              [:= :pgm.group_id (u/the-id group-or-id)]]
              :order-by  [[:%lower.user.first_name :asc]
                          [:%lower.user.last_name :asc]]}))

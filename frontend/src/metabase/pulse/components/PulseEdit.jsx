@@ -1,4 +1,4 @@
-/* eslint "react/prop-types": "warn" */
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
 import { Box, Flex } from "grid-styled";
 import PropTypes from "prop-types";
@@ -15,7 +15,7 @@ import ActionButton from "metabase/components/ActionButton";
 import Button from "metabase/components/Button";
 import DeleteModalWithConfirm from "metabase/components/DeleteModalWithConfirm";
 import Icon from "metabase/components/Icon";
-import MetabaseAnalytics from "metabase/lib/analytics";
+import * as MetabaseAnalytics from "metabase/lib/analytics";
 import ModalWithTrigger from "metabase/components/ModalWithTrigger";
 import ModalContent from "metabase/components/ModalContent";
 import Subhead from "metabase/components/type/Subhead";
@@ -26,8 +26,15 @@ import MetabaseSettings from "metabase/lib/settings";
 import { pulseIsValid, cleanPulse, emailIsEnabled } from "metabase/lib/pulse";
 import * as Urls from "metabase/lib/urls";
 
+import Collections from "metabase/entities/collections";
+
 import cx from "classnames";
 
+@Collections.load({
+  id: (state, { pulse, initialCollectionId }) =>
+    pulse.collection_id || initialCollectionId,
+  loadingAndErrorWrapper: false,
+})
 export default class PulseEdit extends Component {
   static propTypes = {
     pulse: PropTypes.object.isRequired,
@@ -42,6 +49,12 @@ export default class PulseEdit extends Component {
     initialCollectionId: PropTypes.number,
   };
 
+  constructor(props) {
+    super(props);
+
+    this.pulseInfo = React.createRef();
+  }
+
   componentDidMount() {
     this.props.setEditingPulse(
       this.props.pulseId,
@@ -49,7 +62,7 @@ export default class PulseEdit extends Component {
     );
     this.props.fetchPulseFormInput();
 
-    MetabaseAnalytics.trackEvent(
+    MetabaseAnalytics.trackStructEvent(
       this.props.pulseId ? "PulseEdit" : "PulseCreate",
       "Start",
     );
@@ -60,30 +73,31 @@ export default class PulseEdit extends Component {
     await this.props.updateEditingPulse(pulse);
     await this.props.saveEditingPulse();
 
-    MetabaseAnalytics.trackEvent(
+    MetabaseAnalytics.trackStructEvent(
       this.props.pulseId ? "PulseEdit" : "PulseCreate",
       "Complete",
       this.props.pulse.cards.length,
     );
 
-    this.props.onChangeLocation(Urls.collection(pulse.collection_id));
+    const collection = this.props.collection
+      ? this.props.collection
+      : { id: pulse.collection_id };
+    this.props.onChangeLocation(Urls.collection(collection));
   };
 
   handleArchive = async () => {
     await this.props.setPulseArchived(this.props.pulse, true);
 
-    MetabaseAnalytics.trackEvent("PulseArchive", "Complete");
+    MetabaseAnalytics.trackStructEvent("PulseArchive", "Complete");
 
-    this.props.onChangeLocation(
-      Urls.collection(this.props.pulse.collection_id),
-    );
+    this.props.onChangeLocation(Urls.collection(this.props.collection));
   };
 
   handleUnarchive = async () => {
     await this.props.setPulseArchived(this.props.pulse, false);
     this.setPulse({ ...this.props.pulse, archived: false });
 
-    MetabaseAnalytics.trackEvent("PulseUnarchive", "Complete");
+    MetabaseAnalytics.trackStructEvent("PulseUnarchive", "Complete");
   };
 
   setPulse = pulse => {
@@ -100,7 +114,7 @@ export default class PulseEdit extends Component {
                 c.recipients.length,
               )}
             </strong>
-          )} ${<strong>{c.schedule_type}</strong>}`}
+          )} ${(<strong>{c.schedule_type}</strong>)}`}
           .
         </span>
       ) : (
@@ -123,7 +137,7 @@ export default class PulseEdit extends Component {
     const link = (
       <a
         className="link"
-        href={MetabaseSettings.docsUrl("users-guide/07-dashboards")}
+        href={MetabaseSettings.docsUrl("users-guide/dashboard-subscriptions")}
       >{t`dashboard subscriptions`}</a>
     );
     return (
@@ -131,18 +145,18 @@ export default class PulseEdit extends Component {
         <div className="PulseEdit-header flex align-center border-bottom py3">
           <h1>{pulse && pulse.id != null ? t`Edit report` : t`New report`}</h1>
           <ModalWithTrigger
-            ref="pulseInfo"
+            ref={this.pulseInfo}
             className="Modal WhatsAPulseModal"
             triggerElement={t`What's a Report?`}
             triggerClasses="text-brand text-bold flex-align-right"
           >
-            <ModalContent onClose={() => this.refs.pulseInfo.close()}>
+            <ModalContent onClose={() => this.pulseInfo.current.close()}>
               <div className="mx4 mb4">
                 <WhatsAPulse
                   button={
                     <button
                       className="Button Button--primary"
-                      onClick={() => this.refs.pulseInfo.close()}
+                      onClick={() => this.pulseInfo.current.close()}
                     >{t`Got it`}</button>
                   }
                 />
@@ -179,6 +193,9 @@ export default class PulseEdit extends Component {
               {...this.props}
               setPulse={this.setPulse}
               pulseIsValid={isValid}
+              invalidRecipientText={domains =>
+                t`You're only allowed to email pulses to addresses ending in ${domains}`
+              }
             />
           </div>
           <PulseEditSkip {...this.props} setPulse={this.setPulse} />

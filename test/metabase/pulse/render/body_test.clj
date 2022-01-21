@@ -4,7 +4,14 @@
             [hiccup.core :refer [html]]
             [metabase.pulse.render.body :as body]
             [metabase.pulse.render.common :as common]
-            [metabase.pulse.render.test-util :as render.tu]))
+            [metabase.pulse.render.test-util :as render.tu]
+            [schema.core :as s]))
+
+(use-fixtures :each
+  (fn warn-possible-rebuild
+    [thunk]
+    (testing "[PRO TIP] If this test fails, you may need to rebuild the bundle with `yarn build-static-viz`\n"
+      (thunk))))
 
 (def ^:private pacific-tz "America/Los_Angeles")
 
@@ -231,7 +238,8 @@
 
 (def ^:private test-columns-with-date-semantic-type
   (update test-columns 2 merge {:base_type    :type/Text
-                                :semantic_type :type/DateTime}))
+                                :effective_type :type/DateTime
+                                :coercion_strategy :Coercion/ISO8601->DateTime}))
 
 (deftest cols-with-semantic-types
   (is (= [{:bar-width nil, :row [(number "1") (number "34.10") "Apr 1, 2014" "Stout Burgers & Beers"]}
@@ -243,40 +251,76 @@
                                                (count test-columns))))))
 
 (defn- render-scalar-value [results]
-  (-> (body/render :scalar nil pacific-tz nil results)
+  (-> (body/render :scalar nil pacific-tz nil nil results)
       :content
       last))
 
-(deftest renders-int
-  (is (= "10"
-         (render-scalar-value {:cols [{:name         "ID",
-                                       :display_name "ID",
-                                       :base_type    :type/BigInteger
-                                       :semantic_type nil}]
-                               :rows [[10]]}))))
-
-(deftest renders-float
-  (is (= "10.12"
-         (render-scalar-value {:cols [{:name         "floatnum",
-                                       :display_name "FLOATNUM",
-                                       :base_type    :type/Float
-                                       :semantic_type nil}]
-                               :rows [[10.12345]]}))))
-
-(deftest renders-string
-  (is (= "foo"
-         (render-scalar-value {:cols [{:name         "stringvalue",
-                                       :display_name "STRINGVALUE",
-                                       :base_type    :type/Text
-                                       :semantic_type nil}]
-                               :rows [["foo"]]}))))
-(deftest renders-date
-  (is (= "Apr 1, 2014"
-         (render-scalar-value {:cols [{:name         "date",
-                                       :display_name "DATE",
-                                       :base_type    :type/DateTime
-                                       :semantic_type nil}]
-                               :rows [["2014-04-01T08:30:00.0000"]]}))))
+(deftest scalar-test
+  (testing "renders int"
+    (is (= "10"
+           (render-scalar-value {:cols [{:name         "ID",
+                                         :display_name "ID",
+                                         :base_type    :type/BigInteger
+                                         :semantic_type nil}]
+                                 :rows [[10]]}))))
+  (testing "renders float"
+    (is (= "10.12"
+           (render-scalar-value {:cols [{:name         "floatnum",
+                                         :display_name "FLOATNUM",
+                                         :base_type    :type/Float
+                                         :semantic_type nil}]
+                                 :rows [[10.12345]]}))))
+  (testing "renders string"
+    (is (= "foo"
+           (render-scalar-value {:cols [{:name         "stringvalue",
+                                         :display_name "STRINGVALUE",
+                                         :base_type    :type/Text
+                                         :semantic_type nil}]
+                                 :rows [["foo"]]}))))
+  (testing "renders date"
+    (is (= "Apr 1, 2014"
+           (render-scalar-value {:cols [{:name         "date",
+                                         :display_name "DATE",
+                                         :base_type    :type/DateTime
+                                         :semantic_type nil}]
+                                 :rows [["2014-04-01T08:30:00.0000"]]}))))
+  (testing "Includes raw text"
+    (testing "for scalars"
+      (let [results {:cols [{:name         "stringvalue",
+                             :display_name "STRINGVALUE",
+                             :base_type    :type/Text
+                             :semantic_type nil}]
+                     :rows [["foo"]]}]
+        (is (= "foo"
+               (:render/text (body/render :scalar nil pacific-tz nil nil results))))
+        (is (schema= {:attachments (s/eq nil)
+                      :content     [(s/one (s/eq :div) "div tag")
+                                    (s/one {:style s/Str} "style map")
+                                    (s/one (s/eq "foo") "content")]
+                      :render/text (s/eq "foo")}
+                     (body/render :scalar nil pacific-tz nil nil results)))))
+    (testing "for smartscalars"
+      (let [results {:cols [{:name         "value",
+                             :display_name "VALUE",
+                             :base_type    :type/Decimal}
+                            {:name           "time",
+                             :display_name   "TIME",
+                             :base_type      :type/DateTime
+                             :effective_type :type/DateTime}]
+                     :rows [[40.0 :this-month]
+                            [30.0 :last-month]
+                            [20.0 :month-before]]
+                     :insights [{:previous-value 30.0
+                                 :unit :month
+                                 :last-change 1.333333
+                                 :col "value"
+                                 :last-value 40.0}]}]
+        (is (= "40.00\nUp 133.33%. Was 30.00 last month"
+               (:render/text (body/render :smartscalar nil pacific-tz nil nil results))))
+        (is (schema= {:attachments (s/eq nil)
+                      :content     (s/pred vector? "hiccup vector")
+                      :render/text (s/eq "40.00\nUp 133.33%. Was 30.00 last month")}
+                     (body/render :smartscalar nil pacific-tz nil nil results)))))))
 
 (defn- replace-style-maps [hiccup-map]
   (walk/postwalk (fn [maybe-map]
@@ -340,10 +384,6 @@
   [html-data]
   (tree-seq coll? seq html-data))
 
-(defn- render-bar-graph [results]
-  ;; `doall` here as the flatten won't force lazy-seqs
-  (doall (flatten-html-data (body/render :bar nil pacific-tz render.tu/test-card results))))
-
 (def ^:private default-columns
   [{:name         "Price",
     :display_name "Price",
@@ -354,35 +394,109 @@
     :base_type    :type/BigInteger
     :semantic_type nil}])
 
+(def ^:private default-combo-columns
+  [{:name         "Price",
+    :display_name "Price",
+    :base_type    :type/BigInteger
+    :semantic_type nil}
+   {:name         "NumPurchased",
+    :display_name "NumPurchased",
+    :base_type    :type/BigInteger
+    :semantic_type nil}
+   {:name         "NumKazoos",
+    :display_name "NumKazoos",
+    :base_type    :type/BigInteger
+    :semantic_type nil}
+   {:name         "ExtraneousColumn",
+    :display_name "ExtraneousColumn",
+    :base_type    :type/BigInteger
+    :semantic_type nil}])
+
+(defn has-inline-image? [rendered]
+  (some #{:img} (flatten-html-data rendered)))
+
+(defn- render-bar-graph [results]
+  (body/render :bar :inline pacific-tz render.tu/test-card nil results))
+
 (deftest render-bar-graph-test
   (testing "Render a bar graph with non-nil values for the x and y axis"
-    (let [result (render-bar-graph {:cols default-columns
-                                    :rows [[10.0 1] [5.0 10] [2.50 20] [1.25 30]]})]
-      (is (= true
-             (some #(= "Price" %) result)))
-      (is (= true
-             (some #(= "NumPurchased" %) result)))))
+    (is (has-inline-image?
+         (render-bar-graph {:cols default-columns
+                            :rows [[10.0 1] [5.0 10] [2.50 20] [1.25 30]]}))))
   (testing "Check to make sure we allow nil values for the y-axis"
-    (let [result (render-bar-graph {:cols default-columns
-                                    :rows [[10.0 1] [5.0 10] [2.50 20] [1.25 nil]]})]
-      (is (= true
-             (some #(= "Price" %) result)))
-      (is (= true
-             (some #(= "NumPurchased" %) result)))))
+    (is (has-inline-image?
+         (render-bar-graph {:cols default-columns
+                            :rows [[10.0 1] [5.0 10] [2.50 20] [1.25 nil]]}))))
   (testing "Check to make sure we allow nil values for the y-axis"
-    (let [result (render-bar-graph {:cols default-columns
-                                    :rows [[10.0 1] [5.0 10] [2.50 20] [nil 30]]})]
-      (is (= true
-             (some #(= "Price" %) result)))
-      (is (= true
-             (some #(= "NumPurchased" %) result)))))
+    (is (has-inline-image?
+         (render-bar-graph {:cols default-columns
+                            :rows [[10.0 1] [5.0 10] [2.50 20] [nil 30]]}))))
   (testing "Check to make sure we allow nil values for both x and y on different rows"
-    (let [result (render-bar-graph {:cols default-columns
-                                    :rows [[10.0 1] [5.0 10] [nil 20] [1.25 nil]]})]
-      (is (= true
-             (some #(= "Price" %) result)))
-      (is (= true
-             (some #(= "NumPurchased" %) result))))))
+    (is (has-inline-image?
+         (render-bar-graph {:cols default-columns
+                            :rows [[10.0 1] [5.0 10] [nil 20] [1.25 nil]]})))))
+
+(defn- render-area-graph [results]
+  (body/render :area :inline pacific-tz render.tu/test-card nil results))
+
+(deftest render-area-graph-tet
+  (testing "Render an area graph with non-nil values for the x and y axis"
+    (is (has-inline-image?
+         (render-area-graph {:cols default-columns
+                            :rows [[10.0 1] [5.0 10] [2.50 20] [1.25 30]]}))))
+  (testing "Check to make sure we allow nil values for the y-axis"
+    (is (has-inline-image?
+         (render-area-graph {:cols default-columns
+                            :rows [[10.0 1] [5.0 10] [2.50 20] [1.25 nil]]}))))
+  (testing "Check to make sure we allow nil values for the y-axis"
+    (is (has-inline-image?
+         (render-area-graph {:cols default-columns
+                            :rows [[10.0 1] [5.0 10] [2.50 20] [nil 30]]}))))
+  (testing "Check to make sure we allow nil values for both x and y on different rows"
+    (is (has-inline-image?
+         (render-area-graph {:cols default-columns
+                            :rows [[10.0 1] [5.0 10] [nil 20] [1.25 nil]]})))))
+
+(defn- render-waterfall [results]
+  (body/render :waterfall :inline pacific-tz render.tu/test-card nil results))
+
+(deftest render-waterfall-test
+  (testing "Render a waterfall graph with non-nil values for the x and y axis"
+    (is (has-inline-image?
+         (render-waterfall {:cols default-columns
+                            :rows [[10.0 1] [5.0 10] [2.50 20] [1.25 30]]}))))
+  (testing "Check to make sure we allow nil values for the y-axis"
+    (is (has-inline-image?
+         (render-waterfall {:cols default-columns
+                            :rows [[10.0 1] [5.0 10] [2.50 20] [1.25 nil]]}))))
+  (testing "Check to make sure we allow nil values for the x-axis"
+    (is (has-inline-image?
+         (render-waterfall {:cols default-columns
+                            :rows [[10.0 1] [5.0 10] [2.50 20] [nil 30]]}))))
+  (testing "Check to make sure we allow nil values for both x and y on different rows"
+    (is (has-inline-image?
+         (render-waterfall {:cols default-columns
+                            :rows [[10.0 1] [5.0 10] [nil 20] [1.25 nil]]})))))
+
+(defn- render-combo [results]
+  (body/render :combo :inline pacific-tz render.tu/test-combo-card nil results))
+
+(defn- render-combo-multi-x [results]
+  (body/render :combo :inline pacific-tz render.tu/test-combo-card-multi-x nil results))
+
+(deftest render-combo-test
+  (testing "Render a combo graph with non-nil values for the x and y axis"
+    (is (has-inline-image?
+          (render-combo {:cols default-combo-columns
+                         :rows [[10.0 1 123 111] [5.0 10 12 111] [2.50 20 1337 12312] [1.25 30 -22 123124]]}))))
+  (testing "Render a combo graph with multiple x axes"
+    (is (has-inline-image?
+          (render-combo-multi-x {:cols default-combo-columns
+                                 :rows [[10.0 "Bob" 123 123124] [5.0 "Dobbs" 12 23423] [2.50 "Robbs" 1337 234234] [1.25 "Mobbs" -22 1234123]]}))))
+  (testing "Check to make sure we allow nil values for any axis"
+    (is (has-inline-image?
+          (render-combo {:cols default-combo-columns
+                         :rows [[nil 1 1 23453] [10.0 1 nil nil] [5.0 10 22 1337] [2.50 nil 22 1231] [1.25 nil nil 1231232]]})))))
 
 ;; Test rendering a sparkline
 ;;
@@ -391,33 +505,136 @@
 ;; attachment is included
 
 (defn- render-sparkline [results]
-  (some-> (body/render :sparkline :attachment pacific-tz render.tu/test-card results)
-          :attachments
-          count))
+  (body/render :sparkline :inline pacific-tz render.tu/test-card nil results))
 
 (deftest render-sparkline-test
   (testing "Test that we can render a sparkline with all valid values"
-    (is (= 1
-           (render-sparkline
-            {:cols default-columns
-             :rows [[10.0 1] [5.0 10] [2.50 20] [1.25 30]]}))))
+    (is (has-inline-image?
+         (render-sparkline
+          {:cols default-columns
+           :rows [[10.0 1] [5.0 10] [2.50 20] [1.25 30]]}))))
   (testing "Tex that we can have a nil value in the middle"
-    (is (= 1
-           (render-sparkline
-            {:cols default-columns
-             :rows [[10.0 1] [11.0 2] [5.0 nil] [2.50 20] [1.25 30]]}))))
+    (is (has-inline-image?
+         (render-sparkline
+          {:cols default-columns
+           :rows [[10.0 1] [11.0 2] [5.0 nil] [2.50 20] [1.25 30]]}))))
   (testing "Test that we can have a nil value for the y-axis at the end of the results"
-    (is (= 1
-           (render-sparkline
-            {:cols default-columns
-             :rows [[10.0 1] [11.0 2] [2.50 20] [1.25 nil]]}))))
+    (is (has-inline-image?
+         (render-sparkline
+          {:cols default-columns
+           :rows [[10.0 1] [11.0 2] [2.50 20] [1.25 nil]]}))))
   (testing "Test that we can have a nil value for the x-axis at the end of the results"
-    (is (= 1
-           (render-sparkline
-            {:cols default-columns
-             :rows [[10.0 1] [11.0 2] [nil 20] [1.25 30]]}))))
+    (is (has-inline-image?
+         (render-sparkline
+          {:cols default-columns
+           :rows [[10.0 1] [11.0 2] [nil 20] [1.25 30]]}))))
   (testing "Test that we can have a nil value for both x and y axis for different rows"
-    (is (= 1
-           (render-sparkline
-            {:cols default-columns
-             :rows [[10.0 1] [11.0 2] [nil 20] [1.25 nil]]})))))
+    (is (has-inline-image?
+         (render-sparkline
+          {:cols default-columns
+           :rows [[10.0 1] [11.0 2] [nil 20] [1.25 nil]]})))))
+
+(defn- render-funnel [results]
+  (body/render :funnel :inline pacific-tz render.tu/test-card nil results))
+
+(deftest render-funnel-test
+  (testing "Test that we can render a funnel with all valid values"
+    (is (has-inline-image?
+         (render-funnel
+          {:cols default-columns
+           :rows [[10.0 1] [5.0 10] [2.50 20] [1.25 30]]}))))
+  (testing "Test that we can have some nil values stuck everywhere"
+    (is (has-inline-image?
+         (render-funnel
+          {:cols default-columns
+           :rows [[nil 1] [11.0 nil] [nil nil] [2.50 20] [1.25 30]]})))))
+
+(deftest render-categorical-donut-test
+  (let [columns [{:name          "category",
+                  :display_name  "Category",
+                  :base_type     :type/Text
+                  :semantic_type nil}
+                 {:name          "NumPurchased",
+                  :display_name  "NumPurchased",
+                  :base_type     :type/Integer
+                  :semantic_type nil}]
+        render  (fn [rows]
+                  (body/render :categorical/donut :inline pacific-tz
+                               render.tu/test-card
+                               nil
+                               {:cols columns :rows rows}))
+        prune   (fn prune [html-tree]
+                  (walk/prewalk (fn no-maps [x]
+                                  (if (vector? x)
+                                    (filterv (complement map?) x)
+                                    x))
+                                html-tree))]
+    (testing "Renders without error"
+      (let [rendered-info (render [["Doohickey" 75] ["Widget" 25]])]
+        (is (has-inline-image? rendered-info))))
+    (testing "Includes percentages"
+      (is (= [:div
+              [:img]
+              [:div
+               [:div [:span "•"] [:span "Doohickey"] [:span "75%"]]
+               [:div [:span "•"] [:span "Widget"] [:span "25%"]]]]
+             (prune (:content (render [["Doohickey" 75] ["Widget" 25]]))))))))
+
+(deftest render-progress
+  (let [col [{:name          "NumPurchased",
+              :display_name  "NumPurchased",
+              :base_type     :type/Integer
+              :semantic_type nil}]
+        render  (fn [rows]
+                  (body/render :progress :inline pacific-tz
+                               render.tu/test-card
+                               nil
+                               {:cols col :rows rows}))
+        prune   (fn prune [html-tree]
+                  (walk/prewalk (fn no-maps [x]
+                                  (if (vector? x)
+                                    (filterv (complement map?) x)
+                                    x))
+                                html-tree))]
+    (testing "Renders without error"
+      (let [rendered-info (render [[25]])]
+        (is (has-inline-image? rendered-info))))
+    (testing "Renders negative value without error"
+      (let [rendered-info (render [[-25]])]
+        (is (has-inline-image? rendered-info))))))
+
+(def donut-info #'body/donut-info)
+
+(deftest donut-info-test
+  (let [rows [["a" 45] ["b" 45] ["c" 5] ["d" 5]]]
+    (testing "If everything is above the threshold does nothing"
+      (is (= rows (:rows (donut-info 4 rows)))))
+    (testing "Collapses smaller sections below threshold"
+      (is (= [["a" 45] ["b" 45] ["Other" 10]]
+             (:rows (donut-info 5 rows)))))
+    (testing "Computes percentages"
+      (is (= {"a" "45%" "b" "45%" "Other" "10%"}
+             (:percentages (donut-info 5 rows)))))
+    (testing "Includes zero percent rows"
+      (let [rows [["a" 50] ["b" 50] ["d" 0]]]
+        (is (= {"a" "50%" "b" "50%" "Other" "0%"}
+               (:percentages (donut-info 5 rows))))))))
+
+(deftest format-percentage-test
+  (let [value 12345.54321]
+    (is (= "1,234,543.21%" (body/format-percentage 12345.4321 ".,")))
+    (is (= "1&234&543^21%" (body/format-percentage 12345.4321 "^&")))
+    (is (= "1,234,543 21%" (body/format-percentage 12345.4321 " ")))
+    (is (= "1,234,543.21%" (body/format-percentage 12345.4321 nil)))
+    (is (= "1,234,543.21%" (body/format-percentage 12345.4321 "")))))
+
+(deftest x-and-y-axis-label-info-test
+  (let [x-col {:display_name "X col"}
+        y-col {:display_name "Y col"}]
+    (testing "no custom viz settings"
+      (is (= {:bottom "X col", :left "Y col"}
+             (#'body/x-and-y-axis-label-info x-col y-col nil))))
+    (testing "w/ custom viz settings"
+      (is (= {:bottom "X custom", :left "Y custom"}
+             (#'body/x-and-y-axis-label-info x-col y-col {:graph.x_axis.title_text "X custom"
+                                                          :graph.y_axis.title_text "Y custom"}))))))

@@ -1,9 +1,6 @@
-/* @flow */
-
-import type { QueryMode } from "metabase-types/types/Visualization";
 import { getDefaultDrills } from "../drill";
 
-const NativeMode: QueryMode = {
+const NativeMode = {
   name: "native",
   drills: getDefaultDrills,
 };

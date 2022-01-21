@@ -6,26 +6,17 @@
             [metabase.config :as config]
             [metabase.models.setting :refer [defsetting]]
             [metabase.public-settings :as public-settings]
-            [metabase.server.middleware.util :as middleware.u]
+            [metabase.server.request.util :as request.u]
             [metabase.util.i18n :as ui18n :refer [deferred-tru]]
             [ring.util.codec :refer [base64-encode]])
   (:import java.security.MessageDigest))
 
-(defn- file-hash [resource-filename]
-  (base64-encode
-    (.digest (doto (java.security.MessageDigest/getInstance "SHA-256")
-               (.update (.getBytes (slurp (io/resource resource-filename))))))))
-
-(def ^:private ^:const index-bootstrap-js-hash (file-hash "frontend_client/inline_js/index_bootstrap.js"))
-(def ^:private ^:const index-ganalytics-js-hash (file-hash "frontend_client/inline_js/index_ganalytics.js"))
-(def ^:private ^:const init-js-hash (file-hash "frontend_client/inline_js/init.js"))
-
 (defonce ^:private ^:const inline-js-hashes
-  (let [file-hash (fn [resource-filename]
-                    (base64-encode
-                     (.digest (doto (java.security.MessageDigest/getInstance "SHA-256")
-                                (.update (.getBytes (slurp (io/resource resource-filename))))))))]
-    (mapv file-hash [;; inline script in index.html that sets `MetabaseBootstrap` and the like
+  (letfn [(file-hash [resource-filename]
+            (base64-encode
+             (.digest (doto (MessageDigest/getInstance "SHA-256")
+                        (.update (.getBytes (slurp (io/resource resource-filename))))))))]
+    (mapv file-hash [ ;; inline script in index.html that sets `MetabaseBootstrap` and the like
                      "frontend_client/inline_js/index_bootstrap.js"
                      ;; inline script in index.html that loads Google Analytics
                      "frontend_client/inline_js/index_ganalytics.js"
@@ -39,18 +30,19 @@
    "Expires"        "Tue, 03 Jul 2001 06:00:00 GMT"
    "Last-Modified"  (t/format :rfc-1123-date-time (t/zoned-date-time))})
 
- (defn- cache-far-future-headers
-   "Headers that tell browsers to cache a static resource for a long time."
-   []
-   {"Cache-Control" "public, max-age=31536000"})
+(defn- cache-far-future-headers
+  "Headers that tell browsers to cache a static resource for a long time."
+  []
+  {"Cache-Control" "public, max-age=31536000"})
 
 (def ^:private ^:const strict-transport-security-header
   "Tell browsers to only access this resource over HTTPS for the next year (prevent MTM attacks). (This only applies if
   the original request was HTTPS; if sent in response to an HTTP request, this is simply ignored)"
   {"Strict-Transport-Security" "max-age=31536000"})
 
-(def ^:private content-security-policy-header
+(defn- content-security-policy-header
   "`Content-Security-Policy` header. See https://content-security-policy.com for more details."
+  []
   {"Content-Security-Policy"
    (str/join
     (for [[k vs] {:default-src  ["'none'"]
@@ -59,13 +51,19 @@
                                    "'unsafe-eval'" ; TODO - we keep working towards removing this entirely
                                    "https://maps.google.com"
                                    "https://apis.google.com"
-                                   "https://www.google-analytics.com" ; Safari requires the protocol
                                    "https://*.googleapis.com"
                                    "*.gstatic.com"
+                                   (when (public-settings/anon-tracking-enabled)
+                                     "https://www.google-analytics.com")
                                    ;; for webpack hot reloading
                                    (when config/is-dev?
-                                     "localhost:8080")]
-                                  (map (partial format "'sha256-%s'") inline-js-hashes))
+                                     "localhost:8080")
+                                   ;; for react dev tools to work in Firefox until resolution of
+                                   ;; https://github.com/facebook/react/issues/17997
+                                   (when config/is-dev?
+                                     "'unsafe-inline'")]
+                                  (when-not config/is-dev?
+                                    (map (partial format "'sha256-%s'") inline-js-hashes)))
                   :child-src    ["'self'"
                                  ;; TODO - double check that we actually need this for Google Auth
                                  "https://accounts.google.com"]
@@ -79,6 +77,13 @@
                   :connect-src  ["'self'"
                                  ;; MailChimp. So people can sign up for the Metabase mailing list in the sign up process
                                  "metabase.us10.list-manage.com"
+                                 ;; Google analytics
+                                 (when (public-settings/anon-tracking-enabled)
+                                   "www.google-analytics.com")
+                                 ;; Snowplow analytics
+                                 (when (public-settings/anon-tracking-enabled)
+                                   "sp.metabase.com")
+                                 ;; Webpack dev server
                                  (when config/is-dev?
                                    "localhost:8080 ws://localhost:8080")]
                   :manifest-src ["'self'"]}]
@@ -91,7 +96,7 @@
 
 (defn- content-security-policy-header-with-frame-ancestors
   [allow-iframes?]
-  (update content-security-policy-header
+  (update (content-security-policy-header)
           "Content-Security-Policy"
           #(format "%s frame-ancestors %s;" % (if allow-iframes? "*" (or (embedding-app-origin) "'none'")))))
 
@@ -132,8 +137,8 @@
 
 (defn- add-security-headers* [request response]
   (update response :headers merge (security-headers
-                                   :allow-iframes? ((some-fn middleware.u/public? middleware.u/embed?) request)
-                                   :allow-cache?   (middleware.u/cacheable? request))))
+                                   :allow-iframes? ((some-fn request.u/public? request.u/embed?) request)
+                                   :allow-cache?   (request.u/cacheable? request))))
 
 (defn add-security-headers
   "Add HTTP security and cache-busting headers."

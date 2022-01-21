@@ -65,34 +65,38 @@
         :user_id  user-id
         :group_id (:id (group/admin))))))
 
-(defn- pre-update [{:keys [email reset_token is_superuser id locale] :as user}]
+(defn- pre-update
+  [{reset-token :reset_token, superuser? :is_superuser, active? :is_active, :keys [email id locale], :as user}]
   ;; when `:is_superuser` is toggled add or remove the user from the 'Admin' group as appropriate
-  (when-not (nil? is_superuser)
+  (when (some? superuser?)
     (let [membership-exists? (db/exists? PermissionsGroupMembership
                                :group_id (:id (group/admin))
                                :user_id  id)]
       (cond
-        (and is_superuser
+        (and superuser?
              (not membership-exists?))
         (db/insert! PermissionsGroupMembership
-          :group_id (u/get-id (group/admin))
+          :group_id (u/the-id (group/admin))
           :user_id  id)
-
         ;; don't use `delete!` here because that does the opposite and tries to update this user
         ;; which leads to a stack overflow of calls between the two
         ;; TODO - could we fix this issue by using `post-delete!`?
-        (and (not is_superuser)
+        (and (not superuser?)
              membership-exists?)
         (db/simple-delete! PermissionsGroupMembership
-          :group_id (u/get-id (group/admin))
+          :group_id (u/the-id (group/admin))
           :user_id  id))))
+  ;; make sure email and locale are valid if set
   (when email
     (assert (u/email? email)))
   (when locale
     (assert (i18n/available-locale? locale)))
+  ;; delete all subscriptions to pulses/alerts/etc. if the User is getting archived (`:is_active` status changes)
+  (when (false? active?)
+    (db/delete! 'PulseChannelRecipient :user_id id))
   ;; If we're setting the reset_token then encrypt it before it goes into the DB
   (cond-> user
-    reset_token (update :reset_token creds/hash-bcrypt)
+    reset-token (update :reset_token creds/hash-bcrypt)
     locale      (update :locale i18n/normalized-locale-string)
     email       (update :email u/lower-case-en)))
 
@@ -118,7 +122,7 @@
   "Sequence of columns that we will allow non-admin Users to see when fetching a list of Users. Why can non-admins see
   other Users at all? I honestly would prefer they couldn't, but we need to give them a list of emails to power
   Pulses."
-  [:id :email :first_name :last_name])
+  [:core_user.id :email :first_name :last_name])
 
 (u/strict-extend (class User)
   models/IModel
@@ -136,7 +140,7 @@
   "Fetch set of IDs of PermissionsGroup a User belongs to."
   [user-or-id]
   (when user-or-id
-    (db/select-field :group_id PermissionsGroupMembership :user_id (u/get-id user-or-id))))
+    (db/select-field :group_id PermissionsGroupMembership :user_id (u/the-id user-or-id))))
 
 (defn add-group-ids
   "Efficiently add PermissionsGroup `group_ids` to a collection of `users`."
@@ -144,21 +148,33 @@
   [users]
   (when (seq users)
     (let [user-id->memberships (group-by :user_id (db/select [PermissionsGroupMembership :user_id :group_id]
-                                                    :user_id [:in (set (map u/get-id users))]))]
+                                                    :user_id [:in (set (map u/the-id users))]))]
       (for [user users]
-        (assoc user :group_ids (set (map :group_id (user-id->memberships (u/get-id user)))))))))
+        (assoc user :group_ids (set (map :group_id (user-id->memberships (u/the-id user)))))))))
+
+(defn add-has-invited-second-user
+  "Adds the `has_invited_second_user` flag to a collection of `users`. This should be `true` for only the user who
+  underwent the initial app setup flow (with an ID of 1), iff more than one user exists. This is used to modify
+  the wording for this user on a homepage banner that prompts them to add their database."
+  {:batched-hydrate :has_invited_second_user}
+  [users]
+  (when (seq users)
+    (let [user-count (db/count User)]
+      (for [user users]
+        (assoc user :has_invited_second_user (and (= (:id user) 1)
+                                                  (> user-count 1)))))))
 
 
 ;;; --------------------------------------------------- Helper Fns ---------------------------------------------------
 
 (declare form-password-reset-url set-password-reset-token!)
 
-(defn- send-welcome-email! [new-user invitor]
-  (let [reset-token (set-password-reset-token! (u/get-id new-user))
+(defn- send-welcome-email! [new-user invitor sent-from-setup?]
+  (let [reset-token (set-password-reset-token! (u/the-id new-user))
         ;; the new user join url is just a password reset with an indicator that this is a first time user
         join-url    (str (form-password-reset-url reset-token) "#new")]
     (classloader/require 'metabase.email.messages)
-    ((resolve 'metabase.email.messages/send-new-user-email!) new-user invitor join-url)))
+    ((resolve 'metabase.email.messages/send-new-user-email!) new-user invitor join-url sent-from-setup?)))
 
 (def LoginAttributes
   "Login attributes, currently not collected for LDAP or Google Auth. Will ultimately be stored as JSON."
@@ -189,10 +205,10 @@
 
 (s/defn create-and-invite-user!
   "Convenience function for inviting a new `User` and sending out the welcome email."
-  [new-user :- NewUser, invitor :- Invitor]
+  [new-user :- NewUser, invitor :- Invitor, setup? :- s/Bool]
   ;; create the new user
   (u/prog1 (insert-new-user! new-user)
-    (send-welcome-email! <> invitor)))
+    (send-welcome-email! <> invitor setup?)))
 
 (s/defn create-new-google-auth-user!
   "Convenience for creating a new user via Google Auth. This account is considered active immediately; thus all active
@@ -246,9 +262,9 @@
   "Set the user's group memberships to equal the supplied group IDs. Returns `true` if updates were made, `nil`
   otherwise."
   [user-or-id new-groups-or-ids]
-  (let [user-id            (u/get-id user-or-id)
+  (let [user-id            (u/the-id user-or-id)
         old-group-ids      (group-ids user-id)
-        new-group-ids      (set (map u/get-id new-groups-or-ids))
+        new-group-ids      (set (map u/the-id new-groups-or-ids))
         [to-remove to-add] (data/diff old-group-ids new-group-ids)]
     (when (seq (concat to-remove to-add))
       (db/transaction
@@ -267,7 +283,7 @@
 (defn permissions-set
   "Return a set of all permissions object paths that `user-or-id` has been granted access to. (2 DB Calls)"
   [user-or-id]
-  (set (when-let [user-id (u/get-id user-or-id)]
+  (set (when-let [user-id (u/the-id user-or-id)]
          (concat
           ;; Current User always gets readwrite perms for their Personal Collection and for its descendants! (1 DB Call)
           (map perms/collection-readwrite-path (collection/user->personal-collection-and-descendant-ids user-or-id))

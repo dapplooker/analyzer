@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React from "react";
 
 import { t } from "ttag";
@@ -42,13 +43,14 @@ export default function QuestionFilters({
           <FilterPill
             invert
             icon="filter"
-            className="mr1 mb1 cursor-pointer"
+            className="text-small mr1 mb1 cursor-pointer"
             onClick={expanded ? onCollapse : onExpand}
             data-metabase-event={
               expanded
                 ? `View Mode; Header Filters Collapse Click`
                 : `View Mode; Header Filters Expand Click`
             }
+            data-testid="filters-visibility-control"
           >
             {expanded ? null : filters.length}
           </FilterPill>
@@ -100,15 +102,23 @@ export function QuestionFilterWidget({
   );
 }
 
-QuestionFilters.shouldRender = ({ question, queryBuilderMode }) =>
+QuestionFilters.shouldRender = ({
+  question,
+  queryBuilderMode,
+  isObjectDetail,
+}) =>
   queryBuilderMode === "view" &&
   question.isStructured() &&
   question.query().isEditable() &&
   question.query().topLevelFilters().length > 0 &&
-  !question.isObjectDetail();
+  !isObjectDetail;
 
-QuestionFilterWidget.shouldRender = ({ question, queryBuilderMode }) =>
+QuestionFilterWidget.shouldRender = ({
+  question,
+  queryBuilderMode,
+  isObjectDetail,
+}) =>
   queryBuilderMode === "view" &&
   question.isStructured() &&
   question.query().isEditable() &&
-  !question.isObjectDetail();
+  !isObjectDetail;

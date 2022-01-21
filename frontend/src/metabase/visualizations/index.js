@@ -1,13 +1,8 @@
-/* @flow weak */
-
 import { t } from "ttag";
 import _ from "underscore";
 
-import type { Series } from "metabase-types/types/Visualization";
-
 const visualizations = new Map();
 const aliases = new Map();
-// $FlowFixMe
 visualizations.get = function(key) {
   return (
     Map.prototype.get.call(this, key) ||
@@ -54,14 +49,14 @@ export function registerVisualization(visualization) {
   }
 }
 
-export function getVisualizationRaw(series: Series) {
+export function getVisualizationRaw(series) {
   return {
     series: series,
     visualization: visualizations.get(series[0].card.display),
   };
 }
 
-export function getVisualizationTransformed(series: Series) {
+export function getVisualizationTransformed(series) {
   // don't transform if we don't have the data
   if (_.any(series, s => s.data == null)) {
     return getVisualizationRaw(series);
@@ -80,7 +75,6 @@ export function getVisualizationTransformed(series: Series) {
     }
     if (series !== lastSeries) {
       series = [...series];
-      // $FlowFixMe
       series._raw = lastSeries;
     }
   } while (series !== lastSeries);
@@ -100,6 +94,11 @@ export const extractRemappings = series => {
   }));
   return se;
 };
+
+export function getMaxMetricsSupported(display) {
+  const visualization = visualizations.get(display);
+  return visualization.maxMetricsSupported || Infinity;
+}
 
 // removes columns with `remapped_from` property and adds a `remapping` to the appropriate column
 const extractRemappedColumns = data => {

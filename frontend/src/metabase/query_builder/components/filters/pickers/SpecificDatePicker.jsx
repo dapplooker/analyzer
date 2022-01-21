@@ -1,5 +1,4 @@
-/* @flow */
-
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
 import PropTypes from "prop-types";
 import { t } from "ttag";
@@ -16,23 +15,8 @@ import cx from "classnames";
 const DATE_FORMAT = "YYYY-MM-DD";
 const DATE_TIME_FORMAT = "YYYY-MM-DDTHH:mm:ss";
 
-type Props = {
-  value: ?string,
-  onChange: (value: ?string) => void,
-  calendar?: boolean,
-  hideTimeSelectors?: boolean,
-  className?: string,
-};
-
-type State = {
-  showCalendar: boolean,
-};
-
 export default class SpecificDatePicker extends Component {
-  props: Props;
-  state: State;
-
-  constructor(props: Props) {
+  constructor(props) {
     super(props);
 
     this.state = {
@@ -45,7 +29,7 @@ export default class SpecificDatePicker extends Component {
     onChange: PropTypes.func.isRequired,
   };
 
-  onChange = (date: ?string, hours: ?number, minutes: ?number) => {
+  onChange = (date, hours, minutes) => {
     const m = moment(date);
     if (!m.isValid()) {
       this.props.onChange(null);
@@ -100,7 +84,6 @@ export default class SpecificDatePicker extends Component {
                 this.onChange(null);
               }
             }}
-            ref="value"
           />
 
           {calendar && (

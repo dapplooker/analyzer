@@ -1,13 +1,8 @@
-/* @flow */
-
+/* eslint-disable react/prop-types */
 import { isFK, isPK } from "metabase/lib/schema_metadata";
 import { t } from "ttag";
-import type {
-  ClickAction,
-  ClickActionProps,
-} from "metabase-types/types/Visualization";
 
-export default ({ question, clicked }: ClickActionProps): ClickAction[] => {
+export default ({ question, clicked }) => {
   if (
     !clicked ||
     !clicked.column ||
@@ -17,7 +12,6 @@ export default ({ question, clicked }: ClickActionProps): ClickAction[] => {
     return [];
   }
 
-  // $FlowFixMe
   let field = question.metadata().field(clicked.column.id);
   if (!field) {
     return [];

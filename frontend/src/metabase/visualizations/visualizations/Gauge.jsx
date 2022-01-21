@@ -1,5 +1,4 @@
-/* @flow */
-
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
 import ReactDOM from "react-dom";
 import { t } from "ttag";
@@ -15,8 +14,6 @@ import { columnSettings } from "metabase/visualizations/lib/settings/column";
 
 import ChartSettingGaugeSegments from "metabase/visualizations/components/settings/ChartSettingGaugeSegments";
 
-import type { VisualizationProps } from "metabase-types/types/Visualization";
-
 const MAX_WIDTH = 500;
 const PADDING_BOTTOM = 10;
 
@@ -30,11 +27,11 @@ const ARROW_BASE = ARROW_HEIGHT / Math.tan((64 / 180) * Math.PI);
 const ARROW_STROKE_THICKNESS = 1.25;
 
 // colors
-const BACKGROUND_ARC_COLOR = color("bg-medium");
-const SEGMENT_LABEL_COLOR = color("text-dark");
-const CENTER_LABEL_COLOR = color("text-dark");
-const ARROW_FILL_COLOR = color("text-medium");
-const ARROW_STROKE_COLOR = "white";
+const getBackgroundArcColor = () => color("bg-medium");
+const getSegmentLabelColor = () => color("text-dark");
+const getCenterLabelColor = () => color("text-dark");
+const getArrowFillColor = () => color("text-medium");
+const getArrowStrokeColor = () => "white";
 
 // in ems, but within the scaled 100px SVG element
 const FONT_SIZE_SEGMENT_LABEL = 0.25;
@@ -55,8 +52,6 @@ const degrees = radians => (radians * 180) / Math.PI;
 const segmentIsValid = s => !isNaN(s.min) && !isNaN(s.max);
 
 export default class Gauge extends Component {
-  props: VisualizationProps;
-
   static uiName = t`Gauge`;
   static identifier = "gauge";
   static iconName = "gauge";
@@ -81,7 +76,7 @@ export default class Gauge extends Component {
     mounted: false,
   };
 
-  _label: ?HTMLElement;
+  _label;
 
   static settings = {
     ...columnSettings({
@@ -260,7 +255,7 @@ export default class Gauge extends Component {
               <GaugeArc
                 start={angle(range[0])}
                 end={angle(range[1])}
-                fill={BACKGROUND_ARC_COLOR}
+                fill={getBackgroundArcColor()}
               />
               {/* SEGMENT ARCS */}
               {segments.map((segment, index) => (
@@ -273,6 +268,7 @@ export default class Gauge extends Component {
                   column={column}
                   settings={settings}
                   onHoverChange={!showLabels ? this.props.onHoverChange : null}
+                  testId={"gauge-arc-" + index}
                 />
               ))}
               {/* NEEDLE */}
@@ -284,6 +280,7 @@ export default class Gauge extends Component {
               {showLabels &&
                 numberLabels.map((value, index) => (
                   <GaugeSegmentLabel
+                    key={index}
                     position={valuePosition(
                       value,
                       OUTER_RADIUS * LABEL_OFFSET_PERCENT,
@@ -295,14 +292,14 @@ export default class Gauge extends Component {
               {/* TEXT LABELS */}
               {showLabels &&
                 textLabels.map(({ label, value }, index) => (
-                  <HideIfOverlowingSVG>
+                  <HideIfOverlowingSVG key={index}>
                     <GaugeSegmentLabel
                       position={valuePosition(
                         value,
                         OUTER_RADIUS * LABEL_OFFSET_PERCENT,
                       )}
                       style={{
-                        fill: SEGMENT_LABEL_COLOR,
+                        fill: getSegmentLabelColor(),
                       }}
                     >
                       {label}
@@ -316,7 +313,7 @@ export default class Gauge extends Component {
                 x={0}
                 y={0}
                 style={{
-                  fill: CENTER_LABEL_COLOR,
+                  fill: getCenterLabelColor(),
                   fontSize: "1em",
                   fontWeight: "bold",
                   textAnchor: "middle",
@@ -341,6 +338,7 @@ const GaugeArc = ({
   onHoverChange,
   settings,
   column,
+  testId,
 }) => {
   const arc = d3.svg
     .arc()
@@ -353,6 +351,7 @@ const GaugeArc = ({
         endAngle: end,
       })}
       fill={fill}
+      data-testid={testId}
       onMouseMove={e => {
         if (onHoverChange) {
           const options =
@@ -388,9 +387,9 @@ const GaugeNeedle = ({ angle, isAnimated = true }) => (
       angle,
     )}, 0, ${INNER_RADIUS})`}
     style={isAnimated ? { transition: "transform 1.5s ease-in-out" } : null}
-    stroke={ARROW_STROKE_COLOR}
+    stroke={getArrowStrokeColor()}
     strokeWidth={ARROW_STROKE_THICKNESS}
-    fill={ARROW_FILL_COLOR}
+    fill={getArrowFillColor()}
   />
 );
 

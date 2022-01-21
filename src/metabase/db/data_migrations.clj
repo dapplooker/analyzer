@@ -7,14 +7,15 @@
      CREATE TABLE IF NOT EXISTS ... -- Good
      CREATE TABLE ...               -- Bad"
   (:require [cemerick.friend.credentials :as creds]
-            [clojure.string :as str]
+            [cheshire.core :as json]
             [clojure.tools.logging :as log]
-            [metabase.config :as config]
+            [clojure.walk :as walk]
+            [medley.core :as m]
             [metabase.db.util :as mdb.u]
-            [metabase.mbql.schema :as mbql.s]
             [metabase.models.card :refer [Card]]
             [metabase.models.collection :as collection :refer [Collection]]
             [metabase.models.dashboard :refer [Dashboard]]
+            [metabase.models.dashboard-card :refer [DashboardCard]]
             [metabase.models.database :refer [Database]]
             [metabase.models.field :refer [Field]]
             [metabase.models.humanization :as humanization]
@@ -114,89 +115,8 @@
             database-id    db-ids]
       (u/ignore-exceptions
         (db/insert! Permissions
-          :object   (perms/object-path database-id)
+          :object   (perms/data-perms-path database-id)
           :group_id group-id)))))
-
-
-;;; +----------------------------------------------------------------------------------------------------------------+
-;;; |                                                NEW TYPE SYSTEM                                                 |
-;;; +----------------------------------------------------------------------------------------------------------------+
-
-;; this is the old new type system. as of v30 these are migrated from a field named special_type to
-;; semantic_type. These migrations target the world before this migration so they are left as is. The migrations talk
-;; about special_type as a column and a try/catch is introduced to the migration runner to allow migrations to
-;; fail. It is opt in.
-(def ^:private ^:const old-special-type->new-type
-    {"avatar"                 "type/AvatarURL"
-     "category"               "type/Category"
-     "city"                   "type/City"
-     "country"                "type/Country"
-     "desc"                   "type/Description"
-     "fk"                     "type/FK"
-     "id"                     "type/PK"
-     "image"                  "type/ImageURL"
-     "json"                   "type/SerializedJSON"
-     "latitude"               "type/Latitude"
-     "longitude"              "type/Longitude"
-     "name"                   "type/Name"
-     "number"                 "type/Number"
-     "state"                  "type/State"
-     "timestamp_milliseconds" "type/UNIXTimestampMilliseconds"
-     "timestamp_seconds"      "type/UNIXTimestampSeconds"
-     "url"                    "type/URL"
-     "zip_code"               "type/ZipCode"})
-
-;; make sure the new types are all valid
-(when-not config/is-prod?
-  (doseq [[_ t] old-special-type->new-type]
-    (assert (isa? (keyword t) :type/*))))
-
-(def ^:private ^:const old-base-type->new-type
-  {"ArrayField"      "type/Array"
-   "BigIntegerField" "type/BigInteger"
-   "BooleanField"    "type/Boolean"
-   "CharField"       "type/Text"
-   "DateField"       "type/Date"
-   "DateTimeField"   "type/DateTime"
-   "DecimalField"    "type/Decimal"
-   "DictionaryField" "type/Dictionary"
-   "FloatField"      "type/Float"
-   "IntegerField"    "type/Integer"
-   "TextField"       "type/Text"
-   "TimeField"       "type/Time"
-   "UUIDField"       "type/UUID"
-   "UnknownField"    "type/*"})
-
-(when-not config/is-prod?
-  (doseq [[_ t] old-base-type->new-type]
-    (assert (isa? (keyword t) :type/*))))
-
-;; migrate all of the old base + special types to the new ones.  This also takes care of any types that are already
-;; correct other than the fact that they're missing :type/ in the front.  This was a bug that existed for a bit in
-;; 0.20.0-SNAPSHOT but has since been corrected
-(defmigration ^{:author "camsaul", :added "0.20.0", :catch? true} migrate-field-types
-  (doseq [[old-type new-type] old-special-type->new-type]
-    ;; migrate things like :timestamp_milliseconds -> :type/UNIXTimestampMilliseconds
-    (db/update-where! 'Field {:%lower.special_type (str/lower-case old-type)}
-      :special_type new-type)
-    ;; migrate things like :UNIXTimestampMilliseconds -> :type/UNIXTimestampMilliseconds
-    (db/update-where! 'Field {:special_type (name (keyword new-type))}
-      :special_type new-type))
-  (doseq [[old-type new-type] old-base-type->new-type]
-    ;; migrate things like :DateTimeField -> :type/DateTime
-    (db/update-where! 'Field {:%lower.base_type (str/lower-case old-type)}
-      :base_type new-type)
-    ;; migrate things like :DateTime -> :type/DateTime
-    (db/update-where! 'Field {:base_type (name (keyword new-type))}
-      :base_type new-type)))
-
-;; if there were invalid field types in the database anywhere fix those so the new stricter validation logic doesn't
-;; blow up
-(defmigration ^{:author "camsaul", :added "0.20.0", :catch? true} fix-invalid-field-types
-  (db/update-where! 'Field {:base_type [:not-like "type/%"]}
-    :base_type "type/*")
-  (db/update-where! 'Field {:special_type [:not-like "type/%"]}
-    :special_type nil))
 
 ;; Copy the value of the old setting `-site-url` to the new `site-url` if applicable.  (`site-url` used to be stored
 ;; internally as `-site-url`; this was confusing, see #4188 for details) This has the side effect of making sure the
@@ -214,20 +134,6 @@
       (when (and stored-site-url
                  (not= stored-site-url defaulted-site-url))
         (setting/set! "site-url" stored-site-url)))))
-
-;; There was a bug (#5998) preventing database_id from being persisted with native query type cards. This migration
-;; populates all of the Cards missing those database ids
-(defmigration ^{:author "senior", :added "0.27.0"} populate-card-database-id
-  (doseq [[db-id cards] (group-by #(get-in % [:dataset_query :database])
-                                  (db/select [Card :dataset_query :id :name] :database_id [:= nil]))
-          :when (not= db-id mbql.s/saved-questions-virtual-database-id)]
-    (if (and (seq cards)
-             (db/exists? Database :id db-id))
-      (db/update-where! Card {:id [:in (map :id cards)]}
-                        :database_id db-id)
-      (doseq [{id :id card-name :name} cards]
-        (log/warnf "Cleaning up orphaned Question '%s', associated to a now deleted database" card-name)
-        (db/delete! Card :id id)))))
 
 ;; Prior to version 0.28.0 humanization was configured using the boolean setting `enable-advanced-humanization`.
 ;; `true` meant "use advanced humanization", while `false` meant "use simple humanization". In 0.28.0, this Setting
@@ -257,12 +163,12 @@
 ;; Since the meanings of things has changed we'll want to make sure we mark all Category fields as `list` as well so
 ;; their behavior doesn't suddenly change.
 
-;; Note that since v39 special_type became semantic_type. All of these migrations concern data from before this
+;; Note that since v39 semantic_type became semantic_type. All of these migrations concern data from before this
 ;; change. Therefore, the migration is set to `:catch? true` and the old name is used. If the column is semantic then
 ;; the data shouldn't be bad.
 (defmigration ^{:author "camsaul", :added "0.29.0", :catch? true} mark-category-fields-as-list
   (db/update-where! Field {:has_field_values nil
-                           :special_type     (mdb.u/isa :type/Category)
+                           :semantic_type     (mdb.u/isa :type/Category)
                            :active           true}
     :has_field_values "list"))
 
@@ -288,7 +194,7 @@
               ;; #legacySQL directive...
               (let [updated-sql (str "#legacySQL\n" sql)]
                 ;; and save the updated dataset_query map
-                (db/update! Card (u/get-id card-id)
+                (db/update! Card (u/the-id card-id)
                   :dataset_query (assoc-in query [:native :query] updated-sql))))))
         ;; if for some reason something above fails (as in #8924) let's log the error and proceed. It's not mission
         ;; critical that we migrate existing queries anyway, and for ones that are impossible to migrate (e.g. ones
@@ -304,7 +210,7 @@
 (defmigration ^{:author "senior", :added "0.30.0"} clear-ldap-user-local-passwords
   (db/transaction
     (doseq [user (db/select [User :id :password_salt] :ldap_auth [:= true])]
-      (db/update! User (u/get-id user) :password (creds/hash-bcrypt (str (:password_salt user) (UUID/randomUUID)))))))
+      (db/update! User (u/the-id user) :password (creds/hash-bcrypt (str (:password_salt user) (UUID/randomUUID)))))))
 
 
 ;; In 0.30 dashboards and pulses will be saved in collections rather than on separate list pages. Additionally, there
@@ -328,7 +234,7 @@
 ;;    new collections.
 ;;
 (defmigration ^{:author "camsaul", :added "0.30.0"} add-migrated-collections
-  (let [non-admin-group-ids (db/select-ids PermissionsGroup :id [:not= (u/get-id (perm-group/admin))])]
+  (let [non-admin-group-ids (db/select-ids PermissionsGroup :id [:not= (u/the-id (perm-group/admin))])]
     ;; 1. Grant Root Collection readwrite perms to all Groups. Except for admin since they already have root (`/`)
     ;; perms, and we don't want to put extra entries in there that confuse things
     (doseq [group-id non-admin-group-ids]
@@ -346,17 +252,127 @@
         (perms/revoke-collection-permissions! group-id new-collection))
       ;; 4. move everything not in this Collection to a new Collection
       (log/info (trs "Moving instances of {0} that aren''t in a Collection to {1} Collection {2}"
-                     (name model) new-collection-name (u/get-id new-collection)))
+                     (name model) new-collection-name (u/the-id new-collection)))
       (db/update-where! model {:collection_id nil}
-        :collection_id (u/get-id new-collection)))))
+        :collection_id (u/the-id new-collection)))))
 
-(defmigration ^{:added "0.39.0"} migrate-map-regions
-  (transduce
-   (filter (fn [{{map-region :map.region} :visualization_settings}]
-             (= map-region "us_states")))
-   (completing
-    (fn [_ {card-id :id, {map-region :map.region, :as viz-settings} :visualization_settings}]
-      (let [new-settings (update viz-settings :map.region str/upper-case)]
-        (db/update! Card card-id :visualization_settings new-settings))))
-   nil
-   (db/select-reducible [Card :id :visualization_settings])))
+(defn- fix-click-through
+  "Fixes click behavior settings on dashcards, returns nil if no fix available. Format changed from:
+
+  `{... click click_link_template ...}` to `{... click_behavior { type linkType linkTemplate } ...}`
+
+  at the top level and
+  {... view_as link_template link_text ...} to `{ ... click_behavior { type linkType linkTemplate linkTextTemplate } ...}`
+
+  at the column_settings level. Scours the card to find all click behavior, reshapes it, and deep merges it into the
+  reshapen dashcard.  scour for all links in the card, fixup the dashcard and then merge in any new click_behaviors
+  from the card. See extensive tests for different scenarios.
+
+  We are in a migration so this returns nil if there is nothing to do so that it is filtered and we aren't running sql
+  statements that are replacing data for no purpose.
+
+  Merging the following click behaviors in order (later merges on top of earlier):
+  - fixed card click behavior
+  - fixed dash click behavior
+  - existing new style dash click behavior"
+  [{id :id card :card_visualization dashcard :dashcard_visualization}]
+  (let [existing-fixed (fn [settings]
+                         (-> settings
+                             (m/update-existing "column_settings"
+                                                (fn [column_settings]
+                                                  (m/map-vals
+                                                   #(select-keys % ["click_behavior"])
+                                                   column_settings)))
+                             ;; select click behavior top level and in column settings
+                             (u/select-non-nil-keys ["column_settings" "click_behavior"])))
+        fix-top-level  (fn [toplevel]
+                         (if (= (get toplevel "click") "link")
+                           (assoc toplevel
+                                  ;; add new shape top level
+                                  "click_behavior"
+                                  {"type"         (get toplevel "click")
+                                   "linkType"     "url"
+                                   "linkTemplate" (get toplevel "click_link_template")})
+                           toplevel))
+        fix-cols       (fn [column-settings]
+                         (reduce-kv
+                          (fn [m col field-settings]
+                            (assoc m col
+                                   ;; add the click stuff under the new click_behavior entry or keep the
+                                   ;; field settings as is
+                                   (if (and (= (get field-settings "view_as") "link")
+                                            (contains? field-settings "link_template"))
+                                     ;; remove old shape and add new shape under click_behavior
+                                     (assoc field-settings
+                                            "click_behavior"
+                                            {"type"             (get field-settings "view_as")
+                                             "linkType"         "url"
+                                             "linkTemplate"     (get field-settings "link_template")
+                                             "linkTextTemplate" (get field-settings "link_text")})
+                                     field-settings)))
+                          {}
+                          column-settings))
+        fixed-card     (-> (if (contains? dashcard "click")
+                             (dissoc card "click_behavior") ;; throw away click behavior if dashcard has click
+                             ;; behavior added
+                             (fix-top-level card))
+                           (update "column_settings" fix-cols) ;; fix columns and then select only the new shape from
+                           ;; the settings tree
+                           existing-fixed)
+        fixed-dashcard (update (fix-top-level dashcard) "column_settings" fix-cols)
+        final-settings (->> (m/deep-merge fixed-card fixed-dashcard (existing-fixed dashcard))
+                            ;; remove nils and empty maps _AFTER_ deep merging so that the shapes are
+                            ;; uniform. otherwise risk not fully clobbering an underlying form if the one going on top
+                            ;; doesn't have link text
+                            (walk/postwalk (fn [form]
+                                             (if (map? form)
+                                               (into {} (for [[k v] form
+                                                              :when (if (seqable? v)
+                                                                      ;; remove keys with empty maps. must be postwalk
+                                                                      (seq v)
+                                                                      ;; remove nils
+                                                                      (some? v))]
+                                                          [k v]))
+                                               form))))]
+    (when (not= final-settings dashcard)
+      {:id                     id
+       :visualization_settings final-settings})))
+
+(defn- parse-to-json [& ks]
+  (fn [x]
+    (reduce #(update %1 %2 json/parse-string)
+            x
+            ks)))
+
+(defmigration ^{:author "dpsutton" :added "0.38.1"} migrate-click-through
+  (transduce (comp (map (parse-to-json :card_visualization :dashcard_visualization))
+                   (map fix-click-through)
+                   (filter :visualization_settings))
+             (completing
+              (fn [_ {:keys [id visualization_settings]}]
+                (db/update! DashboardCard id :visualization_settings visualization_settings)))
+             nil
+             ;; flamber wrote a manual postgres migration that this faithfully recreates: see
+             ;; https://github.com/metabase/metabase/issues/15014
+             (db/query {:select [:dashcard.id
+                                 [:card.visualization_settings :card_visualization]
+                                 [:dashcard.visualization_settings :dashcard_visualization]]
+                        :from   [[:report_dashboardcard :dashcard]]
+                        :join   [[:report_card :card] [:= :dashcard.card_id :card.id]]
+                        :where  [:or
+                                 [:like
+                                  :card.visualization_settings "%\"link_template\":%"]
+                                 [:like
+                                  :card.visualization_settings "%\"click_link_template\":%"]
+                                 [:like
+                                  :dashcard.visualization_settings "%\"link_template\":%"]
+                                 [:like
+                                  :dashcard.visualization_settings "%\"click_link_template\":%"]]})))
+
+;; !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+;; !!                                                                                                               !!
+;; !!    Please seriously consider whether any new migrations you write here could be written as Liquibase ones     !!
+;; !!    (using preConditions where appropriate). Only add things here if absolutely necessary. If you do add       !!
+;; !!    do add new ones here, please add them above this warning message, so people will see it in the future.     !!
+;; !!                                                                                                               !!
+;; !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

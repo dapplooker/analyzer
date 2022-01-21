@@ -1,5 +1,6 @@
 import {
   getTableCellClickedObject,
+  getTableClickedObjectRowData,
   isColumnRightAligned,
 } from "metabase/visualizations/lib/table";
 import { TYPE } from "metabase/lib/types";
@@ -15,7 +16,93 @@ const DIMENSION_COLUMN = {
 };
 
 describe("metabase/visualization/lib/table", () => {
+  describe("getTableClickedObjectRowData", () => {
+    const series = [
+      {
+        data: {
+          rows: [
+            [1, 2, 3],
+            [4, 5, 6],
+            [7, 8, 9],
+          ],
+          cols: [DIMENSION_COLUMN, METRIC_COLUMN, RAW_COLUMN],
+        },
+      },
+    ];
+
+    it("should get row data from series", () => {
+      const rowIndex = 0;
+      const colIndex = 0;
+      const isPivoted = false;
+      const data = {};
+
+      expect(
+        getTableClickedObjectRowData(
+          series,
+          rowIndex,
+          colIndex,
+          isPivoted,
+          data,
+        ),
+      ).toEqual([
+        { col: { source: "breakout" }, value: 1 },
+        { col: { source: "aggregation" }, value: 2 },
+        { col: { source: "fields" }, value: 3 },
+      ]);
+    });
+
+    it("should get correct row data when pivoted", () => {
+      const rowIndex = 1;
+      const colIndex = 2;
+      const isPivoted = true;
+      const pivotedData = {
+        sourceRows: [
+          [null, 0, 1],
+          [null, null, 2],
+        ],
+      };
+
+      expect(
+        getTableClickedObjectRowData(
+          series,
+          rowIndex,
+          colIndex,
+          isPivoted,
+          pivotedData,
+        ),
+      ).toEqual([
+        { col: { source: "breakout" }, value: 7 },
+        { col: { source: "aggregation" }, value: 8 },
+        { col: { source: "fields" }, value: 9 },
+      ]);
+    });
+
+    it("should return null when asked for an empty cell in a pivot table", () => {
+      const rowIndex = 1;
+      const colIndex = 1;
+      const isPivoted = true;
+      const pivotedData = {
+        sourceRows: [
+          [null, 0, 1],
+          [null, null, 2],
+        ],
+      };
+
+      expect(
+        getTableClickedObjectRowData(
+          series,
+          rowIndex,
+          colIndex,
+          isPivoted,
+          pivotedData,
+        ),
+      ).toBeNull();
+    });
+  });
+
   describe("getTableCellClickedObject", () => {
+    const rowData = ["row data"];
+
     describe("normal table", () => {
       it("should work with a raw data cell", () => {
         expect(
@@ -25,6 +112,7 @@ describe("metabase/visualization/lib/table", () => {
             0,
             0,
             false,
+            rowData,
           ),
         ).toEqual({
           value: 0,
@@ -35,7 +123,7 @@ describe("metabase/visualization/lib/table", () => {
             row: [0],
             rowIndex: 0,
           },
-          data: [{ col: { source: "fields" }, value: 0 }],
+          data: rowData,
         });
       });
       it("should work with a dimension cell", () => {
@@ -46,6 +134,7 @@ describe("metabase/visualization/lib/table", () => {
             0,
             0,
             false,
+            rowData,
           ),
         ).toEqual({
           value: 1,
@@ -56,10 +145,7 @@ describe("metabase/visualization/lib/table", () => {
             rowIndex: 0,
           },
           settings: {},
-          data: [
-            { col: { source: "breakout" }, value: 1 },
-            { col: { source: "aggregation" }, value: 2 },
-          ],
+          data: rowData,
         });
       });
       it("should work with a metric cell", () => {
@@ -70,6 +156,7 @@ describe("metabase/visualization/lib/table", () => {
             0,
             1,
             false,
+            rowData,
           ),
         ).toEqual({
           value: 2,
@@ -86,10 +173,7 @@ describe("metabase/visualization/lib/table", () => {
             rowIndex: 0,
           },
           settings: {},
-          data: [
-            { col: { source: "breakout" }, value: 1 },
-            { col: { source: "aggregation" }, value: 2 },
-          ],
+          data: rowData,
         });
       });
     });

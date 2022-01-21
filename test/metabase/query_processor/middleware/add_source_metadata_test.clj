@@ -16,7 +16,8 @@
   (for [col (-> query-results :data :cols)]
     (select-keys
      col
-     [:id :table_id :name :display_name :base_type :semantic_type :unit :fingerprint :settings :field_ref :parent_id])))
+     [:id :table_id :name :display_name :base_type :effective_type :coercion_strategy
+      :semantic_type :unit :fingerprint :settings :field_ref :parent_id])))
 
 (defn- venues-source-metadata
   ([]
@@ -28,13 +29,6 @@
      (results-metadata
       (mt/run-mbql-query venues {:fields (for [id field-ids] [:field id nil])
                                  :limit  1})))))
-
-(defn- venues-source-metadata-for-field-literals
-  "Metadata we'd expect to see from a `:field` clause with a string name. The same as normal metadata, but field
-  literals don't include semantic-type info."
-  [& field-names]
-  (for [field (apply venues-source-metadata field-names)]
-    (dissoc field :semantic_type)))
 
 (deftest basic-test
   (testing "Can we automatically add source metadata to the parent level of a query? If the source query has `:fields`"
@@ -63,11 +57,11 @@
                                 :breakout     [$price]}
               :source-metadata (concat
                                 (venues-source-metadata :price)
-                                [{:name         "count"
-                                  :display_name "Count"
-                                  :base_type    :type/BigInteger
-                                  :semantic_type :type/Number
-                                  :field_ref    [:aggregation 0]}])})
+                                [{:name          "count"
+                                  :display_name  "Count"
+                                  :base_type     :type/BigInteger
+                                  :semantic_type :type/Quantity
+                                  :field_ref     [:aggregation 0]}])})
            (add-source-metadata
             (mt/mbql-query venues
               {:source-query {:source-table $$venues
@@ -81,12 +75,12 @@
                                 :breakout     [$price]}
               :source-metadata (concat
                                 (venues-source-metadata :price)
-                                [{:name         "avg"
-                                  :display_name "Average of ID"
-                                  :base_type    :type/BigInteger
+                                [{:name          "avg"
+                                  :display_name  "Average of ID"
+                                  :base_type     :type/BigInteger
                                   :semantic_type :type/PK
-                                  :settings     nil
-                                  :field_ref    [:aggregation 0]}])})
+                                  :settings      nil
+                                  :field_ref     [:aggregation 0]}])})
            (add-source-metadata
             (mt/mbql-query venues
               {:source-query {:source-table $$venues
@@ -206,7 +200,9 @@
                        (concat
                         (venues-source-metadata :price)
                         (let [[count-col] (results-metadata (mt/run-mbql-query venues {:aggregation [[:count]]}))]
-                          [(assoc count-col :field_ref field-ref)])))]
+                          [(-> count-col
+                               (dissoc :effective_type)
+                               (assoc :field_ref field-ref))])))]
                (mt/mbql-query venues
                  {:source-query    {:source-query    {:source-query    {:source-table $$venues
                                                                         :aggregation  [[:count]]
@@ -259,7 +255,9 @@
                                                                            :max-value 45.0
                                                                            :num-bins  7
                                                                            :bin-width 5.0}}])])
-                                  (results-metadata (mt/run-mbql-query venues {:aggregation [[:count]]})))})
+                                  ;; computed column doesn't have an effective type in middleware before query
+                                  (map #(dissoc % :effective_type)
+                                       (results-metadata (mt/run-mbql-query venues {:aggregation [[:count]]}))))})
              (add-source-metadata
               (mt/mbql-query venues
                 {:source-query
