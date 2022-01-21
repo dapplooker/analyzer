@@ -208,12 +208,12 @@ export default class Navbar extends Component {
                 action: () => this.setModal(MODAL_NEW_DASHBOARD),
                 event: `NavBar;New Dashboard Click;`,
               },
-            //   {
-            //     title: t`New Report`,
-            //     icon: `pulse`,
-            //     link: Urls.newPulse(),
-            //     event: `NavBar;New Pulse Click;`,
-            //   },
+              //   {
+              //     title: t`New Report`,
+              //     icon: `pulse`,
+              //     link: Urls.newPulse(),
+              //     event: `NavBar;New Pulse Click;`,
+              //   },
             ]}
           />
           {hasNativeWrite && (
