@@ -162,7 +162,7 @@ export default class Navbar extends Component {
               data-metabase-event={`NavBar;New Question`}
             >
               <Icon name="pencil" size={18} />
-              <h4 className="hide sm-show ml1 text-nowrap">{t`My Project`}</h4>
+              <h4 className="hide sm-show ml1 text-nowrap">{t`My Projects`}</h4>
             </Link>
           )}
 
@@ -208,12 +208,12 @@ export default class Navbar extends Component {
                 action: () => this.setModal(MODAL_NEW_DASHBOARD),
                 event: `NavBar;New Dashboard Click;`,
               },
-            //   {
-            //     title: t`New Report`,
-            //     icon: `pulse`,
-            //     link: Urls.newPulse(),
-            //     event: `NavBar;New Pulse Click;`,
-            //   },
+              //   {
+              //     title: t`New Report`,
+              //     icon: `pulse`,
+              //     link: Urls.newPulse(),
+              //     event: `NavBar;New Pulse Click;`,
+              //   },
             ]}
           />
           {hasNativeWrite && (
