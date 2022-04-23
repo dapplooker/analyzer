@@ -5,7 +5,7 @@ import AdminAwareEmptyState from "metabase/components/AdminAwareEmptyState";
 
 const NoDatabasesEmptyState = user => (
   <AdminAwareEmptyState
-    title={t`Dapplooker is fun with Data`}
+    title={t`DappLooker is fun with Data`}
     adminMessage={t`Your databases will appear here once you connect one`}
     message={t`Databases will appear here once your admins have added some`}
     image={"app/assets/img/databases-list"}
