@@ -300,7 +300,7 @@
     "prepare": "husky install",
     "storybook": "start-storybook -p 6006",
     "build-storybook": "build-storybook",
-    "build-s3Uploads": "yarn build && yarn build-static-viz && cd resources/frontend_client/aws && ts-node s3UploadWrapper.ts cd ../../../"
+    "build-s3Upload": "cd resources/frontend_client/app && rm -rf dist && cd ../../../ && yarn build && yarn build-static-viz && cd resources/frontend_client/aws && ts-node s3UploadWrapper.ts cd ../../../"
   },
   "lint-staged": {
     "frontend/**/*.{js,jsx,ts,tsx,css}": [

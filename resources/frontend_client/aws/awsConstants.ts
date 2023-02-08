@@ -1,15 +1,39 @@
 class AWSConstants {
-  constructor() {}
+  private MODE: string = "DEVELOPMENT";
+
+  constructor() {
+    const oThis = this;
+    let mode: string = process.argv[process.argv.length - 1];
+    if (mode === "PRODUCTION") {
+      oThis.MODE = mode;
+    } else {
+      console.info(
+        "For production s3-upload please use",
+        "[--mode PRODUCTION] in the script",
+      );
+    }
+  }
+
   getBucketName() {
     return "dapplooker";
   }
 
   getBuildBackupPath() {
-    return "analyzer/analyzer_backup/";
+    const oThis = this;
+    if (oThis.MODE === "PRODUCTION") {
+      return "analyzer/analyzer_backup/";
+    } else {
+      return "analyzer_dev/analyzer_backup/";
+    }
   }
 
   getBuildOriginalPath() {
-    return "analyzer/dist/";
+    const oThis = this;
+    if (oThis.MODE === "PRODUCTION") {
+      return "analyzer/dist/";
+    } else {
+      return "analyzer_dev/dist/";
+    }
   }
 
   getLocalPath() {
