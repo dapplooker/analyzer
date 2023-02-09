@@ -1,12 +1,12 @@
 {
-  "name": "Dapplooker",
-  "description": "Dapplooker report server",
+  "name": "DappLooker",
+  "description": "DappLooker report server",
   "keywords": [
     "business intelligence",
     "analytics",
     "dashboard",
     "charting",
-    "Dapplooker"
+    "DappLooker"
   ],
   "website": "https://dapplooker.com/",
   "repository": "https://github.com/metabase/metabase",

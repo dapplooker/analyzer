@@ -73,7 +73,7 @@ export class Route extends _Route {
   static createRouteFromReactElement(element) {
     if (element.props.title) {
       element = React.cloneElement(element, {
-        component: title("Dapplooker")(
+        component: title("DappLooker")(
           element.props.component || (({ children }) => children),
         ),
       });
