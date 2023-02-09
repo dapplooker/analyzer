@@ -21,18 +21,18 @@ class AWSConstants {
   getBuildBackupPath() {
     const oThis = this;
     if (oThis.MODE === "PRODUCTION") {
-      return "analyzer/analyzer_backup/";
+      return oThis.getS3AnalyzerProductionBackupPath();
     } else {
-      return "analyzer_dev/analyzer_backup/";
+      return oThis.getS3AnalyzerDevelopmentBackupPath();
     }
   }
 
   getBuildOriginalPath() {
     const oThis = this;
     if (oThis.MODE === "PRODUCTION") {
-      return "analyzer/dist/";
+      return oThis.getS3AnalyzerProductionDistPath();
     } else {
-      return "analyzer_dev/dist/";
+      return oThis.getS3AnalyzerDevelopentDistPath();
     }
   }
 
@@ -42,6 +42,22 @@ class AWSConstants {
 
   getRegion() {
     return "us-east-1";
+  }
+
+  getS3AnalyzerDevelopentDistPath() {
+    return "analyzer_dev/dist/";
+  }
+
+  getS3AnalyzerDevelopmentBackupPath() {
+    return "analyzer_dev/analyzer_backup/";
+  }
+
+  getS3AnalyzerProductionDistPath() {
+    return "analyzer/dist/";
+  }
+
+  getS3AnalyzerProductionBackupPath() {
+    return "analyzer/analyzer_backup/";
   }
 }
 

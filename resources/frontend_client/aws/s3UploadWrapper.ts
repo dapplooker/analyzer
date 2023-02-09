@@ -1,4 +1,4 @@
-import AWSConstants from "./awsConstants";
+import AWSConstants from "./Constant";
 
 const AWS = require("aws-sdk");
 const util = require("util");
