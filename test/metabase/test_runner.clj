@@ -5,27 +5,42 @@
             [clojure.java.io :as io]
             [clojure.pprint :as pprint]
             [clojure.test :as t]
-            [clojure.tools.namespace.find :as ns-find]
+            [clojure.tools.namespace.find :as ns.find]
             eftest.report.pretty
             eftest.report.progress
             eftest.runner
             [environ.core :as env]
+            [humane-are.core :as humane-are]
             [metabase.config :as config]
-            [metabase.test-runner.effects :as effects]
-            [metabase.test-runner.init :as init]
-            [metabase.test-runner.junit :as junit]
-            [metabase.test-runner.parallel :as parallel]
+            [metabase.test-runner.assert-exprs :as test-runner.assert-exprs]
+            [metabase.test-runner.init :as test-runner.init]
+            [metabase.test-runner.junit :as test-runner.junit]
+            [metabase.test-runner.parallel :as test-runner.parallel]
             [metabase.test.data.env :as tx.env]
             metabase.test.redefs
+            [metabase.util :as u]
+            [metabase.util.date-2 :as u.date]
+            [metabase.util.i18n.impl :as i18n.impl]
             [pjstadig.humane-test-output :as humane-test-output]))
 
 ;; initialize Humane Test Output if it's not already initialized.
 (humane-test-output/activate!)
+;;; Same for https://github.com/camsaul/humane-are
+(humane-are/install!)
 
 ;; Load redefinitions of stuff like `tt/with-temp` and `with-redefs` that throw an Exception when they are used inside
 ;; parallel tests.
 (comment metabase.test.redefs/keep-me
-         effects/keep-me)
+         test-runner.assert-exprs/keep-me
+         ;; these are necessary so data_readers.clj functions can function
+         u.date/keep-me
+         i18n.impl/keep-me)
+
+;; Disable parallel tests with `PARALLEL=false`
+(def ^:private enable-parallel-tests?
+  (if-let [^String s (env/env :parallel)]
+    (Boolean/parseBoolean s)
+    true))
 
 ;;;; Finding tests
 
@@ -64,7 +79,7 @@
                (contains? (tx.env/test-drivers) (keyword driver))
                true))
     (println "Looking for test namespaces in directory" (str file))
-    (->> (ns-find/find-namespaces-in-dir file)
+    (->> (ns.find/find-namespaces-in-dir file)
          (filter #(re-matches  #"^metabase.*test$" (name %)))
          (mapcat find-tests))))
 
@@ -72,13 +87,14 @@
 (defmethod find-tests clojure.lang.Symbol
   [symb]
   (letfn [(load-test-namespace [ns-symb]
-            (binding [init/*test-namespace-being-loaded* ns-symb]
+            (binding [test-runner.init/*test-namespace-being-loaded* ns-symb]
               (require ns-symb)))]
     (if-let [symbol-namespace (some-> (namespace symb) symbol)]
       ;; a actual test var e.g. `metabase.whatever-test/my-test`
       (do
         (load-test-namespace symbol-namespace)
-        [(resolve symb)])
+        [(or (resolve symb)
+             (throw (ex-info (format "Unable to resolve test named %s" symb) {:test-symbol symb})))])
       ;; a namespace e.g. `metabase.whatever-test`
       (do
         (load-test-namespace symb)
@@ -92,7 +108,9 @@
 (defn tests [{:keys [only]}]
   (when only
     (println "Running tests in" (pr-str only)))
-  (let [tests (find-tests only)]
+  (let [start-time-ms (System/currentTimeMillis)
+        tests         (find-tests only)]
+    (printf "Finding tests took %s.\n" (u/format-milliseconds (- (System/currentTimeMillis) start-time-ms)))
     (println "Running" (count tests) "tests")
     tests))
 
@@ -100,10 +118,18 @@
 
 (defonce ^:private orig-test-var t/test-var)
 
+(def ^:private ^:dynamic *parallel-test-counter*
+  nil)
+
 (defn run-test
   "Run a single test `test-var`. Wraps/replaces [[clojure.test/test-var]]."
   [test-var]
-  (binding [parallel/*parallel?* (parallel/parallel? test-var)]
+  (binding [test-runner.parallel/*parallel?* (test-runner.parallel/parallel? test-var)]
+    (some-> *parallel-test-counter* (swap! update
+                                           (if (and test-runner.parallel/*parallel?* enable-parallel-tests?)
+                                             :parallel
+                                             :single-threaded)
+                                           (fnil inc 0)))
     (orig-test-var test-var)))
 
 (alter-var-root #'t/test-var (constantly run-test))
@@ -116,7 +142,7 @@
                           eftest.report.pretty/report
                           eftest.report.progress/report)]
     (fn handle-event [event]
-      (junit/handle-event! event)
+      (test-runner.junit/handle-event! event)
       (stdout-reporter event))))
 
 (defn run
@@ -131,17 +157,20 @@
    (run test-vars nil))
 
   ([test-vars options]
+   (when-not (every? var? test-vars)
+     (throw (ex-info "Invalid test vars" {:test-vars test-vars, :options options})))
    ;; don't randomize test order for now please, thanks anyway
    (with-redefs [eftest.runner/deterministic-shuffle (fn [_ test-vars] test-vars)]
-     (eftest.runner/run-tests
-      test-vars
-      (merge
-       {:capture-output? false
-        ;; parallel tests disabled for the time being -- some tests randomly fail if the data warehouse connection pool
-        ;; gets nuked by a different thread. Once we fix that we can re-enable parallel tests.
-        :multithread?    false #_:vars
-        :report          (reporter)}
-       options)))))
+     (binding [*parallel-test-counter* (atom {})]
+       (merge
+        (eftest.runner/run-tests
+         test-vars
+         (merge
+          {:capture-output? false
+           :multithread?    (when enable-parallel-tests? :vars)
+           :report          (reporter)}
+          options))
+        @*parallel-test-counter*)))))
 
 ;;;; `clojure -X` entrypoint
 
@@ -151,8 +180,11 @@
 
   To use our test runner from the REPL, use [[run]] instead."
   [options]
-  (let [summary (run (tests options) options)
-        fail?   (pos? (+ (:error summary) (:fail summary)))]
+  (let [start-time-ms (System/currentTimeMillis)
+        summary       (run (tests options) options)
+        fail?         (pos? (+ (:error summary) (:fail summary)))]
     (pprint/pprint summary)
+    (printf "Ran %d tests in parallel, %d single-threaded.\n" (:parallel summary 0) (:single-threaded summary 0))
+    (printf "Finding and running tests took %s.\n" (u/format-milliseconds (- (System/currentTimeMillis) start-time-ms)))
     (println (if fail? "Tests failed." "All tests passed."))
     (System/exit (if fail? 1 0))))

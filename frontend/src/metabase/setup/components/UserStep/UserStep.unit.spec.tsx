@@ -1,14 +1,7 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
+import { UserInfo } from "metabase-types/store";
 import UserStep, { UserStepProps } from "./UserStep";
-import { UserInfo } from "../../types";
-
-const FormMock = () => <div />;
-
-jest.mock("metabase/entities/users", () => ({
-  forms: { setup: jest.fn() },
-  Form: FormMock,
-}));
 
 describe("UserStep", () => {
   it("should render in active state", () => {
@@ -40,7 +33,7 @@ const getProps = (opts?: Partial<UserStepProps>): UserStepProps => ({
   isStepActive: false,
   isStepCompleted: false,
   isSetupCompleted: false,
-  onPasswordChange: jest.fn(),
+  onValidatePassword: jest.fn(),
   onStepSelect: jest.fn(),
   onStepSubmit: jest.fn(),
   ...opts,

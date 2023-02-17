@@ -4,10 +4,9 @@ import React, { Component } from "react";
 import { connect } from "react-redux";
 import { replace } from "react-router-redux";
 
+import screenfull from "screenfull";
 import * as MetabaseAnalytics from "metabase/lib/analytics";
 import { parseHashOptions, stringifyHashOptions } from "metabase/lib/browser";
-
-import screenfull from "screenfull";
 
 const TICK_PERIOD = 1; // seconds
 
@@ -24,7 +23,7 @@ export default ComposedComponent =>
 
       state = {
         isFullscreen: false,
-        isNightMode: false,
+        theme: null,
 
         refreshPeriod: null,
 
@@ -66,7 +65,7 @@ export default ComposedComponent =>
             ? null
             : options.refresh,
         );
-        this.setNightMode(options.theme === "night" || options.night); // DEPRECATED: options.night
+        this.setTheme(options.theme);
         this.setFullscreen(options.fullscreen);
         this.setHideParameters(options.hide_parameters);
       };
@@ -84,7 +83,7 @@ export default ComposedComponent =>
         };
         setValue("refresh", this.state.refreshPeriod);
         setValue("fullscreen", this.state.isFullscreen);
-        setValue("theme", this.state.isNightMode ? "night" : null);
+        setValue("theme", this.state.theme);
 
         delete options.night; // DEPRECATED: options.night
 
@@ -127,9 +126,14 @@ export default ComposedComponent =>
         }
       };
 
+      // Preserve existing behavior, while keeping state in a new `theme` key
       setNightMode = isNightMode => {
-        isNightMode = !!isNightMode;
-        this.setState({ isNightMode });
+        const theme = isNightMode ? "night" : null;
+        this.setState({ theme });
+      };
+
+      setTheme = theme => {
+        this.setState({ theme });
       };
 
       setFullscreen = async (isFullscreen, browserFullscreen = true) => {
@@ -213,6 +217,8 @@ export default ComposedComponent =>
           <ComposedComponent
             {...this.props}
             {...this.state}
+            isNightMode={this.state.theme === "night"}
+            hasNightModeToggle={this.state.theme !== "transparent"}
             setRefreshElapsedHook={this.setRefreshElapsedHook}
             loadDashboardParams={this.loadDashboardParams}
             updateDashboardParams={this.updateDashboardParams}

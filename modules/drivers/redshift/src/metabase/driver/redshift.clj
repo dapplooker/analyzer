@@ -2,28 +2,28 @@
   "Amazon Redshift Driver."
   (:require [cheshire.core :as json]
             [clojure.java.jdbc :as jdbc]
-            [clojure.string :as str]
             [clojure.tools.logging :as log]
             [honeysql.core :as hsql]
+            [java-time :as t]
             [metabase.driver :as driver]
             [metabase.driver.common :as driver.common]
             [metabase.driver.sql-jdbc.common :as sql-jdbc.common]
             [metabase.driver.sql-jdbc.connection :as sql-jdbc.conn]
             [metabase.driver.sql-jdbc.execute :as sql-jdbc.execute]
-            [metabase.driver.sql-jdbc.execute.legacy-impl :as legacy]
+            [metabase.driver.sql-jdbc.execute.legacy-impl :as sql-jdbc.legacy]
             [metabase.driver.sql-jdbc.sync :as sql-jdbc.sync]
-            [metabase.driver.sql-jdbc.sync.describe-database :as sync.describe-database]
+            [metabase.driver.sql-jdbc.sync.describe-table :as sql-jdbc.describe-table]
             [metabase.driver.sql.query-processor :as sql.qp]
             [metabase.mbql.util :as mbql.u]
-            [metabase.public-settings :as pubset]
+            [metabase.public-settings :as public-settings]
             [metabase.query-processor.store :as qp.store]
-            [metabase.query-processor.util :as qputil]
+            [metabase.query-processor.util :as qp.util]
             [metabase.util.honeysql-extensions :as hx]
             [metabase.util.i18n :refer [trs]])
   (:import [java.sql Connection PreparedStatement ResultSet Types]
            java.time.OffsetTime))
 
-(driver/register! :redshift, :parent #{:postgres ::legacy/use-legacy-classes-for-read-and-set})
+(driver/register! :redshift, :parent #{:postgres ::sql-jdbc.legacy/use-legacy-classes-for-read-and-set})
 
 ;;; +----------------------------------------------------------------------------------------------------------------+
 ;;; |                                             metabase.driver impls                                              |
@@ -67,10 +67,6 @@
                              :schema (:dest-table-schema fk)}
           :dest-column-name (:dest-column-name fk)})))
 
-(defmethod driver/format-custom-field-name :redshift
-  [_ custom-field-name]
-  (str/lower-case custom-field-name))
-
 ;; The docs say TZ should be allowed at the end of the format string, but it doesn't appear to work
 ;; Redshift is always in UTC and doesn't return it's timezone
 (defmethod driver.common/current-db-time-date-formatters :redshift
@@ -89,8 +85,6 @@
   [_]
   :sunday)
 
-
-
 ;;; +----------------------------------------------------------------------------------------------------------------+
 ;;; |                                           metabase.driver.sql impls                                            |
 ;;; +----------------------------------------------------------------------------------------------------------------+
@@ -107,9 +101,20 @@
   (or (database-type->base-type column-type)
       ((get-method sql-jdbc.sync/database-type->base-type :postgres) driver column-type)))
 
+(defmethod driver/database-supports? [:redshift :datetime-diff]
+  [_driver _feat _db]
+  ;; postgres uses `date_part` on an interval or a call to `age` to get datediffs. It seems redshift does not have
+  ;; this and errors with:
+  ;; > ERROR: function pg_catalog.pgdate_part("unknown", interval) does not exist
+  ;; It offers a datediff function that tracks number of boundaries, which could be used to implement the correct behaviour,
+  ;; similar to bigquery.
+  false)
+
 (defmethod sql.qp/add-interval-honeysql-form :redshift
   [_ hsql-form amount unit]
-  (hsql/call :dateadd (hx/literal unit) amount (hx/->timestamp hsql-form)))
+  (let [hsql-form (hx/->timestamp hsql-form)]
+    (-> (hsql/call :dateadd (hx/literal unit) amount hsql-form)
+        (hx/with-type-info (hx/type-info hsql-form)))))
 
 (defmethod sql.qp/unix-timestamp->honeysql [:redshift :seconds]
   [_ _ expr]
@@ -214,17 +219,17 @@
 
 (prefer-method
  sql-jdbc.execute/read-column-thunk
- [::legacy/use-legacy-classes-for-read-and-set Types/TIMESTAMP]
+ [::sql-jdbc.legacy/use-legacy-classes-for-read-and-set Types/TIMESTAMP]
  [:postgres Types/TIMESTAMP])
 
 (prefer-method
  sql-jdbc.execute/read-column-thunk
- [::legacy/use-legacy-classes-for-read-and-set Types/TIME]
+ [::sql-jdbc.legacy/use-legacy-classes-for-read-and-set Types/TIME]
  [:postgres Types/TIME])
 
 (prefer-method
  sql-jdbc.execute/set-parameter
- [::legacy/use-legacy-classes-for-read-and-set OffsetTime]
+ [::sql-jdbc.legacy/use-legacy-classes-for-read-and-set OffsetTime]
  [:postgres OffsetTime])
 
 (defn- field->parameter-value
@@ -242,16 +247,16 @@
                     [(:name (qp.store/field field-id)) (:value param)]))))
         user-parameters))
 
-(defmethod qputil/query->remark :redshift
-  [_ {{:keys [executed-by query-hash card-id]} :info, :as query}]
+(defmethod qp.util/query->remark :redshift
+  [_ {{:keys [executed-by card-id dashboard-id]} :info, :as query}]
   (str "/* partner: \"metabase\", "
-       (json/generate-string {:dashboard_id        nil ;; requires metabase/metabase#11909
+       (json/generate-string {:dashboard_id        dashboard-id
                               :chart_id            card-id
                               :optional_user_id    executed-by
-                              :optional_account_id (pubset/site-uuid)
+                              :optional_account_id (public-settings/site-uuid)
                               :filter_values       (field->parameter-value query)})
        " */ "
-       (qputil/default-query->remark query)))
+       (qp.util/default-query->remark query)))
 
 (defn- reducible-schemas-with-usage-permissions
   "Takes something `reducible` that returns a collection of string schema names (e.g. an `Eduction`) and returns an
@@ -276,10 +281,27 @@
                         false))))
           reducible))))))
 
-(defmethod sql-jdbc.sync/syncable-schemas :redshift
-  [driver conn metadata]
-  (reducible-schemas-with-usage-permissions
-   conn
-   (eduction
-    (remove (set (sql-jdbc.sync/excluded-schemas driver)))
-    (sync.describe-database/all-schemas metadata))))
+(defmethod sql-jdbc.sync/filtered-syncable-schemas :redshift
+  [driver conn metadata schema-inclusion-patterns schema-exclusion-patterns]
+  (let [parent-method (get-method sql-jdbc.sync/filtered-syncable-schemas :sql-jdbc)]
+    (reducible-schemas-with-usage-permissions conn (parent-method driver
+                                                                  conn
+                                                                  metadata
+                                                                  schema-inclusion-patterns
+                                                                  schema-exclusion-patterns))))
+
+(defmethod sql-jdbc.describe-table/describe-table-fields :redshift
+  [driver conn {schema :schema, table-name :name :as table} db-name-or-nil]
+  (let [parent-method (get-method sql-jdbc.describe-table/describe-table-fields :sql-jdbc)]
+    (try (parent-method driver conn table db-name-or-nil)
+         (catch Exception e
+           (log/error e (trs "Error fetching field metadata for table {0}" table-name))
+           ;; Use the fallback method (a SELECT * query) if the JDBC driver throws an exception (#21215)
+           (into
+            #{}
+            (sql-jdbc.describe-table/describe-table-fields-xf driver table)
+            (sql-jdbc.describe-table/fallback-fields-metadata-from-select-query driver conn schema table-name))))))
+
+(defmethod sql-jdbc.execute/set-parameter [:redshift java.time.ZonedDateTime]
+  [driver ps i t]
+  (sql-jdbc.execute/set-parameter driver ps i (t/sql-timestamp (t/with-zone-same-instant t (t/zone-id "UTC")))))

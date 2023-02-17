@@ -1,4 +1,6 @@
 import { connect } from "react-redux";
+import Settings from "metabase/lib/settings";
+import { State } from "metabase-types/store";
 import PreferencesStep from "../../components/PreferencesStep";
 import { setTracking, submitSetup, setStep } from "../../actions";
 import {
@@ -12,18 +14,22 @@ import {
   isStepActive,
   isStepCompleted,
   isSetupCompleted,
+  isLocaleLoaded,
 } from "../../selectors";
 
-const mapStateToProps = (state: any) => ({
+const mapStateToProps = (state: State) => ({
   isTrackingAllowed: isTrackingAllowed(state),
   isStepActive: isStepActive(state, PREFERENCES_STEP),
   isStepCompleted: isStepCompleted(state, PREFERENCES_STEP),
   isSetupCompleted: isSetupCompleted(state),
+  isLocaleLoaded: isLocaleLoaded(state),
 });
 
 const mapDispatchToProps = (dispatch: any) => ({
   onTrackingChange: (isTrackingAllowed: boolean) => {
     dispatch(setTracking(isTrackingAllowed));
+    trackTrackingChanged(isTrackingAllowed);
+    Settings.set("anon-tracking-enabled", isTrackingAllowed);
     trackTrackingChanged(isTrackingAllowed);
   },
   onStepSelect: () => {

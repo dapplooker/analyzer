@@ -1,8 +1,8 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
 
-import { PRODUCTS, metadata } from "__support__/sample_dataset_fixture";
-import Dimension from "metabase-lib/lib/Dimension";
+import { PRODUCTS, metadata } from "__support__/sample_database_fixture";
+import Dimension from "metabase-lib/Dimension";
 
 import { CategoryFingerprint } from "./CategoryFingerprint";
 

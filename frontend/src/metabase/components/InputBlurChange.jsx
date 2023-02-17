@@ -1,7 +1,7 @@
 import React, { Component } from "react";
 import PropTypes from "prop-types";
-
 import _ from "underscore";
+import { Input } from "./InputBlurChange.styled";
 
 /**
  * A small wrapper around <input>, primarily should be used for the
@@ -18,7 +18,12 @@ export default class InputBlurChange extends Component {
   static propTypes = {
     type: PropTypes.string,
     value: PropTypes.string,
+    defaultValue: PropTypes.string,
+    className: PropTypes.string,
+    name: PropTypes.string,
     placeholder: PropTypes.string,
+    autoFocus: PropTypes.bool,
+    onFocus: PropTypes.func,
     onChange: PropTypes.func,
     onBlurChange: PropTypes.func,
   };
@@ -28,7 +33,9 @@ export default class InputBlurChange extends Component {
   };
 
   UNSAFE_componentWillReceiveProps(newProps) {
-    this.setState({ value: newProps.value });
+    if (newProps.value !== this.state.value) {
+      this.setState({ value: newProps.value });
+    }
   }
 
   onChange(event) {
@@ -56,7 +63,7 @@ export default class InputBlurChange extends Component {
       "onChange",
     );
     return (
-      <input
+      <Input
         {...props}
         value={this.state.value}
         onBlur={this.onBlur}

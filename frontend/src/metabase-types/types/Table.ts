@@ -1,11 +1,19 @@
-import { ISO8601Time } from ".";
+/**
+ * ⚠️
+ * @deprecated use existing types from, or add to metabase-types/api/*
+ */
 
+import { TableId as _TableId } from "metabase-types/api";
+import { ForeignKey } from "../api/foreign-key";
 import { Field } from "./Field";
+
 import { Segment } from "./Segment";
 import { Metric } from "./Metric";
 import { DatabaseId } from "./Database";
+import { ISO8601Time } from ".";
 
-export type TableId = number;
+export type TableId = _TableId;
+
 export type SchemaName = string;
 
 type TableVisibilityType = string; // FIXME
@@ -34,6 +42,9 @@ export type Table = {
   caveats?: string;
   points_of_interest?: string;
   show_in_getting_started: boolean;
+
+  fks?: ForeignKey[];
+  objectName: () => string;
 
   updated_at: ISO8601Time;
   created_at: ISO8601Time;

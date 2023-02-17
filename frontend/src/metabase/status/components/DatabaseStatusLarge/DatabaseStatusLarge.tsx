@@ -1,12 +1,14 @@
+import React from "react";
+import { t } from "ttag";
 import {
   isSyncAborted,
   isSyncCompleted,
   isSyncInProgress,
 } from "metabase/lib/syncing";
-import React from "react";
-import { t } from "ttag";
-import { Database } from "../../types";
+import { Database } from "metabase-types/api";
+import Ellipsified from "metabase/core/components/Ellipsified";
 import Icon from "../../../components/Icon";
+import useStatusVisibility from "../../hooks/use-status-visibility";
 import {
   StatusCardRoot,
   StatusCardIcon,
@@ -21,16 +23,16 @@ import {
   StatusToggle,
   StatusBody,
 } from "./DatabaseStatusLarge.styled";
-import Ellipsified from "metabase/components/Ellipsified";
-import useStatusVisibility from "../../hooks/use-status-visibility";
 
 export interface DatabaseStatusLargeProps {
   databases: Database[];
+  isActive?: boolean;
   onCollapse?: () => void;
 }
 
 const DatabaseStatusLarge = ({
   databases,
+  isActive,
   onCollapse,
 }: DatabaseStatusLargeProps): JSX.Element => {
   return (
@@ -43,7 +45,11 @@ const DatabaseStatusLarge = ({
       </StatusHeader>
       <StatusBody>
         {databases.map(database => (
-          <StatusCard key={database.id} database={database} />
+          <StatusCard
+            key={database.id}
+            database={database}
+            isActive={isActive}
+          />
         ))}
       </StatusBody>
     </StatusRoot>
@@ -52,10 +58,14 @@ const DatabaseStatusLarge = ({
 
 interface StatusCardProps {
   database: Database;
+  isActive?: boolean;
 }
 
-const StatusCard = ({ database }: StatusCardProps): JSX.Element | null => {
-  const isVisible = useStatusVisibility(isSyncInProgress(database));
+const StatusCard = ({
+  database,
+  isActive,
+}: StatusCardProps): JSX.Element | null => {
+  const isVisible = useStatusVisibility(isActive || isSyncInProgress(database));
 
   if (!isVisible) {
     return null;

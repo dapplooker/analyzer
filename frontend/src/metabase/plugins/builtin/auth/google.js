@@ -1,39 +1,36 @@
-import { t } from "ttag";
 import { updateIn } from "icepick";
 
 import {
   PLUGIN_AUTH_PROVIDERS,
   PLUGIN_ADMIN_SETTINGS_UPDATES,
-  PLUGIN_SHOW_CHANGE_PASSWORD_CONDITIONS,
+  PLUGIN_IS_PASSWORD_USER,
 } from "metabase/plugins";
 
 import MetabaseSettings from "metabase/lib/settings";
 
-import GoogleButton from "metabase/auth/components/GoogleButton";
-
-import AuthenticationOption from "metabase/admin/settings/components/widgets/AuthenticationOption";
 import SettingsGoogleForm from "metabase/admin/settings/components/SettingsGoogleForm";
+import GoogleAuthCard from "metabase/admin/settings/auth/containers/GoogleAuthCard";
 
-const GOOGLE_PROVIDER = {
-  name: "google",
-  Button: GoogleButton,
-};
+PLUGIN_AUTH_PROVIDERS.push(providers => {
+  const googleProvider = {
+    name: "google",
+    // circular dependencies
+    Button: require("metabase/auth/containers/GoogleButton").default,
+  };
 
-PLUGIN_AUTH_PROVIDERS.push(providers =>
-  MetabaseSettings.googleAuthEnabled()
-    ? [GOOGLE_PROVIDER, ...providers]
-    : providers,
-);
+  return MetabaseSettings.isGoogleAuthEnabled()
+    ? [googleProvider, ...providers]
+    : providers;
+});
 
 PLUGIN_ADMIN_SETTINGS_UPDATES.push(sections =>
   updateIn(sections, ["authentication", "settings"], settings => [
     ...settings,
     {
-      authName: t`Sign in with Google`,
-      authDescription: t`Allows users with existing Metabase accounts to login with a Google account that matches their email address in addition to their Metabase username and password.`,
-      authType: "google",
-      authEnabled: settings => !!settings["google-auth-client-id"],
-      widget: AuthenticationOption,
+      key: "google-auth-enabled",
+      description: null,
+      noHeader: true,
+      widget: GoogleAuthCard,
     },
   ]),
 );
@@ -42,10 +39,11 @@ PLUGIN_ADMIN_SETTINGS_UPDATES.push(sections => ({
   ...sections,
   "authentication/google": {
     component: SettingsGoogleForm,
-    sidebar: false,
     settings: [
       {
         key: "google-auth-client-id",
+        required: true,
+        autoFocus: true,
       },
       {
         key: "google-auth-auto-create-accounts-domain",
@@ -57,4 +55,4 @@ PLUGIN_ADMIN_SETTINGS_UPDATES.push(sections => ({
   },
 }));
 
-PLUGIN_SHOW_CHANGE_PASSWORD_CONDITIONS.push(user => !user.google_auth);
+PLUGIN_IS_PASSWORD_USER.push(user => !user.google_auth);

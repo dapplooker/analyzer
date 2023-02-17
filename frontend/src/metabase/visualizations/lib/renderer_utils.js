@@ -3,13 +3,13 @@
 import _ from "underscore";
 import { getIn } from "icepick";
 
-import { datasetContainsNoResults } from "metabase/lib/dataset";
 import { parseTimestamp } from "metabase/lib/time";
 import {
-  NULL_DISPLAY_VALUE,
   NULL_NUMERIC_VALUE,
   TOTAL_ORDINAL_VALUE,
 } from "metabase/lib/constants";
+import { formatNullable } from "metabase/lib/formatting/nullable";
+import { datasetContainsNoResults } from "metabase-lib/queries/utils/dataset";
 
 import {
   computeTimeseriesDataInverval,
@@ -109,7 +109,7 @@ const memoizedParseXValue = _.memoize(
     if (isTimeseries && !isQuantitative) {
       return parseTimestampAndWarn(xValue, unit);
     }
-    const parsedValue = isNumeric ? xValue : String(formatNull(xValue));
+    const parsedValue = isNumeric ? xValue : String(formatNullable(xValue));
     return { parsedValue };
   },
   // create cache key from args
@@ -161,7 +161,13 @@ export function getDatas({ settings, series }, warn) {
 
     return rows.map(row => {
       const [x, ...rest] = row;
-      const newRow = [parseXValue(x, parseOptions, warn), ...rest];
+      const { unit } = parseOptions;
+      const xValue = parseXValue(x, parseOptions, warn);
+      const formattedXValue =
+        xValue && unit && typeof xValue.startOf === "function"
+          ? xValue.startOf(unit)
+          : xValue;
+      const newRow = [formattedXValue, ...rest];
       newRow._origin = row._origin;
       return newRow;
     });
@@ -179,6 +185,9 @@ export function getXValues({ settings, series }) {
     // In the raw series, the dimension isn't necessarily in the first element
     // of each row. This finds the correct column index.
     const columnIndex = getColumnIndex({ settings, data });
+    if (!data.cols[columnIndex]) {
+      continue;
+    }
 
     const parseOptions = getParseOptions({ settings, data });
     let lastValue;
@@ -316,8 +325,8 @@ export function getXInterval({ settings, series }, xValues, warn) {
   } else if (isQuantitative(settings) || isHistogram(settings)) {
     // Get the bin width from binning_info, if available
     // TODO: multiseries?
-    const binningInfo = getFirstNonEmptySeries(series).data.cols[0]
-      .binning_info;
+    const binningInfo =
+      getFirstNonEmptySeries(series).data.cols[0].binning_info;
     if (binningInfo) {
       return binningInfo.bin_width;
     }
@@ -398,10 +407,6 @@ export const hasClickBehavior = series =>
 export const isMultiCardSeries = series =>
   series.length > 1 &&
   getIn(series, [0, "card", "id"]) !== getIn(series, [1, "card", "id"]);
-
-export function formatNull(value) {
-  return value === null ? NULL_DISPLAY_VALUE : value;
-}
 
 // Hack: for numeric dimensions we have to replace null values
 // with anything else since crossfilter groups merge 0 and null

@@ -3,7 +3,7 @@ import _ from "underscore";
 
 const visualizations = new Map();
 const aliases = new Map();
-visualizations.get = function(key) {
+visualizations.get = function (key) {
   return (
     Map.prototype.get.call(this, key) ||
     aliases.get(key) ||
@@ -58,7 +58,7 @@ export function getVisualizationRaw(series) {
 
 export function getVisualizationTransformed(series) {
   // don't transform if we don't have the data
-  if (_.any(series, s => s.data == null)) {
+  if (_.any(series, s => s.data == null) || _.any(series, s => s.error)) {
     return getVisualizationRaw(series);
   }
 
@@ -100,8 +100,13 @@ export function getMaxMetricsSupported(display) {
   return visualization.maxMetricsSupported || Infinity;
 }
 
+export function getMaxDimensionsSupported(display) {
+  const visualization = visualizations.get(display);
+  return visualization.maxDimensionsSupported || 2;
+}
+
 // removes columns with `remapped_from` property and adds a `remapping` to the appropriate column
-const extractRemappedColumns = data => {
+export const extractRemappedColumns = data => {
   const cols = data.cols.map(col => ({
     ...col,
     remapped_from_index:

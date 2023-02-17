@@ -1,3 +1,4 @@
+import _ from "underscore";
 import {
   cardHasBecomeDirty,
   computeMaxDecimalsForValues,
@@ -5,9 +6,8 @@ import {
   getColumnCardinality,
   getFriendlyName,
   getDefaultDimensionsAndMetrics,
+  preserveExistingColumnsOrder,
 } from "metabase/visualizations/lib/utils";
-
-import _ from "underscore";
 
 // TODO Atte Keinänen 5/31/17 Rewrite tests using metabase-lib methods instead of a raw format
 
@@ -305,6 +305,38 @@ describe("metabase/visualization/lib/utils", () => {
           },
         ]),
       ).toEqual({ dimensions: ["date", "category"], metrics: ["count"] });
+    });
+  });
+
+  describe("preserveExistingColumnsOrder", () => {
+    it("preserves order of columns when one is renamed", () => {
+      const columns = preserveExistingColumnsOrder(
+        ["b", "a"],
+        ["a_renamed", "b"],
+      );
+      expect(columns).toStrictEqual(["b", "a_renamed"]);
+    });
+
+    it("returns new columns when no previous one specified", () => {
+      expect(
+        preserveExistingColumnsOrder(null, ["a_renamed", "b"]),
+      ).toStrictEqual(["a_renamed", "b"]);
+
+      expect(
+        preserveExistingColumnsOrder([], ["a_renamed", "b"]),
+      ).toStrictEqual(["a_renamed", "b"]);
+    });
+
+    it("returns no columns if when there are no new columns", () => {
+      expect(
+        preserveExistingColumnsOrder(["a_renamed", "b"], []),
+      ).toStrictEqual([]);
+    });
+
+    it("returns new columns in order when previous columns completely different", () => {
+      expect(
+        preserveExistingColumnsOrder(["a", "b"], ["c", "d"]),
+      ).toStrictEqual(["c", "d"]);
     });
   });
 });

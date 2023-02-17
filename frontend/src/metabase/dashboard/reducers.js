@@ -1,5 +1,6 @@
 import { assoc, dissoc, assocIn, updateIn, chain, merge } from "icepick";
 import { handleActions, combineReducers } from "metabase/lib/redux";
+import Dashboards from "metabase/entities/dashboards";
 
 import {
   INITIALIZE,
@@ -30,6 +31,12 @@ import {
   HIDE_ADD_PARAMETER_POPOVER,
   SET_SIDEBAR,
   CLOSE_SIDEBAR,
+  FETCH_DASHBOARD_PARAMETER_FIELD_VALUES_WITH_CACHE,
+  SAVE_DASHBOARD_AND_CARDS,
+  SET_DOCUMENT_TITLE,
+  SET_SHOW_LOADING_COMPLETE_FAVICON,
+  RESET,
+  SET_PARAMETER_VALUES,
 } from "./actions";
 
 import { isVirtualDashCard, syncParametersAndEmbeddingParams } from "./utils";
@@ -40,6 +47,7 @@ const dashboardId = handleActions(
     [FETCH_DASHBOARD]: {
       next: (state, { payload: { dashboardId } }) => dashboardId,
     },
+    [RESET]: { next: state => null },
   },
   null,
 );
@@ -50,6 +58,22 @@ const isEditing = handleActions(
     [SET_EDITING_DASHBOARD]: {
       next: (state, { payload }) => (payload ? payload : null),
     },
+    [RESET]: { next: state => null },
+  },
+  null,
+);
+
+const loadingControls = handleActions(
+  {
+    [SET_DOCUMENT_TITLE]: (state, { payload }) => ({
+      ...state,
+      documentTitle: payload,
+    }),
+    [SET_SHOW_LOADING_COMPLETE_FAVICON]: (state, { payload }) => ({
+      ...state,
+      showLoadCompleteFavicon: payload,
+    }),
+    [RESET]: { next: state => ({}) },
   },
   {},
 );
@@ -111,6 +135,14 @@ const dashboards = handleActions(
           state,
           [payload.id, "enable_embedding"],
           payload.enable_embedding,
+        ),
+    },
+    [Dashboards.actionTypes.UPDATE]: {
+      next: (state, { payload }) =>
+        assocIn(
+          state,
+          [payload.dashboard.id, "collection_id"],
+          payload.dashboard.collection_id,
         ),
     },
   },
@@ -198,6 +230,7 @@ const isAddParameterPopoverOpen = handleActions(
     [SHOW_ADD_PARAMETER_POPOVER]: () => true,
     [HIDE_ADD_PARAMETER_POPOVER]: () => false,
     [INITIALIZE]: () => false,
+    [RESET]: () => false,
   },
   false,
 );
@@ -221,6 +254,7 @@ const dashcardData = handleActions(
           .dissoc(oldDashcardId)
           .value(),
     },
+    [RESET]: { next: state => ({}) },
   },
   {},
 );
@@ -249,24 +283,59 @@ const parameterValues = handleActions(
     [FETCH_DASHBOARD]: {
       next: (state, { payload: { parameterValues } }) => parameterValues,
     },
+    [SET_PARAMETER_VALUES]: {
+      next: (state, { payload }) => payload,
+    },
+    [RESET]: { next: state => ({}) },
+  },
+  {},
+);
+
+const parameterValuesSearchCache = handleActions(
+  {
+    [INITIALIZE]: { next: () => ({}) },
+    [SAVE_DASHBOARD_AND_CARDS]: {
+      next: () => ({}),
+    },
+    [FETCH_DASHBOARD_PARAMETER_FIELD_VALUES_WITH_CACHE]: {
+      next: (state, { payload }) =>
+        payload
+          ? assoc(state, payload.cacheKey, {
+              results: payload.results,
+              has_more_values: payload.has_more_values,
+            })
+          : state,
+    },
+    [RESET]: { next: state => ({}) },
   },
   {},
 );
 
 const loadingDashCards = handleActions(
   {
-    [FETCH_DASHBOARD]: {
-      next: (state, { payload }) => ({
+    [INITIALIZE]: {
+      next: state => ({
         ...state,
-        dashcardIds: Object.values(payload.entities.dashcard || {})
-          .filter(dc => !isVirtualDashCard(dc))
-          .map(dc => dc.id),
+        loadingStatus: "idle",
       }),
+    },
+    [FETCH_DASHBOARD]: {
+      next: (state, { payload }) => {
+        const cardIds = Object.values(payload.entities.dashcard || {})
+          .filter(dc => !isVirtualDashCard(dc))
+          .map(dc => dc.id);
+        return {
+          ...state,
+          dashcardIds: cardIds,
+          loadingIds: cardIds,
+          loadingStatus: "idle",
+        };
+      },
     },
     [FETCH_DASHBOARD_CARD_DATA]: {
       next: state => ({
         ...state,
-        loadingIds: state.dashcardIds,
+        loadingStatus: state.dashcardIds.length > 0 ? "running" : "idle",
         startTime:
           state.dashcardIds.length > 0 &&
           // check that performance is defined just in case
@@ -281,7 +350,9 @@ const loadingDashCards = handleActions(
         return {
           ...state,
           loadingIds,
-          ...(loadingIds.length === 0 ? { startTime: null } : {}),
+          ...(loadingIds.length === 0
+            ? { startTime: null, loadingStatus: "complete" }
+            : {}),
         };
       },
     },
@@ -295,13 +366,27 @@ const loadingDashCards = handleActions(
         };
       },
     },
+    [RESET]: {
+      next: state => ({
+        ...state,
+        loadingStatus: "idle",
+      }),
+    },
   },
-  { dashcardIds: [], loadingIds: [], startTime: null },
+  {
+    dashcardIds: [],
+    loadingIds: [],
+    startTime: null,
+    loadingStatus: "idle",
+  },
 );
 
 const DEFAULT_SIDEBAR = { props: {} };
 const sidebar = handleActions(
   {
+    [INITIALIZE]: {
+      next: () => DEFAULT_SIDEBAR,
+    },
     [SET_SIDEBAR]: {
       next: (state, { payload: { name, props } }) => ({
         name,
@@ -311,23 +396,35 @@ const sidebar = handleActions(
     [CLOSE_SIDEBAR]: {
       next: () => DEFAULT_SIDEBAR,
     },
-    [INITIALIZE]: {
+    [SET_EDITING_DASHBOARD]: {
       next: () => DEFAULT_SIDEBAR,
     },
-    [SET_EDITING_DASHBOARD]: {
-      next: (state, { payload: isEditing }) =>
-        isEditing ? state : DEFAULT_SIDEBAR,
-    },
     [REMOVE_PARAMETER]: {
+      next: () => DEFAULT_SIDEBAR,
+    },
+    [RESET]: {
       next: () => DEFAULT_SIDEBAR,
     },
   },
   DEFAULT_SIDEBAR,
 );
 
+const missingActionParameters = handleActions(
+  {
+    [INITIALIZE]: {
+      next: (state, payload) => null,
+    },
+    [RESET]: {
+      next: (state, payload) => null,
+    },
+  },
+  null,
+);
+
 export default combineReducers({
   dashboardId,
   isEditing,
+  loadingControls,
   dashboards,
   dashcards,
   dashcardData,
@@ -336,4 +433,6 @@ export default combineReducers({
   loadingDashCards,
   isAddParameterPopoverOpen,
   sidebar,
+  parameterValuesSearchCache,
+  missingActionParameters,
 });

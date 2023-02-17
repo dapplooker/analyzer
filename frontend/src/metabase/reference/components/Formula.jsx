@@ -5,27 +5,20 @@ import { connect } from "react-redux";
 import { t } from "ttag";
 import { CSSTransitionGroup } from "react-transition-group";
 
-import S from "./Formula.css";
-
 import Icon from "metabase/components/Icon";
 
 import QueryDefinition from "metabase/query_builder/components/QueryDefinition";
 import { fetchTableMetadata } from "metabase/redux/metadata";
+import S from "./Formula.css";
 
 const mapDispatchToProps = {
   fetchTableMetadata,
 };
 
-@connect(null, mapDispatchToProps)
-export default class Formula extends Component {
+class Formula extends Component {
   render() {
-    const {
-      type,
-      entity,
-      isExpanded,
-      expandFormula,
-      collapseFormula,
-    } = this.props;
+    const { type, entity, isExpanded, expandFormula, collapseFormula } =
+      this.props;
 
     return (
       <div
@@ -37,6 +30,7 @@ export default class Formula extends Component {
           <span className={S.formulaTitle}>{t`View the ${type} formula`}</span>
         </div>
         <CSSTransitionGroup
+          component="div"
           transitionName="formulaDefinition"
           transitionEnterTimeout={300}
           transitionLeaveTimeout={300}
@@ -54,3 +48,5 @@ export default class Formula extends Component {
     );
   }
 }
+
+export default connect(null, mapDispatchToProps)(Formula);

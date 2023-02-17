@@ -7,16 +7,23 @@ import PopoverWithTrigger from "metabase/components/PopoverWithTrigger";
 import Icon from "metabase/components/Icon";
 
 import { AggregationItemRoot } from "./AggregationItem.styled";
-import { updateAndRunQuery } from "../utils";
 
 const propTypes = {
   className: PropTypes.string,
   aggregation: PropTypes.object,
   index: PropTypes.number.isRequired,
   query: PropTypes.object,
+  onRemove: PropTypes.func,
+  updateAndRunQuery: PropTypes.func.isRequired,
 };
 
-export const AggregationItem = ({ aggregation, index, query }) => {
+export const AggregationItem = ({
+  aggregation,
+  index,
+  query,
+  onRemove,
+  updateAndRunQuery,
+}) => {
   return (
     <PopoverWithTrigger
       triggerClasses="flex-full"
@@ -32,6 +39,9 @@ export const AggregationItem = ({ aggregation, index, query }) => {
               name="close"
               onClick={() => {
                 updateAndRunQuery(query.removeAggregation(index));
+                if (typeof onRemove === "function") {
+                  onRemove(aggregation, index);
+                }
               }}
             />
           )}

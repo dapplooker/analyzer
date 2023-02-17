@@ -1,6 +1,11 @@
 import Settings from "metabase/lib/settings";
 import { formatSQL } from "metabase/lib/formatting";
 
+export function getDefaultEngine() {
+  const engines = Object.keys(Settings.get("engines"));
+  return engines.includes("postgres") ? "postgres" : engines[0];
+}
+
 export function getEngineNativeType(engine) {
   switch (engine) {
     case "mongo":
@@ -10,6 +15,10 @@ export function getEngineNativeType(engine) {
     default:
       return "sql";
   }
+}
+
+export function getNativeQueryLanguage(engine) {
+  return getEngineNativeType(engine).toUpperCase();
 }
 
 export function getEngineNativeAceMode(engine) {
@@ -30,7 +39,7 @@ export function getEngineNativeAceMode(engine) {
 }
 
 export function getEngineLogo(engine) {
-  const path = `/app/assets/img/drivers`;
+  const path = `app/assets/img/drivers`;
 
   switch (engine) {
     case "bigquery":
@@ -53,6 +62,8 @@ export function getEngineLogo(engine) {
       return `${path}/bigquery.svg`;
     case "presto-jdbc":
       return `${path}/presto.svg`;
+    case "starburst":
+      return `${path}/starburst.svg`;
   }
 }
 
@@ -67,10 +78,6 @@ export function getElevatedEngines() {
   ];
 }
 
-export function getEngineNativeRequiresTable(engine) {
-  return engine === "mongo";
-}
-
 export function getEngineSupportsFirewall(engine) {
   return engine !== "googleanalytics";
 }
@@ -78,9 +85,9 @@ export function getEngineSupportsFirewall(engine) {
 export function formatJsonQuery(query, engine) {
   if (engine === "googleanalytics") {
     return formatGAQuery(query);
-  } else {
-    return JSON.stringify(query);
   }
+
+  return JSON.stringify(query, null, 2);
 }
 
 export function formatNativeQuery(query, engine) {

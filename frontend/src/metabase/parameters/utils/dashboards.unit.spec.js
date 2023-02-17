@@ -1,20 +1,18 @@
 import {
   createParameter,
   setParameterName,
-  setParameterDefaultValue,
   hasMapping,
   isDashboardParameterWithoutMapping,
-  getMappingsByParameter,
   getParametersMappedToDashcard,
   hasMatchingParameters,
+  getFilteringParameterValuesMap,
+  getParameterValuesSearchKey,
+  getDashboardUiParameters,
 } from "metabase/parameters/utils/dashboards";
-import { metadata } from "__support__/sample_dataset_fixture";
+import { PRODUCTS, metadata } from "__support__/sample_database_fixture";
+import Field from "metabase-lib/metadata/Field";
 
-import DASHBOARD_WITH_BOOLEAN_PARAMETER from "./fixtures/dashboard-with-boolean-parameter.json";
-
-import Field from "metabase-lib/lib/metadata/Field";
-
-describe("meta/Dashboard", () => {
+describe("metabase/parameters/utils/dashboards", () => {
   describe("createParameter", () => {
     it("should create a new parameter using the given parameter option", () => {
       expect(
@@ -97,15 +95,6 @@ describe("meta/Dashboard", () => {
       expect(setParameterName({}, "")).toEqual({
         name: "unnamed",
         slug: "unnamed",
-      });
-    });
-  });
-
-  describe("setParameterDefaultValue", () => {
-    it("should set a `default` property on a parameter", () => {
-      expect(setParameterDefaultValue({ foo: "bar" }, 123)).toEqual({
-        foo: "bar",
-        default: 123,
       });
     });
   });
@@ -284,103 +273,6 @@ describe("meta/Dashboard", () => {
     });
   });
 
-  describe("getMappingsByParameter", () => {
-    let metadata;
-    let dashboard;
-    beforeEach(() => {
-      metadata = {
-        fields: {
-          120: new Field({
-            values: {
-              values: [false, true],
-              human_readable_values: [],
-              field_id: 120,
-            },
-            id: 120,
-            table_id: 6,
-            display_name: "CouponUsed",
-            base_type: "type/Boolean",
-            semantic_type: null,
-            has_field_values: "list",
-            name_field: null,
-            dimensions: {},
-            fieldValues: () => [],
-          }),
-          134: new Field({
-            values: {
-              values: [false, true],
-              human_readable_values: [],
-              field_id: 134,
-            },
-            id: 134,
-            table_id: 8,
-            display_name: "Bool",
-            base_type: "type/Boolean",
-            semantic_type: "type/Category",
-            has_field_values: "list",
-            name_field: null,
-            dimensions: {},
-            fieldValues: () => [],
-          }),
-        },
-        field(id) {
-          return this.fields[id];
-        },
-        table() {},
-      };
-
-      dashboard = DASHBOARD_WITH_BOOLEAN_PARAMETER;
-    });
-
-    it("should generate a map of parameter mappings with added field metadata", () => {
-      const mappings = getMappingsByParameter(metadata, dashboard);
-
-      expect(mappings).toEqual({
-        parameter1: {
-          "81": {
-            "56": {
-              card_id: 56,
-              dashcard_id: 81,
-              field: metadata.field(120),
-              field_id: 120,
-              parameter_id: "parameter1",
-              target: ["dimension", ["field", 120, null]],
-            },
-          },
-          "86": {
-            "59": {
-              card_id: 59,
-              dashcard_id: 86,
-              field: metadata.field(134),
-              field_id: 134,
-              parameter_id: "parameter1",
-              target: ["dimension", ["template-tag", "bbb"]],
-            },
-          },
-          "87": {
-            "62": {
-              card_id: 62,
-              dashcard_id: 87,
-              field: expect.any(Field),
-              field_id: "boolean",
-              parameter_id: "parameter1",
-              target: [
-                "dimension",
-                ["field", "boolean", { "base-type": "type/Boolean" }],
-              ],
-            },
-          },
-        },
-      });
-
-      expect(mappings.parameter1["87"]["62"].field).toEqual(
-        expect.objectContaining({
-          name: "boolean",
-        }),
-      );
-    });
-  });
-
   describe("getParametersMappedToDashcard", () => {
     const dashboard = {
       parameters: [
@@ -400,7 +292,7 @@ describe("meta/Dashboard", () => {
       ],
     };
 
-    const dashboardWithNoParameters = {};
+    const dashboardWithNoParameters = { parameters: [] };
 
     const dashcard = {
       parameter_mappings: [
@@ -445,9 +337,12 @@ describe("meta/Dashboard", () => {
       const dashboard = {
         ordered_cards: [
           {
+            id: 1,
             card_id: 123,
+            card: { id: 123 },
             parameter_mappings: [
               {
+                card_id: 123,
                 parameter_id: "foo",
               },
             ],
@@ -458,7 +353,18 @@ describe("meta/Dashboard", () => {
       expect(
         hasMatchingParameters({
           dashboard,
+          dashcardId: 1,
           cardId: 456,
+          parameters: [],
+          metadata,
+        }),
+      ).toBe(false);
+
+      expect(
+        hasMatchingParameters({
+          dashboard,
+          dashcardId: 2,
+          cardId: 123,
           parameters: [],
           metadata,
         }),
@@ -469,17 +375,23 @@ describe("meta/Dashboard", () => {
       const dashboard = {
         ordered_cards: [
           {
+            id: 1,
             card_id: 123,
+            card: { id: 123 },
             parameter_mappings: [
               {
+                card_id: 123,
                 parameter_id: "foo",
               },
             ],
           },
           {
+            id: 2,
             card_id: 456,
+            card: { id: 456 },
             parameter_mappings: [
               {
+                card_id: 456,
                 parameter_id: "bar",
               },
             ],
@@ -490,6 +402,7 @@ describe("meta/Dashboard", () => {
       expect(
         hasMatchingParameters({
           dashboard,
+          dashcardId: 1,
           cardId: 123,
           parameters: [
             {
@@ -508,12 +421,16 @@ describe("meta/Dashboard", () => {
       const dashboard = {
         ordered_cards: [
           {
+            id: 1,
             card_id: 123,
+            card: { id: 123 },
             parameter_mappings: [
               {
+                card_id: 123,
                 parameter_id: "foo",
               },
               {
+                card_id: 123,
                 parameter_id: "bar",
               },
             ],
@@ -524,6 +441,7 @@ describe("meta/Dashboard", () => {
       expect(
         hasMatchingParameters({
           dashboard,
+          dashcardId: 1,
           cardId: 123,
           parameters: [
             {
@@ -536,6 +454,336 @@ describe("meta/Dashboard", () => {
           metadata,
         }),
       ).toBe(true);
+    });
+  });
+
+  describe("getFilteringParameterValuesMap", () => {
+    const undefinedFilteringParameters = {};
+    const emptyFilteringParameters = {
+      filteringParameters: [],
+    };
+
+    const parameter = {
+      filteringParameters: ["a", "b", "c", "d"],
+    };
+    const parameters = [
+      {
+        id: "a",
+        value: "aaa",
+      },
+      {
+        id: "b",
+        value: "bbb",
+      },
+      {
+        id: "c",
+      },
+      {
+        id: "d",
+        value: null,
+      },
+      {
+        id: "e",
+        value: "eee",
+      },
+    ];
+
+    it("should create a map of any defined parameterValues found in a specific parameter's filteringParameters property", () => {
+      expect(
+        getFilteringParameterValuesMap(
+          undefinedFilteringParameters,
+          parameters,
+        ),
+      ).toEqual({});
+      expect(
+        getFilteringParameterValuesMap(emptyFilteringParameters, parameters),
+      ).toEqual({});
+      expect(getFilteringParameterValuesMap(parameter, parameters)).toEqual({
+        a: "aaa",
+        b: "bbb",
+      });
+    });
+
+    it("should handle a missing `filteringParameters` prop gracefully", () => {
+      expect(
+        getFilteringParameterValuesMap(
+          undefinedFilteringParameters,
+          parameters,
+        ),
+      ).toEqual({});
+      expect(
+        getFilteringParameterValuesMap(emptyFilteringParameters, parameters),
+      ).toEqual({});
+    });
+  });
+
+  describe("getParameterValuesSearchKey", () => {
+    it("should return a string using the given props related to parameter value searching", () => {
+      expect(
+        getParameterValuesSearchKey({
+          dashboardId: "123",
+          parameterId: "456",
+          query: "foo",
+          filteringParameterValues: {
+            a: "aaa",
+            b: "bbb",
+          },
+        }),
+      ).toEqual(
+        'dashboardId: 123, parameterId: 456, query: foo, filteringParameterValues: [["a","aaa"],["b","bbb"]]',
+      );
+    });
+
+    it("should default `query` to null", () => {
+      expect(
+        getParameterValuesSearchKey({
+          dashboardId: "123",
+          parameterId: "456",
+          filteringParameterValues: {
+            a: "aaa",
+            b: "bbb",
+          },
+        }),
+      ).toEqual(
+        'dashboardId: 123, parameterId: 456, query: null, filteringParameterValues: [["a","aaa"],["b","bbb"]]',
+      );
+    });
+
+    it("should sort the entries in the `filteringParameterValues` object", () => {
+      expect(
+        getParameterValuesSearchKey({
+          dashboardId: "123",
+          parameterId: "456",
+          filteringParameterValues: {
+            b: "bbb",
+            a: "aaa",
+          },
+        }),
+      ).toEqual(
+        'dashboardId: 123, parameterId: 456, query: null, filteringParameterValues: [["a","aaa"],["b","bbb"]]',
+      );
+    });
+
+    it("should handle there being no filteringParameterValues", () => {
+      expect(
+        getParameterValuesSearchKey({
+          dashboardId: "123",
+          parameterId: "456",
+          query: "abc",
+        }),
+      ).toEqual(
+        "dashboardId: 123, parameterId: 456, query: abc, filteringParameterValues: []",
+      );
+    });
+  });
+
+  describe("getDashboardUiParameters", () => {
+    const dashboard = {
+      id: 1,
+      ordered_cards: [
+        {
+          id: 1,
+          card_id: 123,
+          card: { id: 123, dataset_query: { type: "query" } },
+          series: [{ id: 789, dataset_query: { type: "query" } }],
+          parameter_mappings: [
+            {
+              card_id: 123,
+              parameter_id: "b",
+              target: ["breakout", 0],
+            },
+            {
+              card_id: 789,
+              parameter_id: "d",
+              target: ["dimension", ["field", PRODUCTS.RATING.id, null]],
+            },
+            {
+              card_id: 123,
+              parameter_id: "f",
+              target: ["dimension", ["field", PRODUCTS.TITLE.id, null]],
+            },
+            {
+              card_id: 123,
+              parameter_id: "g",
+              target: ["dimension", ["field", PRODUCTS.TITLE.id, null]],
+            },
+          ],
+        },
+        {
+          id: 2,
+          card_id: 456,
+          card: {
+            id: 456,
+            dataset_query: {
+              type: "native",
+              native: {
+                query: "{{foo}}",
+                "template-tags": {
+                  foo: {
+                    type: "text",
+                  },
+                  bar: {
+                    type: "dimension",
+                    "widget-type": "string/contains",
+                    dimension: ["field", PRODUCTS.TITLE.id, null],
+                  },
+                },
+              },
+            },
+          },
+          parameter_mappings: [
+            {
+              card_id: 456,
+              parameter_id: "e",
+              target: ["variable", "foo"],
+            },
+            {
+              card_id: 456,
+              parameter_id: "f",
+              target: ["dimension", ["template-tag", "bar"]],
+            },
+            {
+              card_id: 456,
+              parameter_id: "h",
+              target: ["variable", "foo"],
+            },
+          ],
+        },
+        {
+          id: 3,
+          card_id: 999,
+          card: { id: 999, dataset_query: { type: "query" } },
+          parameter_mappings: [
+            {
+              card_id: 999,
+              parameter_id: "g",
+              target: ["dimension", ["field", PRODUCTS.CATEGORY.id, null]],
+            },
+            {
+              card_id: 999,
+              parameter_id: "h",
+              target: ["dimension", ["field", PRODUCTS.CATEGORY.id, null]],
+            },
+          ],
+        },
+        {
+          id: 4,
+          card_id: 888,
+          card: { id: 888, dataset_query: { type: "query" } },
+          parameter_mappings: [],
+        },
+      ],
+      parameters: [
+        // unmapped, not field filter
+        {
+          id: "a",
+          slug: "slug-a",
+          type: "foo",
+        },
+        // mapped, not field filter
+        {
+          id: "b",
+          slug: "slug-b",
+          type: "granularity",
+          default: ["day"],
+        },
+        // unmapped, field filter
+        {
+          id: "c",
+          slug: "slug-c",
+          type: "string/=",
+        },
+        // mapped, field filter
+        {
+          id: "d",
+          slug: "slug-d",
+          type: "number/=",
+          default: [1, 2, 3],
+        },
+        // mapped to variable, field filter
+        {
+          id: "e",
+          slug: "slug-e",
+          type: "category",
+        },
+        // field filter, mapped to two cards, same field
+        {
+          id: "f",
+          slug: "slug-f",
+          type: "string/contains",
+        },
+        // field filter, mapped to two, different fields
+        {
+          id: "g",
+          slug: "slug-g",
+          type: "string/starts-with",
+        },
+        // field filter, mapped to field and variable
+        {
+          id: "h",
+          slug: "slug-h",
+          type: "string/=",
+        },
+      ],
+    };
+
+    it("should return a list of UiParameter objects from the given dashboard", () => {
+      expect(getDashboardUiParameters(dashboard, metadata)).toEqual([
+        {
+          id: "a",
+          slug: "slug-a",
+          type: "foo",
+        },
+        {
+          id: "b",
+          slug: "slug-b",
+          type: "granularity",
+          default: ["day"],
+        },
+        {
+          id: "c",
+          slug: "slug-c",
+          type: "string/=",
+          fields: [],
+          hasVariableTemplateTagTarget: false,
+        },
+        {
+          id: "d",
+          slug: "slug-d",
+          type: "number/=",
+          default: [1, 2, 3],
+          fields: [expect.any(Field)],
+          hasVariableTemplateTagTarget: false,
+        },
+        {
+          id: "e",
+          slug: "slug-e",
+          type: "category",
+          fields: [],
+          hasVariableTemplateTagTarget: true,
+        },
+        {
+          id: "f",
+          slug: "slug-f",
+          type: "string/contains",
+          fields: [expect.any(Field)],
+          hasVariableTemplateTagTarget: false,
+        },
+        {
+          id: "g",
+          slug: "slug-g",
+          type: "string/starts-with",
+          fields: [expect.any(Field), expect.any(Field)],
+          hasVariableTemplateTagTarget: false,
+        },
+        {
+          id: "h",
+          slug: "slug-h",
+          type: "string/=",
+          fields: [expect.any(Field)],
+          hasVariableTemplateTagTarget: true,
+        },
+      ]);
     });
   });
 });

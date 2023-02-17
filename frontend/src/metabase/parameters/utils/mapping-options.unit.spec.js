@@ -1,23 +1,71 @@
 import {
   metadata,
-  SAMPLE_DATASET,
+  SAMPLE_DATABASE,
   REVIEWS,
   ORDERS,
   PRODUCTS,
-} from "__support__/sample_dataset_fixture";
+} from "__support__/sample_database_fixture";
 
 import { getParameterMappingOptions } from "./mapping-options";
 
 function structured(query) {
-  return SAMPLE_DATASET.question(query).card();
+  return SAMPLE_DATABASE.question(query).card();
 }
 
 function native(native) {
-  return SAMPLE_DATASET.nativeQuestion(native).card();
+  return SAMPLE_DATABASE.nativeQuestion(native).card();
 }
 
 describe("parameters/utils/mapping-options", () => {
   describe("getParameterMappingOptions", () => {
+    describe("Model question", () => {
+      let dataset;
+      let virtualCardTable;
+      beforeEach(() => {
+        const question = ORDERS.question();
+        dataset = question
+          .setCard({ ...question.card(), id: 123 })
+          .setDataset(true);
+
+        // create a virtual table for the card
+        // that contains fields with custom, model-specific metadata
+        virtualCardTable = ORDERS.clone();
+        virtualCardTable.id = `card__123`;
+        virtualCardTable.fields = [
+          ORDERS.CREATED_AT.clone({
+            table_id: `card__123`,
+            uniqueId: `card__123:${ORDERS.CREATED_AT.id}`,
+            display_name: "~*~Created At~*~",
+          }),
+        ];
+
+        // add instances to the `metadata` instance
+        metadata.questions[dataset.id()] = dataset;
+        metadata.tables[virtualCardTable.id] = virtualCardTable;
+        virtualCardTable.fields.forEach(f => {
+          metadata.fields[f.uniqueId] = f;
+        });
+      });
+
+      it("should return fields from the model question's virtual card table, as though it is already nested", () => {
+        const options = getParameterMappingOptions(
+          metadata,
+          { type: "date/single" },
+          dataset.card(),
+        );
+
+        expect(options).toEqual([
+          {
+            icon: "calendar",
+            isForeign: false,
+            name: "~*~Created At~*~",
+            sectionName: "Order",
+            target: ["dimension", ["field", 1, null]],
+          },
+        ]);
+      });
+    });
+
     describe("Structured Query", () => {
       it("should return field-id and fk-> dimensions", () => {
         const options = getParameterMappingOptions(
@@ -98,13 +146,14 @@ describe("parameters/utils/mapping-options", () => {
           { type: "date/single" },
           structured({
             "source-query": {
-              "source-table": ORDERS.id,
+              "source-table": PRODUCTS.id,
             },
           }),
         );
         expect(options).toEqual([
           {
-            sectionName: null,
+            // this is a source query, and tables for source queries do not have a display_name
+            sectionName: "",
             name: "Created At",
             icon: "calendar",
             target: [

@@ -1,10 +1,10 @@
-import { tokenize } from "metabase/lib/expressions/tokenizer";
+import { tokenize } from "metabase-lib/expressions/tokenizer";
 import {
   countMatchingParentheses,
   diagnose,
-} from "metabase/lib/expressions/diagnostics";
+} from "metabase-lib/expressions/diagnostics";
 
-describe("metabase/lib/expressions/diagnostics", () => {
+describe("metabase-lib/expressions/diagnostics", () => {
   it("should count matching parentheses", () => {
     const count = expr => countMatchingParentheses(tokenize(expr).tokens);
     expect(count("()")).toEqual(0);
@@ -50,6 +50,12 @@ describe("metabase/lib/expressions/diagnostics", () => {
   it("should show the correct number of function arguments in a custom expression", () => {
     expect(diagnose("contains([Category])", "boolean").message).toEqual(
       "Function contains expects 2 arguments",
+    );
+  });
+
+  it("should show an error for custom columns with a root boolean expression", () => {
+    expect(diagnose("[Canceled] = [Returned]", "expression").message).toEqual(
+      "Custom columns do not support boolean expressions",
     );
   });
 });
