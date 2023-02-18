@@ -18,9 +18,9 @@ const getSingleStepTitle = (questionType, showSaveType) => {
   if (questionType === "model") {
     return t`Save model`;
   } else if (showSaveType) {
-    return t`Save question`;
+    return t`Save chart`;
   } else {
-    return t`Save new question`;
+    return t`Save new chart`;
   }
 };
 
@@ -107,13 +107,26 @@ export default class SaveQuestionModal extends Component {
           : "create",
     };
 
-    const title = this.props.multiStep
-      ? t`First, save your chart`
-      : t`Save chart`;
+    const questionType = card.dataset ? "model" : "question";
+
+    const multiStepTitle =
+      questionType === "question"
+        ? t`First, save your chart`
+        : t`First, save your model`;
+
+    const showSaveType =
+      !card.id &&
+      !!originalCard &&
+      !originalCard.dataset &&
+      originalCard.can_write;
+
+    const singleStepTitle = getSingleStepTitle(questionType, showSaveType);
+
+    const title = this.props.multiStep ? multiStepTitle : singleStepTitle;
 
     const nameInputPlaceholder =
       questionType === "question"
-        ? t`What is the name of your question?`
+        ? t`What is the name of your chart?`
         : t`What is the name of your model?`;
 
     return (
