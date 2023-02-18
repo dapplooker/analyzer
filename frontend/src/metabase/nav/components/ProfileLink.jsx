@@ -50,7 +50,7 @@ function ProfileLink({ user, adminItems, onLogout }) {
       //   link: Urls.accountSettings(),
       //   event: `Navbar;Profile Dropdown;Edit Profile`,
       // },
-      admin && {
+      {
         title: t`Admin settings`,
         icon: null,
         link: "/admin",
