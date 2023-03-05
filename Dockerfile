@@ -2,13 +2,26 @@
 # STAGE 1: builder
 ###################
 
-FROM metabase/ci:circleci-java-11-clj-1.10.3.929-07-27-2021-node-browsers as builder
+#FROM metabase/ci:circleci-java-11-clj-1.10.3.929-07-27-2021-node-browsers as builder
+#
+#ARG MB_EDITION=oss
+#
+#WORKDIR /home/circleci
+#
+#COPY --chown=circleci . .
+#RUN INTERACTIVE=false CI=true MB_EDITION=$MB_EDITION bin/build
+FROM node:14 as builder
 
 ARG MB_EDITION=oss
 
-WORKDIR /home/circleci
+WORKDIR /home/node
 
-COPY --chown=circleci . .
+RUN apt-get update && apt-get upgrade -y && apt-get install openjdk-11-jdk curl git -y \
+    && curl -O https://download.clojure.org/install/linux-install-1.11.1.1208.sh \
+    && chmod +x linux-install-1.11.1.1208.sh \
+    && ./linux-install-1.11.1.1208.sh
+
+COPY . .
 RUN INTERACTIVE=false CI=true MB_EDITION=$MB_EDITION bin/build
 
 # ###################
@@ -18,7 +31,8 @@ RUN INTERACTIVE=false CI=true MB_EDITION=$MB_EDITION bin/build
 ## Remember that this runner image needs to be the same as bin/docker/Dockerfile with the exception that this one grabs the
 ## jar from the previous stage rather than the local build
 
-FROM adoptopenjdk/openjdk11:alpine-jre as runner
+#FROM --platform=linux/amd64 adoptopenjdk/openjdk11:alpine-jre as runner
+FROM --platform=linux/amd64 adoptopenjdk/openjdk11:alpine-jre
 
 ENV FC_LANG en-US LC_CTYPE en_US.UTF-8
 
@@ -33,7 +47,7 @@ RUN /opt/java/openjdk/bin/keytool -noprompt -import -trustcacerts -alias azure-c
 RUN mkdir -p /plugins && chmod a+rwx /plugins
 
 # add Metabase script and uberjar
-COPY --from=builder /home/circleci/target/uberjar/metabase.jar /app/
+COPY --from=builder /home/node/target/uberjar/metabase.jar /app/
 COPY bin/docker/run_metabase.sh /app/
 
 # expose our default runtime port

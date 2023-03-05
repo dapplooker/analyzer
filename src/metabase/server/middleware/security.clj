@@ -52,6 +52,7 @@
                                    "https://maps.google.com"
                                    "https://apis.google.com"
                                    "https://*.googleapis.com"
+                                   "https://d2yxqfr8upg55w.cloudfront.net"
                                    "*.gstatic.com"
                                    (when (public-settings/anon-tracking-enabled)
                                      "https://www.google-analytics.com")
@@ -60,18 +61,18 @@
                                      "localhost:8080")
                                    ;; for react dev tools to work in Firefox until resolution of
                                    ;; https://github.com/facebook/react/issues/17997
-                                   (when config/is-dev?
-                                     "'unsafe-inline'")]
-                                  (when-not config/is-dev?
-                                    (map (partial format "'sha256-%s'") inline-js-hashes)))
+                                     "'unsafe-inline'"])
+;;                                   (when-not config/is-dev?
+;;                                     (map (partial format "'sha256-%s'") inline-js-hashes)))
                   :child-src    ["'self'"
+                                 "https://d2yxqfr8upg55w.cloudfront.net"
                                  ;; TODO - double check that we actually need this for Google Auth
                                  "https://accounts.google.com"]
                   :style-src    ["'self'"
-                                 "'unsafe-inline'"]
+                                 "'unsafe-inline'"
+                                 "https://d2yxqfr8upg55w.cloudfront.net"]
                   :font-src     ["'self'"
-                                 (when config/is-dev?
-                                   "localhost:8080")]
+                                 "https://d2yxqfr8upg55w.cloudfront.net"]
                   :img-src      ["*"
                                  "'self' data:"]
                   :connect-src  ["'self'"
