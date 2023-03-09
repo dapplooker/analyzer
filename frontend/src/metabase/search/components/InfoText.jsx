@@ -32,7 +32,10 @@ export function InfoText({ result }) {
     case "app":
       return t`App`;
     case "card":
-      return jt`Saved chart in ${formatCollection(result.getCollection())}`;
+      return jt`Saved chart in ${formatCollection(
+        result,
+        result.getCollection(),
+      )}`;
     case "dataset":
       return jt`Model in ${formatCollection(result, result.getCollection())}`;
     case "collection":
