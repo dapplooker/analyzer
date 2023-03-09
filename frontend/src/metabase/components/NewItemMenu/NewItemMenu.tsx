@@ -59,7 +59,7 @@ const NewItemMenu = ({
 
     if (hasDataAccess) {
       items.push({
-        title: t`Chart`,
+        title: t`Create a Chart`,
         icon: "insight",
         link: Urls.newQuestion({
           mode: "notebook",
@@ -85,7 +85,7 @@ const NewItemMenu = ({
 
     items.push(
       {
-        title: t`Dashboard`,
+        title: t`Create Dashboard`,
         icon: "dashboard",
         action: () => setModal("new-dashboard"),
         event: `${analyticsContext};New Dashboard Click;`,

@@ -52,6 +52,7 @@
                                    "'unsafe-eval'" ; TODO - we keep working towards removing this entirely
                                    "https://maps.google.com"
                                    "https://accounts.google.com"
+                                   "https://d2yxqfr8upg55w.cloudfront.net"
                                    (when (public-settings/anon-tracking-enabled)
                                      "https://www.google-analytics.com")
                                    ;; for webpack hot reloading
@@ -64,10 +65,12 @@
                                   (when-not config/is-dev?
                                     (map (partial format "'sha256-%s'") inline-js-hashes)))
                   :child-src    ["'self'"
+                                 "https://d2yxqfr8upg55w.cloudfront.net"
                                  ;; TODO - double check that we actually need this for Google Auth
                                  "https://accounts.google.com"]
                   :style-src    ["'self'"
                                  "'unsafe-inline'"
+                                 "https://d2yxqfr8upg55w.cloudfront.net"
                                  "https://accounts.google.com"]
                   :font-src     ["*"]
                   :img-src      ["*"

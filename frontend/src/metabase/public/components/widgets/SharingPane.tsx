@@ -150,7 +150,7 @@ export default function SharingPane({
         <CopyWidget value={iframeSource} />
       </SharingOption>
 
-      <SharingOption
+      {isAdmin && <SharingOption
         className={cx({
           disabled: shouldDisableEmbedding,
           "cursor-pointer": !shouldDisableEmbedding,
@@ -170,7 +170,7 @@ export default function SharingPane({
           <Description enableMouseEvents>{embeddingHelperText}</Description>
         )}
         <Button primary>{t`Set up`}</Button>
-      </SharingOption>
+      </SharingOption>}
     </div>
   );
 }

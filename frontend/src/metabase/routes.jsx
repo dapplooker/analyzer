@@ -211,7 +211,7 @@ export const getRoutes = store => (
           path="login"
           component={() => {
             window.location.href =
-              "https://dapplooker.com/login?source=dlooker";
+              "https://dapplooker.com/user/login?source=dlooker";
             return null;
           }}
         />
@@ -220,14 +220,14 @@ export const getRoutes = store => (
       <Route
         path="forgot_password"
         component={() => {
-          window.location.href = "https://dapplooker.com/login?source=dlooker";
+          window.location.href = "https://dapplooker.com/user/login?source=dlooker";
           return null;
         }}
       />
       <Route
         path="reset_password/:token"
         component={() => {
-          window.location.href = "https://dapplooker.com/login?source=dlooker";
+          window.location.href = "https://dapplooker.com/user/login?source=dlooker";
           return null;
         }}
       />

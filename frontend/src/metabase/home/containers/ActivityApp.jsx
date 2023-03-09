@@ -61,7 +61,7 @@ class ActivityApp extends Component {
             </Card>
           </ActivityMain>
           <ActivitySidebar>
-            <NextStep />
+            {/* <NextStep /> */}
             <RecentViews {...this.props} />
           </ActivitySidebar>
         </ActivityBody>

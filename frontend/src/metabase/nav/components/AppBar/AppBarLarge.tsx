@@ -28,6 +28,39 @@ export interface AppBarLargeProps {
   onLogout: () => void;
 }
 
+const DappLookerHeaderLinks = (): JSX.Element => {
+  const DAPPLOOKER_DISCOVER_LINK = "https://dapplooker.com/browse/dashboards?sort=popular";
+  const DAPPLOOKER_MYPROJECT_LINK = "https://dapplooker.com/user/dashboard";
+
+  const anchorTagStyle = {
+    color: "#4C5773",
+    fontWeight: 700,
+  }
+
+  const changeTextColorOnHover = (e:any) => {
+    e.target.style.color = "#509ee3";
+  }
+
+  const resetTextColor = (e:any) => {
+    e.target.style.color = anchorTagStyle.color;
+  }
+
+  return (
+    <>
+      <a
+        href={DAPPLOOKER_DISCOVER_LINK}
+        onMouseEnter={changeTextColorOnHover}
+        onMouseLeave={resetTextColor}
+        style={anchorTagStyle}>Discover</a>
+      <a
+        href={DAPPLOOKER_MYPROJECT_LINK}
+        onMouseEnter={changeTextColorOnHover}
+        onMouseLeave={resetTextColor}
+        style={anchorTagStyle}>My Project</a>
+    </>
+  )
+}
+
 const AppBarLarge = ({
   currentUser,
   collectionId,
@@ -63,6 +96,7 @@ const AppBarLarge = ({
       </AppBarLeftContainer>
       {(isSearchVisible || isNewButtonVisible || isProfileLinkVisible) && (
         <AppBarRightContainer>
+          <DappLookerHeaderLinks />
           {isSearchVisible && <SearchBar />}
           {isNewButtonVisible && <NewItemButton collectionId={collectionId} />}
           {isProfileLinkVisible && (

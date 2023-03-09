@@ -17,3 +17,5 @@ export const breakpointMinHeightMedium = "@media screen and (min-height: 45em)";
 export const breakpointMinHeightLarge = "@media screen and (min-height: 60em)";
 export const breakpointMinHeightExtraLarge =
   "@media screen and (min-height: 80em)";
+
+export const breakpointCustomDappLookerMaxSmall = "@media screen and (max-width:540px)";

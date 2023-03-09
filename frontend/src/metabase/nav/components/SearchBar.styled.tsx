@@ -10,6 +10,7 @@ import { color } from "metabase/lib/colors";
 import {
   breakpointMaxSmall,
   breakpointMinSmall,
+  breakpointCustomDappLookerMaxSmall,
 } from "metabase/styled-components/theme";
 
 const activeInputCSS = css`
@@ -18,10 +19,14 @@ const activeInputCSS = css`
 `;
 
 export const SearchBarRoot = styled.div`
-  width: 100%;
+  width: 44%;
 
   ${breakpointMinSmall} {
     position: relative;
+  }
+
+  ${breakpointCustomDappLookerMaxSmall} {
+    width:100%;
   }
 `;
 

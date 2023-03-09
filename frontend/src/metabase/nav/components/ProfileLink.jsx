@@ -50,7 +50,7 @@ function ProfileLink({ user, adminItems, onLogout }) {
       //   link: Urls.accountSettings(),
       //   event: `Navbar;Profile Dropdown;Edit Profile`,
       // },
-      {
+      isAdmin && {
         title: t`Admin settings`,
         icon: null,
         link: "/admin",
@@ -74,16 +74,14 @@ function ProfileLink({ user, adminItems, onLogout }) {
         icon: null,
         link: 'https://dapplooker.notion.site/dapplooker/Dapplooker-Documentation-f3113336bdce4ecea688fa0ba69cec98',
         externalLink: true,
-        action: () => openModal("about"),
         event: `Navbar;Profile Dropdown;About ${tag}`,
       },
       {
         title: t`FAQ`,
         icon: null,
-        link: 'https://dapplooker.com/faq/',
+        link: 'https://dapplooker.com/pricing#faq',
         externalLink: true,
         event: `Navbar;Profile Dropdown;About ${tag}`,
-        action: () => onLogout(),
       },
      
       // {
