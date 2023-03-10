@@ -69,6 +69,11 @@ function DatasetManagementSection({
           icon="model_framed"
           onClick={turnDatasetIntoQuestion}
         >{t`Turn back into a saved chart`}</Button>
+        <PLUGIN_MODERATION.QuestionModerationSection
+          question={dataset}
+          VerifyButton={Button}
+          reviewBannerClassName="mt1"
+        />
       </SectionContent>
     </div>
   );

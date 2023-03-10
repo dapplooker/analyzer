@@ -178,9 +178,9 @@ const TableSelector = ({ database, readOnly, selectedTable, setTableId }) => (
 TableSelector.propTypes = TableSelectorPropTypes;
 
 const Placeholder = ({ query }) => (
-  <span className="ml2 p2 text-medium">
-    {t`This chart is written in ${query.nativeQueryLanguage()}.`}
-  </span>
+  <div className="ml2 p2 text-medium">
+    {t`This chart is written in ${getNativeQueryLanguage(query.engine())}.`}
+  </div>
 );
 
 Placeholder.propTypes = PlaceholderPropTypes;
