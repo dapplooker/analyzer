@@ -191,7 +191,7 @@ export const getRoutes = store => (
     >
 
     {/* AUTH to be uncommented from line 194 to 203 during local testing on analytics.dlooker.com*/}
-    <Route path="/auth">
+    {/* <Route path="/auth">
       <IndexRedirect to="/auth/login" />
       <Route component={IsNotAuthenticated}>
         <Route path="login" title={t`Login`} component={LoginApp} />
@@ -200,11 +200,11 @@ export const getRoutes = store => (
       <Route path="logout" component={LogoutApp} />
       <Route path="forgot_password" component={ForgotPasswordApp} />
       <Route path="reset_password/:token" component={ResetPasswordApp} />
-    </Route>
+    </Route> */}
     {/* ==================================================================== */}
 
     {/* AUTH comment from line 207 to 234 during local testing  */}
-    {/* <Route path="/auth">
+    <Route path="/auth">
       <IndexRedirect to="/auth/login" />
       <Route component={IsNotAuthenticated}>
         <Route
@@ -231,7 +231,7 @@ export const getRoutes = store => (
           return null;
         }}
       />
-    </Route> */}
+    </Route>
     {/* ===================================================================== */}
 
 
