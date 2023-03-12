@@ -41,6 +41,8 @@
   the original request was HTTPS; if sent in response to an HTTP request, this is simply ignored)"
   {"Strict-Transport-Security" "max-age=31536000"})
 
+(def cloudfront-domain "https://d2yxqfr8upg55w.cloudfront.net")
+
 (defn- content-security-policy-header
   "`Content-Security-Policy` header. See https://content-security-policy.com for more details."
   []
@@ -52,7 +54,7 @@
                                    "'unsafe-eval'" ; TODO - we keep working towards removing this entirely
                                    "https://maps.google.com"
                                    "https://accounts.google.com"
-                                   "https://d2yxqfr8upg55w.cloudfront.net"
+                                   cloudfront-domain
                                    (when (public-settings/anon-tracking-enabled)
                                      "https://www.google-analytics.com")
                                    ;; for webpack hot reloading
@@ -65,12 +67,12 @@
                                   (when-not config/is-dev?
                                     (map (partial format "'sha256-%s'") inline-js-hashes)))
                   :child-src    ["'self'"
-                                 "https://d2yxqfr8upg55w.cloudfront.net"
+                                 cloudfront-domain
                                  ;; TODO - double check that we actually need this for Google Auth
                                  "https://accounts.google.com"]
                   :style-src    ["'self'"
                                  "'unsafe-inline'"
-                                 "https://d2yxqfr8upg55w.cloudfront.net"
+                                 cloudfront-domain
                                  "https://accounts.google.com"]
                   :font-src     ["*"]
                   :img-src      ["*"

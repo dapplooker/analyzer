@@ -1,6 +1,5 @@
 .babel_cache
 docs/*
-target/*
 .circleci
 .cpcache
 .devcontainer
@@ -16,7 +15,6 @@ test_config/*
 test_modules/*
 test_resources/*
 node_modules
-**metabase.jar
 
 *.db
 

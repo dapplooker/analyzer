@@ -326,7 +326,10 @@
     "build-storybook": "yarn build:cljs && build-storybook",
     "chromatic": "yarn build:cljs && chromatic",
     "docs-lint-links": "find docs -type f -name '*.md' -print0 | xargs -0 markdown-link-check --quiet --config .mlc_config.json",
-    "build-s3Upload": "cd resources/frontend_client/app && rm -rf dist && cd ../../../ && yarn build && yarn build-static-viz && cd resources/frontend_client/aws && ts-node s3UploadWrapper.ts cd ../../../"
+    "build-metabase:jar": "INTERACTIVE=false CI=true MB_EDITION=oss bin/build",
+    "build-s3Upload":"cd resources/frontend_client/app && rm -rf dist && cd ../../../ && yarn build-metabase:jar && cd resources/frontend_client/aws && ts-node s3UploadWrapper.ts cd ../../../",
+    "build-s3Upload:development": "yarn build-s3Upload --mode DEVELOPMENT",
+    "build-s3Upload:production": "yarn build-s3Upload --mode PRODUCTION"
   },
   "lint-staged": {
     "+(enterprise|frontend)/**/*.css": [
