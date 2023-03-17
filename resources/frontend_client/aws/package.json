@@ -12,6 +12,11 @@
   "author": "DappLooker",
   "license": "ISC",
   "dependencies": {
-    "aws-sdk": "^2.1331.0"
+    "aws-sdk": "2.1258.0",
+    "ts-node": "10.9.1",
+    "ts-node-dev": "2.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "18.11.9"
   }
 }
