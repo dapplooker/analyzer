@@ -56,7 +56,7 @@ const DappLookerHeaderLinks = (): JSX.Element => {
         href={DAPPLOOKER_MYPROJECT_LINK}
         onMouseEnter={changeTextColorOnHover}
         onMouseLeave={resetTextColor}
-        style={anchorTagStyle}>My Project</a>
+        style={anchorTagStyle}>My Dashboard</a>
     </>
   )
 }
