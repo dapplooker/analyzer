@@ -66,7 +66,7 @@ const HomeXraySection = ({
             message={tableMessages[index]}
           />
         ))}
-        <HomeHelpCard />
+        {/* <HomeHelpCard /> */}
       </SectionBody>
     </div>
   );

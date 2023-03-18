@@ -32,7 +32,7 @@ const HomeRecentSection = ({
             url={Urls.modelToUrl(item) ?? ""}
           />
         ))}
-        {hasHelpCard && <HomeHelpCard />}
+        {/* {hasHelpCard && <HomeHelpCard />} */}
       </SectionBody>
     </div>
   );

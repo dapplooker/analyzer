@@ -28,7 +28,7 @@ const HomePopularSection = ({
             url={Urls.modelToUrl(item) ?? ""}
           />
         ))}
-        <HomeHelpCard />
+        {/* <HomeHelpCard /> */}
       </SectionBody>
     </div>
   );
