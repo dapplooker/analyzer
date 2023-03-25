@@ -4,7 +4,7 @@ import { getStore } from "__support__/entities-store";
 
 import Schemas from "metabase/entities/schemas";
 import Questions from "metabase/entities/questions";
-import { ROOT_COLLECTION_VIRTUAL_SCHEMA } from "metabase/lib/saved-questions";
+import { ROOT_COLLECTION_VIRTUAL_SCHEMA } from "metabase-lib/metadata/utils/saved-questions";
 
 describe("schema entity", () => {
   let store;
@@ -34,8 +34,8 @@ describe("schema entity", () => {
       },
     });
     expect(tables).toEqual({
-      "123": { id: 123, name: "foo" },
-      "234": { id: 234, name: "bar" },
+      123: { id: 123, name: "foo" },
+      234: { id: 234, name: "bar" },
     });
   });
 
@@ -79,8 +79,8 @@ describe("schema entity", () => {
       },
     });
     expect(tables).toEqual({
-      "123": { id: 123, name: "foo" },
-      "234": { id: 234, name: "bar" },
+      123: { id: 123, name: "foo" },
+      234: { id: 234, name: "bar" },
     });
   });
 
@@ -227,6 +227,7 @@ describe("schema entity", () => {
       const nextState = Schemas.reducer(
         {
           [ROOT_COLLECTION_VIRTUAL_SCHEMA]: {
+            id: ROOT_COLLECTION_VIRTUAL_SCHEMA,
             tables: ["card__123", `card__${question.id}`],
           },
         },
@@ -235,6 +236,7 @@ describe("schema entity", () => {
 
       expect(nextState).toEqual({
         [ROOT_COLLECTION_VIRTUAL_SCHEMA]: {
+          id: ROOT_COLLECTION_VIRTUAL_SCHEMA,
           tables: ["card__123"],
         },
       });

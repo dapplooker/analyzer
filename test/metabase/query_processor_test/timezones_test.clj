@@ -17,7 +17,11 @@
   "The following drivers are broken to some extent -- details listed in the Google Doc, or can be see here:
   https://circleci.com/workflow-run/856f6dd0-3d95-4732-a56e-1af59e3ae4ba. The goal is to gradually remove these
   one-by-one as they are fixed."
-  #{:oracle
+  ;; I think some of these are only in here because they don't support the TIME type -- in that case we
+  ;; should be checking [[mt/supports-time-type?]] instead.
+  #{:athena
+    :bigquery-cloud-sdk
+    :oracle
     :presto
     :redshift
     :snowflake
@@ -31,10 +35,10 @@
    (set (mt/normal-drivers-with-feature :set-timezone))
    broken-drivers))
 
-(defn- timezone-aware-column-drivers
+(defn timezone-aware-column-drivers
   "Drivers that support the equivalent of `TIMESTAMP WITH TIME ZONE` columns."
   []
-  (conj (set-timezone-drivers) :h2 :bigquery :sqlserver :mongo))
+  (conj (set-timezone-drivers) :h2 :bigquery-cloud-sdk :sqlserver :mongo))
 
 ;; TODO - we should also do similar tests for timezone-unaware columns
 (deftest result-rows-test

@@ -7,23 +7,28 @@ import {
   scaleTime,
 } from "@visx/scale";
 import {
-  SeriesDatum,
-  XAxisType,
-  ContiniousDomain,
-  Range,
-  Series,
-  YAxisType,
-} from "metabase/static-viz/components/XYChart/types";
-import {
   getX,
   getY,
 } from "metabase/static-viz/components/XYChart/utils/series";
+import type {
+  ContinuousDomain,
+  Range,
+} from "metabase/visualizations/shared/types/scale";
+import type {
+  SeriesDatum,
+  XAxisType,
+  Series,
+  YAxisType,
+  HydratedSeries,
+  StackedDatum,
+  XScale,
+} from "metabase/static-viz/components/XYChart/types";
 
 export const createXScale = (
   series: Series[],
   range: Range,
   axisType: XAxisType,
-) => {
+): XScale => {
   const hasBars = series.some(series => series.type === "bar");
   const isOrdinal = axisType === "ordinal";
 
@@ -38,8 +43,7 @@ export const createXScale = (
     const xScale = scaleBand({
       domain,
       range,
-      round: true,
-      padding: 0.1,
+      padding: 0.2,
     });
 
     return {
@@ -85,11 +89,13 @@ export const createXScale = (
 };
 
 const calculateYDomain = (
-  series: Series[],
+  series: HydratedSeries[],
   goalValue?: number,
-): ContiniousDomain => {
+): ContinuousDomain => {
   const values = series
-    .flatMap(series => series.data)
+    .flatMap<SeriesDatum | StackedDatum>(
+      series => series.stackedData ?? series.data,
+    )
     .map(datum => getY(datum));
   const minValue = min(values);
   const maxValue = max(values);
@@ -100,7 +106,10 @@ const calculateYDomain = (
   ];
 };
 
-export const calculateYDomains = (series: Series[], goalValue?: number) => {
+export const calculateYDomains = (
+  series: HydratedSeries[],
+  goalValue?: number,
+) => {
   const leftScaleSeries = series.filter(
     series => series.yAxisPosition === "left",
   );
@@ -122,7 +131,7 @@ export const calculateYDomains = (series: Series[], goalValue?: number) => {
 };
 
 export const createYScale = (
-  domain: ContiniousDomain,
+  domain: ContinuousDomain,
   range: Range,
   axisType: YAxisType,
 ) => {
@@ -150,8 +159,8 @@ export const createYScale = (
 export const createYScales = (
   range: Range,
   axisType: YAxisType,
-  leftYDomain?: ContiniousDomain,
-  rightYDomain?: ContiniousDomain,
+  leftYDomain?: ContinuousDomain,
+  rightYDomain?: ContinuousDomain,
 ) => {
   return {
     yScaleLeft: leftYDomain ? createYScale(leftYDomain, range, axisType) : null,

@@ -1,12 +1,12 @@
 (ns metabase.api.revision-test
   (:require [clojure.test :refer :all]
-            [metabase.models.card :refer [Card serialize-instance]]
+            [metabase.models.card :refer [Card]]
             [metabase.models.collection :refer [Collection]]
             [metabase.models.dashboard :refer [Dashboard]]
             [metabase.models.dashboard-card :refer [DashboardCard]]
-            [metabase.models.revision :refer [push-revision! Revision revisions]]
+            [metabase.models.revision :as revision :refer [push-revision! Revision revisions]]
             [metabase.test :as mt]
-            [metabase.test.data.users :as test-users]
+            [metabase.test.data.users :as test.users]
             [metabase.test.fixtures :as fixtures]
             [metabase.util :as u]
             [toucan.db :as db]
@@ -16,7 +16,7 @@
 
 (def ^:private rasta-revision-info
   (delay
-    {:id (test-users/user->id :rasta), :common_name "Rasta Toucan", :first_name "Rasta", :last_name "Toucan"}))
+    {:id (test.users/user->id :rasta), :common_name "Rasta Toucan", :first_name "Rasta", :last_name "Toucan"}))
 
 (defn- get-revisions [entity object-id]
   (for [revision (mt/user-http-request :rasta :get "revision" :entity entity, :id object-id)]
@@ -27,15 +27,15 @@
     :object       card
     :entity       Card
     :id           (:id card)
-    :user-id      (test-users/user->id user)
+    :user-id      (test.users/user->id user)
     :is-creation? is-creation?))
 
 (defn- create-dashboard-revision! [dash is-creation? user]
   (push-revision!
-    :object       (Dashboard (:id dash))
+    :object       (db/select-one Dashboard :id (:id dash))
     :entity       Dashboard
     :id           (:id dash)
-    :user-id      (test-users/user->id user)
+    :user-id      (test.users/user->id user)
     :is-creation? is-creation?))
 
 ;;; # GET /revision
@@ -95,8 +95,8 @@
                (db/insert! Revision
                  :model        (:name Card)
                  :model_id     id
-                 :user_id      (test-users/user->id :rasta)
-                 :object       (serialize-instance Card (:id card) card)
+                 :user_id      (test.users/user->id :rasta)
+                 :object       (revision/serialize-instance Card (:id card) card)
                  :message      "because i wanted to"
                  :is_creation  false
                  :is_reversion true)
@@ -117,13 +117,13 @@
                :message      nil
                :user         @rasta-revision-info
                :diff         {:before {:cards nil}
-                              :after  {:cards [{:sizeX 2, :sizeY 2, :row 0, :col 0, :card_id card-id, :series []}]}}
+                              :after  {:cards [{:size_x 2, :size_y 2, :row 0, :col 0, :card_id card-id, :series []}]}}
                :description  "added a card."}
               {:is_reversion false
                :is_creation  false
                :message      nil
                :user         @rasta-revision-info
-               :diff         {:before {:cards [{:sizeX 2, :sizeY 2, :row 0, :col 0, :card_id card-id, :series []}]}
+               :diff         {:before {:cards [{:size_x 2, :size_y 2, :row 0, :col 0, :card_id card-id, :series []}]}
                               :after  {:cards nil}}
                :description "removed a card."}
               {:is_reversion false
@@ -131,7 +131,7 @@
                :message      nil
                :user         @rasta-revision-info
                :diff         {:before {:cards nil}
-                              :after  {:cards [{:sizeX 2, :sizeY 2, :row 0, :col 0, :card_id card-id, :series []}]}}
+                              :after  {:cards [{:size_x 2, :size_y 2, :row 0, :col 0, :card_id card-id, :series []}]}}
                :description "added a card."}
               {:is_reversion false
                :is_creation  true
@@ -152,7 +152,8 @@
                                                                        :revision_id previous-revision-id}))
                (->> (get-revisions :dashboard id)
                     (mapv (fn [rev]
-                            (if-not (:diff rev) rev
+                            (if-not (:diff rev)
+                              rev
                               (if (get-in rev [:diff :before :cards])
                                 (update-in rev [:diff :before :cards] strip-ids)
                                 (update-in rev [:diff :after :cards] strip-ids))))))))))))

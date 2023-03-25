@@ -1,46 +1,76 @@
 (ns metabase.api.notify-test
-  (:require [clj-http.client :as client]
-            [clojure.test :refer :all]
-            [metabase.api.notify :as notify]
-            [metabase.http-client :as http]
-            [metabase.models.database :as database]
-            [metabase.server.middleware.util :as middleware.u]
-            [metabase.test :as mt]
-            [metabase.test.fixtures :as fixtures]
-            [metabase.util :as u]))
+  (:require
+   [clj-http.client :as http]
+   [clojure.test :refer :all]
+   [metabase.api.notify :as api.notify]
+   [metabase.http-client :as client]
+   [metabase.models.database :as database]
+   [metabase.server.middleware.auth :as mw.auth]
+   [metabase.server.middleware.util :as mw.util]
+   [metabase.sync]
+   [metabase.sync.sync-metadata]
+   [metabase.test :as mt]
+   [metabase.test.fixtures :as fixtures]
+   [metabase.util :as u]))
 
 (use-fixtures :once (fixtures/initialize :db :web-server))
 
-(deftest unauthenticated-test
+(deftest authentication-test
   (testing "POST /api/notify/db/:id"
-    (testing "endpoint should require authentication"
-      (is (= (get middleware.u/response-forbidden :body)
-             (http/client :post 403 "notify/db/100"))))))
+    (testing "endpoint requires MB_API_KEY set"
+      (mt/with-temporary-setting-values [api-key nil]
+        (is (= (-> mw.auth/key-not-set-response :body str)
+               (client/client :post 403 "notify/db/100")))))
+    (testing "endpoint requires authentication"
+      (mt/with-temporary-setting-values [api-key "test-api-key"] ;; set in :test but not in :dev
+        (is (= (get mw.util/response-forbidden :body)
+               (client/client :post 403 "notify/db/100")))))))
+
+(def api-headers {:headers {"X-METABASE-APIKEY" "test-api-key"
+                            "Content-Type"      "application/json"}})
 
 (deftest not-found-test
-  (testing "POST /api/notify/db/:id"
-    (testing "database must exist or we get a 404"
-      (is (= {:status 404
-              :body   "Not found."}
-             (try (client/post (http/build-url (format "notify/db/%d" Integer/MAX_VALUE) {})
-                               {:accept  :json
-                                :headers {"X-METABASE-APIKEY" "test-api-key"
-                                          "Content-Type"      "application/json"}})
-                  (catch clojure.lang.ExceptionInfo e
-                    (select-keys (ex-data e) [:status :body]))))))))
+  (mt/with-temporary-setting-values [api-key "test-api-key"]
+    (testing "POST /api/notify/db/:id"
+      (testing "database must exist or we get a 404"
+        (is (= {:status 404
+                :body   "Not found."}
+               (try (http/post (client/build-url (format "notify/db/%d" Integer/MAX_VALUE) {})
+                               (merge {:accept :json} api-headers))
+                    (catch clojure.lang.ExceptionInfo e
+                      (select-keys (ex-data e) [:status :body]))))))
+      (testing "table ID must exist or we get a 404"
+        (is (= {:status 404
+                :body   "Not found."}
+               (try (http/post (client/build-url (format "notify/db/%d" (:id (mt/db))) {})
+                               (merge {:accept       :json
+                                       :content-type :json
+                                       :form-params  {:table_id Integer/MAX_VALUE}}
+                                      api-headers))
+                    (catch clojure.lang.ExceptionInfo e
+                      (select-keys (ex-data e) [:status :body]))))))
+      (testing "table name must exist or we get a 404"
+        (is (= {:status 404
+                :body   "Not found."}
+               (try (http/post (client/build-url (format "notify/db/%d" (:id (mt/db))) {})
+                               (merge {:accept       :json
+                                       :content-type :json
+                                       :form-params  {:table_name "IncorrectToucanFact"}}
+                                      api-headers))
+                    (catch clojure.lang.ExceptionInfo e
+                      (select-keys (ex-data e) [:status :body])))))))))
 
 (deftest post-db-id-test
-  (binding [notify/*execute-asynchronously* false]
+  (binding [api.notify/*execute-asynchronously* false]
     (mt/test-drivers (mt/normal-drivers)
       (let [table-name (->> (mt/db) database/tables first :name)
             post       (fn post-api
                          ([payload] (post-api payload 200))
                          ([payload expected-code]
-                          (mt/client :post expected-code (format "notify/db/%d" (u/the-id (mt/db)))
-                                     {:request-options
-                                      {:headers {"X-METABASE-APIKEY" "test-api-key"
-                                                 "Content-Type"      "application/json"}}}
-                                     payload)))]
+                          (mt/with-temporary-setting-values [api-key "test-api-key"]
+                            (mt/client :post expected-code (format "notify/db/%d" (u/the-id (mt/db)))
+                                       {:request-options api-headers}
+                                       payload))))]
         (testing "sync just table when table is provided"
           (let [long-sync-called? (atom false), short-sync-called? (atom false)]
             (with-redefs [metabase.sync/sync-table!                        (fn [_table] (reset! long-sync-called? true))

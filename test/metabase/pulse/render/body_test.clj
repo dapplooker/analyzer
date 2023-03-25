@@ -55,7 +55,7 @@
 
 (defn- prep-for-html-rendering'
   [cols rows bar-column min-value max-value]
-  (let [results (#'body/prep-for-html-rendering pacific-tz {} {:cols cols :rows rows} (count cols)
+  (let [results (#'body/prep-for-html-rendering pacific-tz {} {:cols cols :rows rows}
                                                 {:bar-column bar-column :min-value min-value :max-value max-value})]
     [(first results)
      (col-counts results)]))
@@ -115,8 +115,8 @@
 (deftest prefers-col-visualization-settings-for-header
   (testing "Users can give columns custom names. Use those if they exist."
     (let [card    {:visualization_settings
-                   {:column_settings {(keyword "[\"ref\",[\"field-id\",321]]") {:column_title "Custom Last Login"}
-                                      (keyword "[\"name\",\"name\"]")          {:column_title "Custom Name"}}}}
+                   {:column_settings {"[\"ref\",[\"field\",321,null]]" {:column_title "Custom Last Login"}
+                                      "[\"name\",\"name\"]"            {:column_title "Custom Name"}}}}
           cols    [{:name            "last_login"
                     :display_name    "Last Login"
                     :base_type       :type/DateTime
@@ -129,21 +129,19 @@
                     :semantic_type    nil
                     :visibility_type :normal}]]
 
-      ;; card contains custom column names
-      (is (= {:row       ["Custom Last Login" "Custom Name"]
-              :bar-width nil}
-             (first (#'body/prep-for-html-rendering pacific-tz
-                                                    card
-                                                    {:cols cols :rows []}
-                                                    (count test-columns)))))
+      (testing "card contains custom column names"
+        (is (= {:row       ["Custom Last Login" "Custom Name"]
+                :bar-width nil}
+               (first (#'body/prep-for-html-rendering pacific-tz
+                                                      card
+                                                      {:cols cols :rows []})))))
 
-      ;; card does not contain custom column names
-      (is (= {:row       ["Last Login" "Name"]
-              :bar-width nil}
-             (first (#'body/prep-for-html-rendering pacific-tz
-                                                    {}
-                                                    {:cols cols :rows []}
-                                                    (count test-columns))))))))
+      (testing "card does not contain custom column names"
+        (is (= {:row       ["Last Login" "Name"]
+                :bar-width nil}
+               (first (#'body/prep-for-html-rendering pacific-tz
+                                                      {}
+                                                      {:cols cols :rows []}))))))))
 
 ;; When including a bar column, bar-width is 99%
 (deftest bar-width
@@ -159,17 +157,17 @@
 
 ;; Basic test that result rows are formatted correctly (dates, floating point numbers etc)
 (deftest format-result-rows
-  (is (= [{:bar-width nil, :row [(number "1") (number "34.10") "Apr 1, 2014" "Stout Burgers & Beers"]}
-          {:bar-width nil, :row [(number "2") (number "34.04") "Dec 5, 2014" "The Apple Pan"]}
-          {:bar-width nil, :row [(number "3") (number "34.05") "Aug 1, 2014" "The Gorbals"]}]
-         (rest (#'body/prep-for-html-rendering pacific-tz {} {:cols test-columns :rows test-data} (count test-columns))))))
+  (is (= [{:bar-width nil, :row [(number "1") (number "34.1") "April 1, 2014" "Stout Burgers & Beers"]}
+          {:bar-width nil, :row [(number "2") (number "34.04") "December 5, 2014" "The Apple Pan"]}
+          {:bar-width nil, :row [(number "3") (number "34.05") "August 1, 2014" "The Gorbals"]}]
+         (rest (#'body/prep-for-html-rendering pacific-tz {} {:cols test-columns :rows test-data})))))
 
 ;; Testing the bar-column, which is the % of this row relative to the max of that column
 (deftest bar-column
-  (is (= [{:bar-width (float 85.249),  :row [(number "1") (number "34.10") "Apr 1, 2014" "Stout Burgers & Beers"]}
-          {:bar-width (float 85.1015), :row [(number "2") (number "34.04") "Dec 5, 2014" "The Apple Pan"]}
-          {:bar-width (float 85.1185), :row [(number "3") (number "34.05") "Aug 1, 2014" "The Gorbals"]}]
-         (rest (#'body/prep-for-html-rendering pacific-tz {} {:cols test-columns :rows test-data} (count test-columns)
+  (is (= [{:bar-width (float 85.249),  :row [(number "1") (number "34.1") "April 1, 2014" "Stout Burgers & Beers"]}
+          {:bar-width (float 85.1015), :row [(number "2") (number "34.04") "December 5, 2014" "The Apple Pan"]}
+          {:bar-width (float 85.1185), :row [(number "3") (number "34.05") "August 1, 2014" "The Gorbals"]}]
+         (rest (#'body/prep-for-html-rendering pacific-tz {} {:cols test-columns :rows test-data}
                                                {:bar-column second, :min-value 0, :max-value 40})))))
 
 (defn- add-rating
@@ -209,32 +207,23 @@
 
 ;; Result rows should include only the remapped column value, not the original
 (deftest include-only-remapped-column-name
-  (is (= [[(number "1") (number "34.10") "Bad" "Apr 1, 2014" "Stout Burgers & Beers"]
-          [(number "2") (number "34.04") "Ok" "Dec 5, 2014" "The Apple Pan"]
-          [(number "3") (number "34.05") "Good" "Aug 1, 2014" "The Gorbals"]]
-         (map :row (rest (#'body/prep-for-html-rendering pacific-tz
-                                                         {}
-                                                         {:cols test-columns-with-remapping :rows test-data-with-remapping}
-                                                         (count test-columns-with-remapping)))))))
+  (is (= [[(number "1") (number "34.1") "Bad" "April 1, 2014" "Stout Burgers & Beers"]
+          [(number "2") (number "34.04") "Ok" "December 5, 2014" "The Apple Pan"]
+          [(number "3") (number "34.05") "Good" "August 1, 2014" "The Gorbals"]]
+         (map :row (rest (#'body/prep-for-html-rendering  pacific-tz
+                                                          {}
+                                                          {:cols test-columns-with-remapping :rows test-data-with-remapping}))))))
 
 ;; There should be no truncation warning if the number of rows/cols is fewer than the row/column limit
 (deftest no-truncation-warnig
   (is (= ""
-         (html (#'body/render-truncation-warning 100 10 100 10)))))
+         (html (#'body/render-truncation-warning 100 10)))))
 
 ;; When there are more rows than the limit, check to ensure a truncation warning is present
 (deftest truncation-warning-when-rows-exceed-max
-  (is (= [true false]
-         (let [html-output (html (#'body/render-truncation-warning 100 10 10 100))]
-           [(boolean (re-find #"Showing.*10.*of.*100.*rows" html-output))
-            (boolean (re-find #"Showing .* of .* columns" html-output))]))))
-
-;; When there are more columns than the limit, check to ensure a truncation warning is present
-(deftest truncation-warning-when-cols-exceed-max
-  (is (= [true false]
-         (let [html-output (html (#'body/render-truncation-warning 10 100 100 10))]
-           [(boolean (re-find #"Showing.*10.*of.*100.*columns" html-output))
-            (boolean (re-find #"Showing .* of .* rows" html-output))]))))
+  (is (= true
+         (let [html-output (html (#'body/render-truncation-warning 10 100))]
+           (boolean (re-find #"Showing.*10.*of.*100.*rows" html-output))))))
 
 (def ^:private test-columns-with-date-semantic-type
   (update test-columns 2 merge {:base_type    :type/Text
@@ -242,13 +231,20 @@
                                 :coercion_strategy :Coercion/ISO8601->DateTime}))
 
 (deftest cols-with-semantic-types
-  (is (= [{:bar-width nil, :row [(number "1") (number "34.10") "Apr 1, 2014" "Stout Burgers & Beers"]}
-          {:bar-width nil, :row [(number "2") (number "34.04") "Dec 5, 2014" "The Apple Pan"]}
-          {:bar-width nil, :row [(number "3") (number "34.05") "Aug 1, 2014" "The Gorbals"]}]
+  (is (= [{:bar-width nil, :row [(number "1") (number "34.1") "April 1, 2014" "Stout Burgers & Beers"]}
+          {:bar-width nil, :row [(number "2") (number "34.04") "December 5, 2014" "The Apple Pan"]}
+          {:bar-width nil, :row [(number "3") (number "34.05") "August 1, 2014" "The Gorbals"]}]
          (rest (#'body/prep-for-html-rendering pacific-tz
                                                {}
-                                               {:cols test-columns-with-date-semantic-type :rows test-data}
-                                               (count test-columns))))))
+                                               {:cols test-columns-with-date-semantic-type :rows test-data})))))
+
+(deftest error-test
+  (testing "renders error"
+    (is (= "An error occurred while displaying this card."
+           (-> (body/render :render-error nil nil nil nil nil) :content last))))
+  (testing "renders card error"
+    (is (= "There was a problem with this question."
+           (-> (body/render :card-error nil nil nil nil nil) :content last)))))
 
 (defn- render-scalar-value [results]
   (-> (body/render :scalar nil pacific-tz nil nil results)
@@ -278,7 +274,7 @@
                                          :semantic_type nil}]
                                  :rows [["foo"]]}))))
   (testing "renders date"
-    (is (= "Apr 1, 2014"
+    (is (= "April 1, 2014"
            (render-scalar-value {:cols [{:name         "date",
                                          :display_name "DATE",
                                          :base_type    :type/DateTime
@@ -300,13 +296,14 @@
                       :render/text (s/eq "foo")}
                      (body/render :scalar nil pacific-tz nil nil results)))))
     (testing "for smartscalars"
-      (let [results {:cols [{:name         "value",
-                             :display_name "VALUE",
-                             :base_type    :type/Decimal}
-                            {:name           "time",
-                             :display_name   "TIME",
-                             :base_type      :type/DateTime
-                             :effective_type :type/DateTime}]
+      (let [cols    [{:name         "value",
+                      :display_name "VALUE",
+                      :base_type    :type/Decimal}
+                     {:name           "time",
+                      :display_name   "TIME",
+                      :base_type      :type/DateTime
+                      :effective_type :type/DateTime}]
+            results {:cols cols
                      :rows [[40.0 :this-month]
                             [30.0 :last-month]
                             [20.0 :month-before]]
@@ -314,12 +311,33 @@
                                  :unit :month
                                  :last-change 1.333333
                                  :col "value"
-                                 :last-value 40.0}]}]
-        (is (= "40.00\nUp 133.33%. Was 30.00 last month"
+                                 :last-value 40.0}]}
+            sameres {:cols cols
+                     :rows [[40.0 :this-month]
+                            [40.0 :last-month]
+                            [40.0 :month-before]]
+                     :insights [{:previous-value 40.0
+                                 :unit :month
+                                 :last-change 1.0
+                                 :col "value"
+                                 :last-value 40.0}]}
+            ;; by "dumb" it is meant "without nonnil insights"
+            dumbres {:cols cols
+                     :rows [[20.0 :month-before]]
+                     :insights [{:previous-value nil
+                                 :unit nil
+                                 :last-change nil
+                                 :col "value"
+                                 :last-value 20.0}]}]
+        (is (= "40\nUp 133.33%. Was 30 last month"
                (:render/text (body/render :smartscalar nil pacific-tz nil nil results))))
+        (is (= "40\nNo change. Was 40 last month"
+               (:render/text (body/render :smartscalar nil pacific-tz nil nil sameres))))
+        (is (= "20\nNothing to compare to."
+               (:render/text (body/render :smartscalar nil pacific-tz nil nil dumbres))))
         (is (schema= {:attachments (s/eq nil)
                       :content     (s/pred vector? "hiccup vector")
-                      :render/text (s/eq "40.00\nUp 133.33%. Was 30.00 last month")}
+                      :render/text (s/eq "40\nUp 133.33%. Was 30 last month")}
                      (body/render :smartscalar nil pacific-tz nil nil results)))))))
 
 (defn- replace-style-maps [hiccup-map]
@@ -333,46 +351,14 @@
   (comp replace-style-maps #'body/render-truncation-warning))
 
 (deftest no-truncation-warnig-for-style
-  (is (nil? (render-truncation-warning' 10 5 20 10))))
+  (is (nil? (render-truncation-warning' 10 5))))
 
-(deftest renders-truncation-style-1
-  (is (= [:div :style-map
-          [:div :style-map
-           "Showing " [:strong :style-map "10"] " of "
-           [:strong :style-map "11"] " columns."]]
-         (render-truncation-warning' 10 11 20 10))))
-
-(deftest renders-truncation-style-2
+(deftest renders-truncation
   (is (= [:div
           :style-map
           [:div :style-map "Showing "
            [:strong :style-map "20"] " of " [:strong :style-map "21"] " rows."]]
-         (render-truncation-warning' 10 5 20 21))))
-
-(deftest renders-truncation-style-3
-  (is (= [:div
-          :style-map
-          [:div
-           :style-map
-           "Showing "
-           [:strong :style-map "20"]
-           " of "
-           [:strong :style-map "21"]
-           " rows and "
-           [:strong :style-map "10"]
-           " of "
-           [:strong :style-map "11"]
-           " columns."]]
-         (render-truncation-warning' 10 11 20 21))))
-
-(deftest counts-displayed-columns
-  (is (= 4
-         (#'body/count-displayed-columns test-columns))))
-
-(deftest counts-displayed-columns-excludes-undisplayed
-  (is (= 4
-         (#'body/count-displayed-columns
-          (concat test-columns [description-col detail-col sensitive-col retired-col])))))
+         (render-truncation-warning' 20 21))))
 
 ;; Test rendering a bar graph
 ;;
@@ -394,7 +380,7 @@
     :base_type    :type/BigInteger
     :semantic_type nil}])
 
-(def ^:private default-combo-columns
+(def ^:private default-multi-columns
   [{:name         "Price",
     :display_name "Price",
     :base_type    :type/BigInteger
@@ -418,44 +404,78 @@
 (defn- render-bar-graph [results]
   (body/render :bar :inline pacific-tz render.tu/test-card nil results))
 
+(defn- render-multiseries-bar-graph [results]
+  (body/render :bar :inline pacific-tz render.tu/test-combo-card nil results))
+
 (deftest render-bar-graph-test
   (testing "Render a bar graph with non-nil values for the x and y axis"
     (is (has-inline-image?
-         (render-bar-graph {:cols default-columns
-                            :rows [[10.0 1] [5.0 10] [2.50 20] [1.25 30]]}))))
+         (render-bar-graph {:cols         default-columns
+                            :rows         [[10.0 1] [5.0 10] [2.50 20] [1.25 30]]
+                            :viz-settings {}}))))
   (testing "Check to make sure we allow nil values for the y-axis"
     (is (has-inline-image?
-         (render-bar-graph {:cols default-columns
-                            :rows [[10.0 1] [5.0 10] [2.50 20] [1.25 nil]]}))))
+         (render-bar-graph {:cols         default-columns
+                            :rows         [[10.0 1] [5.0 10] [2.50 20] [1.25 nil]]
+                            :viz-settings {}}))))
   (testing "Check to make sure we allow nil values for the y-axis"
     (is (has-inline-image?
-         (render-bar-graph {:cols default-columns
-                            :rows [[10.0 1] [5.0 10] [2.50 20] [nil 30]]}))))
+         (render-bar-graph {:cols         default-columns
+                            :rows         [[10.0 1] [5.0 10] [2.50 20] [nil 30]]
+                            :viz-settings {}}))))
   (testing "Check to make sure we allow nil values for both x and y on different rows"
     (is (has-inline-image?
-         (render-bar-graph {:cols default-columns
-                            :rows [[10.0 1] [5.0 10] [nil 20] [1.25 nil]]})))))
+         (render-bar-graph {:cols         default-columns
+                            :rows         [[10.0 1] [5.0 10] [nil 20] [1.25 nil]]
+                            :viz-settings {}}))))
+  (testing "Check multiseries in one card but without explicit combo"
+    (is (has-inline-image?
+         (render-multiseries-bar-graph
+          {:cols         default-multi-columns
+           :rows         [[10.0 1 1231 1] [5.0 10 nil 111] [2.50 20 11 1] [1.25 nil 1231 11]]
+           :viz-settings {}})))))
 
 (defn- render-area-graph [results]
   (body/render :area :inline pacific-tz render.tu/test-card nil results))
 
-(deftest render-area-graph-tet
+(defn- render-stack-area-graph [results]
+  (body/render :area :inline pacific-tz render.tu/test-stack-card nil results))
+
+(defn- render-multiseries-area-graph [results]
+  (body/render :area :inline pacific-tz render.tu/test-combo-card nil results))
+
+(deftest render-area-graph-test
   (testing "Render an area graph with non-nil values for the x and y axis"
     (is (has-inline-image?
-         (render-area-graph {:cols default-columns
-                            :rows [[10.0 1] [5.0 10] [2.50 20] [1.25 30]]}))))
+         (render-area-graph {:cols         default-columns
+                             :rows         [[10.0 1] [5.0 10] [2.50 20] [1.25 30]]
+                             :viz-settings {}}))))
+  (testing "Render a stacked area graph"
+    (is (has-inline-image?
+         (render-stack-area-graph {:cols         default-multi-columns
+                                   :rows         [[10.0 1 1231 1] [5.0 10 nil 111] [2.50 20 11 1] [1.25 nil 1231 11]]
+                                   :viz-settings {}}))))
   (testing "Check to make sure we allow nil values for the y-axis"
     (is (has-inline-image?
-         (render-area-graph {:cols default-columns
-                            :rows [[10.0 1] [5.0 10] [2.50 20] [1.25 nil]]}))))
+         (render-area-graph {:cols         default-columns
+                             :rows         [[10.0 1] [5.0 10] [2.50 20] [1.25 nil]]
+                             :viz-settings {}}))))
   (testing "Check to make sure we allow nil values for the y-axis"
     (is (has-inline-image?
-         (render-area-graph {:cols default-columns
-                            :rows [[10.0 1] [5.0 10] [2.50 20] [nil 30]]}))))
+         (render-area-graph {:cols         default-columns
+                             :rows         [[10.0 1] [5.0 10] [2.50 20] [nil 30]]
+                             :viz-settings {}}))))
   (testing "Check to make sure we allow nil values for both x and y on different rows"
     (is (has-inline-image?
-         (render-area-graph {:cols default-columns
-                            :rows [[10.0 1] [5.0 10] [nil 20] [1.25 nil]]})))))
+         (render-area-graph {:cols         default-columns
+                             :rows         [[10.0 1] [5.0 10] [nil 20] [1.25 nil]]
+                             :viz-settings {}}))))
+  (testing "Check multiseries in one card but without explicit combo"
+    (is (has-inline-image?
+         (render-multiseries-area-graph
+          {:cols         default-multi-columns
+           :rows         [[10.0 1 1231 1] [5.0 10 nil 111] [2.50 20 11 1] [1.25 nil 1231 11]]
+           :viz-settings {}})))))
 
 (defn- render-waterfall [results]
   (body/render :waterfall :inline pacific-tz render.tu/test-card nil results))
@@ -464,19 +484,28 @@
   (testing "Render a waterfall graph with non-nil values for the x and y axis"
     (is (has-inline-image?
          (render-waterfall {:cols default-columns
-                            :rows [[10.0 1] [5.0 10] [2.50 20] [1.25 30]]}))))
+                            :rows         [[10.0 1] [5.0 10] [2.50 20] [1.25 30]]
+                            :viz-settings {}}))))
+  (testing "Render a waterfall graph with bigdec, bigint values for the x and y axis"
+    (is (has-inline-image?
+         (render-waterfall {:cols         default-columns
+                            :rows         [[10.0M 1M] [5.0 10N] [2.50 20N] [1.25M 30]]
+                            :viz-settings {}}))))
   (testing "Check to make sure we allow nil values for the y-axis"
     (is (has-inline-image?
-         (render-waterfall {:cols default-columns
-                            :rows [[10.0 1] [5.0 10] [2.50 20] [1.25 nil]]}))))
+         (render-waterfall {:cols         default-columns
+                            :rows         [[10.0 1] [5.0 10] [2.50 20] [1.25 nil]]
+                            :viz-settings {}}))))
   (testing "Check to make sure we allow nil values for the x-axis"
     (is (has-inline-image?
-         (render-waterfall {:cols default-columns
-                            :rows [[10.0 1] [5.0 10] [2.50 20] [nil 30]]}))))
+         (render-waterfall {:cols         default-columns
+                            :rows         [[10.0 1] [5.0 10] [2.50 20] [nil 30]]
+                            :viz-settings {}}))))
   (testing "Check to make sure we allow nil values for both x and y on different rows"
     (is (has-inline-image?
-         (render-waterfall {:cols default-columns
-                            :rows [[10.0 1] [5.0 10] [nil 20] [1.25 nil]]})))))
+         (render-waterfall {:cols         default-columns
+                            :rows         [[10.0 1] [5.0 10] [nil 20] [1.25 nil]]
+                            :viz-settings {}})))))
 
 (defn- render-combo [results]
   (body/render :combo :inline pacific-tz render.tu/test-combo-card nil results))
@@ -487,52 +516,19 @@
 (deftest render-combo-test
   (testing "Render a combo graph with non-nil values for the x and y axis"
     (is (has-inline-image?
-          (render-combo {:cols default-combo-columns
-                         :rows [[10.0 1 123 111] [5.0 10 12 111] [2.50 20 1337 12312] [1.25 30 -22 123124]]}))))
+         (render-combo {:cols         default-multi-columns
+                        :rows         [[10.0 1 123 111] [5.0 10 12 111] [2.50 20 1337 12312] [1.25 30 -22 123124]]
+                        :viz-settings {}}))))
   (testing "Render a combo graph with multiple x axes"
     (is (has-inline-image?
-          (render-combo-multi-x {:cols default-combo-columns
-                                 :rows [[10.0 "Bob" 123 123124] [5.0 "Dobbs" 12 23423] [2.50 "Robbs" 1337 234234] [1.25 "Mobbs" -22 1234123]]}))))
+         (render-combo-multi-x {:cols         default-multi-columns
+                                :rows         [[10.0 "Bob" 123 123124] [5.0 "Dobbs" 12 23423] [2.50 "Robbs" 1337 234234] [1.25 "Mobbs" -22 1234123]]
+                                :viz-settings {}}))))
   (testing "Check to make sure we allow nil values for any axis"
     (is (has-inline-image?
-          (render-combo {:cols default-combo-columns
-                         :rows [[nil 1 1 23453] [10.0 1 nil nil] [5.0 10 22 1337] [2.50 nil 22 1231] [1.25 nil nil 1231232]]})))))
-
-;; Test rendering a sparkline
-;;
-;; Sparklines are a binary image either in-line or as an attachment, so there's not much introspection that we can do
-;; with the result. The tests below just check that we can render a sparkline (without eceptions) and that the
-;; attachment is included
-
-(defn- render-sparkline [results]
-  (body/render :sparkline :inline pacific-tz render.tu/test-card nil results))
-
-(deftest render-sparkline-test
-  (testing "Test that we can render a sparkline with all valid values"
-    (is (has-inline-image?
-         (render-sparkline
-          {:cols default-columns
-           :rows [[10.0 1] [5.0 10] [2.50 20] [1.25 30]]}))))
-  (testing "Tex that we can have a nil value in the middle"
-    (is (has-inline-image?
-         (render-sparkline
-          {:cols default-columns
-           :rows [[10.0 1] [11.0 2] [5.0 nil] [2.50 20] [1.25 30]]}))))
-  (testing "Test that we can have a nil value for the y-axis at the end of the results"
-    (is (has-inline-image?
-         (render-sparkline
-          {:cols default-columns
-           :rows [[10.0 1] [11.0 2] [2.50 20] [1.25 nil]]}))))
-  (testing "Test that we can have a nil value for the x-axis at the end of the results"
-    (is (has-inline-image?
-         (render-sparkline
-          {:cols default-columns
-           :rows [[10.0 1] [11.0 2] [nil 20] [1.25 30]]}))))
-  (testing "Test that we can have a nil value for both x and y axis for different rows"
-    (is (has-inline-image?
-         (render-sparkline
-          {:cols default-columns
-           :rows [[10.0 1] [11.0 2] [nil 20] [1.25 nil]]})))))
+         (render-combo {:cols         default-multi-columns
+                        :rows         [[nil 1 1 23453] [10.0 1 nil nil] [5.0 10 22 1337] [2.50 nil 22 1231] [1.25 nil nil 1231232]]
+                        :viz-settings {}})))))
 
 (defn- render-funnel [results]
   (body/render :funnel :inline pacific-tz render.tu/test-card nil results))
@@ -541,13 +537,21 @@
   (testing "Test that we can render a funnel with all valid values"
     (is (has-inline-image?
          (render-funnel
-          {:cols default-columns
-           :rows [[10.0 1] [5.0 10] [2.50 20] [1.25 30]]}))))
+          {:cols         default-columns
+           :rows         [[10.0 1] [5.0 10] [2.50 20] [1.25 30]]
+           :viz-settings {}}))))
+  (testing "Test that we can render a funnel with extraneous columns and also weird strings stuck in places"
+    (is (has-inline-image?
+         (render-funnel
+          {:cols         default-multi-columns
+           :rows         [[10.0 1 2 2] [5.0 10 "11.1" 1] ["2.50" 20 1337 0] [1.25 30 -2 "-2"]]
+           :viz-settings {}}))))
   (testing "Test that we can have some nil values stuck everywhere"
     (is (has-inline-image?
          (render-funnel
-          {:cols default-columns
-           :rows [[nil 1] [11.0 nil] [nil nil] [2.50 20] [1.25 30]]})))))
+          {:cols         default-columns
+           :rows         [[nil 1] [11.0 nil] [nil nil] [2.50 20] [1.25 30]]
+           :viz-settings {}})))))
 
 (deftest render-categorical-donut-test
   (let [columns [{:name          "category",
@@ -558,11 +562,11 @@
                   :display_name  "NumPurchased",
                   :base_type     :type/Integer
                   :semantic_type nil}]
-        render  (fn [rows]
+        render  (fn [rows & [viz-settings]]
                   (body/render :categorical/donut :inline pacific-tz
                                render.tu/test-card
                                nil
-                               {:cols columns :rows rows}))
+                               {:cols columns :rows rows :viz-settings viz-settings}))
         prune   (fn prune [html-tree]
                   (walk/prewalk (fn no-maps [x]
                                   (if (vector? x)
@@ -570,14 +574,14 @@
                                     x))
                                 html-tree))]
     (testing "Renders without error"
-      (let [rendered-info (render [["Doohickey" 75] ["Widget" 25]])]
+      (let [rendered-info (render [["Doohickey" 75] ["Widget" 25]] {:show_values true})]
         (is (has-inline-image? rendered-info))))
     (testing "Includes percentages"
       (is (= [:div
               [:img]
-              [:div
-               [:div [:span "•"] [:span "Doohickey"] [:span "75%"]]
-               [:div [:span "•"] [:span "Widget"] [:span "25%"]]]]
+              [:table
+               [:tr [:td [:span "•"]] [:td "Doohickey"] [:td "75%"]]
+               [:tr [:td [:span "•"]] [:td "Widget"] [:td "25%"]]]]
              (prune (:content (render [["Doohickey" 75] ["Widget" 25]]))))))))
 
 (deftest render-progress
@@ -589,13 +593,7 @@
                   (body/render :progress :inline pacific-tz
                                render.tu/test-card
                                nil
-                               {:cols col :rows rows}))
-        prune   (fn prune [html-tree]
-                  (walk/prewalk (fn no-maps [x]
-                                  (if (vector? x)
-                                    (filterv (complement map?) x)
-                                    x))
-                                html-tree))]
+                               {:cols col :rows rows}))]
     (testing "Renders without error"
       (let [rendered-info (render [[25]])]
         (is (has-inline-image? rendered-info))))
@@ -605,7 +603,7 @@
 
 (def donut-info #'body/donut-info)
 
-(deftest donut-info-test
+(deftest ^:parallel donut-info-test
   (let [rows [["a" 45] ["b" 45] ["c" 5] ["d" 5]]]
     (testing "If everything is above the threshold does nothing"
       (is (= rows (:rows (donut-info 4 rows)))))
@@ -620,15 +618,52 @@
         (is (= {"a" "50%" "b" "50%" "Other" "0%"}
                (:percentages (donut-info 5 rows))))))))
 
-(deftest format-percentage-test
-  (let [value 12345.54321]
-    (is (= "1,234,543.21%" (body/format-percentage 12345.4321 ".,")))
-    (is (= "1&234&543^21%" (body/format-percentage 12345.4321 "^&")))
-    (is (= "1,234,543 21%" (body/format-percentage 12345.4321 " ")))
-    (is (= "1,234,543.21%" (body/format-percentage 12345.4321 nil)))
-    (is (= "1,234,543.21%" (body/format-percentage 12345.4321 "")))))
+(deftest ^:parallel format-percentage-test
+  (are [value expected] (= expected
+                           (body/format-percentage 12345.4321 value))
+    ".," "1,234,543.21%"
+    "^&" "1&234&543^21%"
+    " "  "1,234,543 21%"
+    nil  "1,234,543.21%"
+    ""   "1,234,543.21%"))
 
-(deftest x-and-y-axis-label-info-test
+(deftest reasonable-split-axes-test
+  (let [rows        [["Category" "Series A" "Series B"]
+                     ["A"        1          1.3]
+                     ["B"        2          1.9]
+                     ["C"        3          4  ]]
+        axes-split? (fn [rows]
+                      (let [text (-> rows first last)]
+                        ;; there is always 1 node with the series name in the legend
+                        ;; so we see if the series name shows up a second time, which will
+                        ;; be the axis label, indicating that there is indeed a split
+                        (< 1 (-> rows
+                                 (render.tu/make-viz-data :bar {})
+                                 :viz-tree
+                                 (render.tu/nodes-with-text text)
+                                 count))))]
+    (testing "Multiple series with close values does not split y-axis."
+      (is (not (axes-split? rows))))
+    (testing "Multiple series with far values does split y-axis."
+      (is (axes-split? (conj rows ["D" 3 70]))))
+    (testing "Multiple axes split does not fail when a series has the same value for all of its rows #27427"
+      (let [rows        [["Category" "Series A" "Series B"]
+                         ["A"        1          1.3]
+                         ["B"        1          1.9]
+                         ["C"        1          4]]
+            axes-split? (fn [rows]
+                          (let [text (-> rows first last)]
+                            ;; there is always 1 node with the series name in the legend
+                            ;; so we see if the series name shows up a second time, which will
+                            ;; be the axis label, indicating that there is indeed a split
+                            (< 1 (-> rows
+                                     (render.tu/make-viz-data :bar {})
+                                     :viz-tree
+                                     (render.tu/nodes-with-text text)
+                                     count))))]
+        (is (axes-split? rows))))))
+
+(deftest ^:parallel x-and-y-axis-label-info-test
   (let [x-col {:display_name "X col"}
         y-col {:display_name "Y col"}]
     (testing "no custom viz settings"

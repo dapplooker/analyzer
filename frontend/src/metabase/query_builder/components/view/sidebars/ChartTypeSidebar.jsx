@@ -2,14 +2,16 @@
 import React from "react";
 import _ from "underscore";
 import { t } from "ttag";
-import cx from "classnames";
-import { Box, Flex } from "grid-styled";
 import Icon from "metabase/components/Icon";
 import SidebarContent from "metabase/query_builder/components/SidebarContent";
 
-import { color, lighten } from "metabase/lib/colors";
-
 import visualizations from "metabase/visualizations";
+import {
+  OptionIconContainer,
+  OptionList,
+  OptionRoot,
+  OptionText,
+} from "./ChartTypeOption.styled";
 
 const FIXED_LAYOUT = [
   ["line", "bar", "combo", "area", "row", "waterfall"],
@@ -23,6 +25,7 @@ const ChartTypeSidebar = ({
   result,
   onOpenChartSettings,
   onCloseChartType,
+  updateQuestion,
   isShowingChartTypeSidebar,
   setUIControls,
   ...props
@@ -46,7 +49,7 @@ const ChartTypeSidebar = ({
       onDone={onCloseChartType}
     >
       {layout.map((row, index) => (
-        <Flex key={index} mx={2} mb={1} className="flex-wrap">
+        <OptionList key={index}>
           {row.map(type => {
             const visualization = visualizations.get(type);
             return (
@@ -62,10 +65,14 @@ const ChartTypeSidebar = ({
                     visualization.isSensible(result.data, props.query)
                   }
                   onClick={() => {
-                    question
+                    const newQuestion = question
                       .setDisplay(type)
-                      .lockDisplay(true) // prevent viz auto-selection
-                      .update(null, { reload: false, shouldUpdateUrl: true });
+                      .lockDisplay(true); // prevent viz auto-selection
+
+                    updateQuestion(newQuestion, {
+                      reload: false,
+                      shouldUpdateUrl: question.query().isEditable(),
+                    });
                     onOpenChartSettings({ section: t`Data` });
                     setUIControls({ isShowingRawTable: false });
                   }}
@@ -73,7 +80,7 @@ const ChartTypeSidebar = ({
               )
             );
           })}
-        </Flex>
+        </OptionList>
       ))}
     </SidebarContent>
   );
@@ -85,35 +92,17 @@ const ChartTypeOption = ({
   isSensible,
   onClick,
 }) => (
-  <Box
-    p={1}
-    width={1 / 3}
-    className="text-centered"
-    style={{ opacity: !isSensible ? 0.25 : 1 }}
-  >
-    <Flex
-      flexDirection="column"
-      align="center"
-      justifyContent="center"
-      bg={isSelected ? color("brand") : lighten("brand")}
+  <OptionRoot isSensible={isSensible}>
+    <OptionIconContainer
+      isSelected={isSelected}
       onClick={onClick}
-      className={cx(
-        "cursor-pointer bg-brand-hover text-brand text-white-hover",
-        { "text-white": isSelected },
-      )}
-      style={{
-        borderRadius: 10,
-        padding: 12,
-      }}
       data-testid={`${visualization.uiName}-button`}
       data-is-sensible={isSensible}
     >
       <Icon name={visualization.iconName} size={20} />
-    </Flex>
-    <Box mt={1} className="text-bold text-brand">
-      {visualization.uiName}
-    </Box>
-  </Box>
+    </OptionIconContainer>
+    <OptionText>{visualization.uiName}</OptionText>
+  </OptionRoot>
 );
 
 export default ChartTypeSidebar;

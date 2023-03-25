@@ -1,10 +1,10 @@
 import React from "react";
 
-import { PRODUCTS } from "__support__/sample_dataset_fixture";
+import { PRODUCTS } from "__support__/sample_database_fixture";
 import Card from "metabase/components/Card";
 import PopoverWithTrigger from "metabase/components/PopoverWithTrigger";
-import Button from "metabase/components/Button";
-import Table from "metabase-lib/lib/metadata/Table";
+import Button from "metabase/core/components/Button";
+import Table from "metabase-lib/metadata/Table";
 
 import TableInfo from "./TableInfo";
 

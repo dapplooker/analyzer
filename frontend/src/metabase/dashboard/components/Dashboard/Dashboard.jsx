@@ -3,9 +3,16 @@ import React, { Component } from "react";
 import PropTypes from "prop-types";
 import _ from "underscore";
 
+import { getMainElement } from "metabase/lib/dom";
+
+import DashboardHeader from "metabase/dashboard/containers/DashboardHeader";
+import SyncedParametersList from "metabase/parameters/components/SyncedParametersList/SyncedParametersList";
+import { getVisibleParameters } from "metabase/parameters/utils/ui";
+import { getValuePopulatedParameters } from "metabase-lib/parameters/utils/parameter-values";
+
 import DashboardControls from "../../hoc/DashboardControls";
 import { DashboardSidebars } from "../DashboardSidebars";
-import DashboardHeader from "../DashboardHeader";
+import DashboardGrid from "../DashboardGrid";
 import {
   CardsContainer,
   DashboardStyled,
@@ -15,20 +22,18 @@ import {
   ParametersAndCardsContainer,
   ParametersWidgetContainer,
 } from "./Dashboard.styled";
-import DashboardGrid from "../DashboardGrid";
-import SyncedParametersList from "metabase/parameters/components/SyncedParametersList/SyncedParametersList";
 import DashboardEmptyState from "./DashboardEmptyState/DashboardEmptyState";
 import { updateParametersWidgetStickiness } from "./stickyParameters";
-import { getValuePopulatedParameters } from "metabase/parameters/utils/parameter-values";
 
 const SCROLL_THROTTLE_INTERVAL = 1000 / 24;
 
 // NOTE: move DashboardControls HoC to container
-@DashboardControls
-export default class Dashboard extends Component {
+
+class Dashboard extends Component {
   state = {
     error: null,
     isParametersWidgetSticky: false,
+    parametersListLength: 0,
   };
 
   static propTypes = {
@@ -42,6 +47,9 @@ export default class Dashboard extends Component {
     isEditing: PropTypes.oneOfType([PropTypes.bool, PropTypes.object])
       .isRequired,
     isEditingParameter: PropTypes.bool.isRequired,
+    isNavbarOpen: PropTypes.bool.isRequired,
+    isHeaderVisible: PropTypes.bool,
+    isAdditionalInfoVisible: PropTypes.bool,
 
     dashboard: PropTypes.object,
     dashboardId: PropTypes.number,
@@ -80,8 +88,7 @@ export default class Dashboard extends Component {
       props: PropTypes.object,
     }).isRequired,
     closeSidebar: PropTypes.func.isRequired,
-    openAddQuestionSidebar: PropTypes.func.isRequired,
-    showAddQuestionSidebar: PropTypes.bool.isRequired,
+    embedOptions: PropTypes.object,
   };
 
   static defaultProps = {
@@ -95,29 +102,38 @@ export default class Dashboard extends Component {
     this.parametersAndCardsContainerRef = React.createRef();
   }
 
+  static getDerivedStateFromProps({ parameters }, { parametersListLength }) {
+    const visibleParameters = getVisibleParameters(parameters);
+    return visibleParameters.length !== parametersListLength
+      ? { parametersListLength: visibleParameters.length }
+      : null;
+  }
+
+  throttleParameterWidgetStickiness = _.throttle(
+    () => updateParametersWidgetStickiness(this),
+    SCROLL_THROTTLE_INTERVAL,
+  );
+
   // NOTE: all of these lifecycle methods should be replaced with DashboardData HoC in container
-  componentDidMount() {
-    this.loadDashboard(this.props.dashboardId);
+  async componentDidMount() {
+    await this.loadDashboard(this.props.dashboardId);
 
-    const throttleParameterWidgetStickiness = _.throttle(
-      () => updateParametersWidgetStickiness(this),
-      SCROLL_THROTTLE_INTERVAL,
-    );
-
-    window.addEventListener("scroll", throttleParameterWidgetStickiness, {
+    const main = getMainElement();
+    main.addEventListener("scroll", this.throttleParameterWidgetStickiness, {
       passive: true,
     });
-    window.addEventListener("resize", throttleParameterWidgetStickiness, {
+    main.addEventListener("resize", this.throttleParameterWidgetStickiness, {
       passive: true,
     });
   }
 
-  UNSAFE_componentWillReceiveProps(nextProps) {
-    if (this.props.dashboardId !== nextProps.dashboardId) {
-      this.loadDashboard(nextProps.dashboardId);
+  async componentDidUpdate(prevProps) {
+    if (prevProps.dashboardId !== this.props.dashboardId) {
+      await this.loadDashboard(this.props.dashboardId);
+      this.throttleParameterWidgetStickiness();
     } else if (
-      !_.isEqual(this.props.parameterValues, nextProps.parameterValues) ||
-      !this.props.dashboard
+      !_.isEqual(prevProps.parameterValues, this.props.parameterValues) ||
+      (!prevProps.dashboard && this.props.dashboard)
     ) {
       this.props.fetchDashboardCardData({ reload: false, clear: true });
     }
@@ -125,9 +141,9 @@ export default class Dashboard extends Component {
 
   componentWillUnmount() {
     this.props.cancelFetchDashboardCardData();
-
-    window.removeEventListener("scroll", updateParametersWidgetStickiness);
-    window.removeEventListener("resize", updateParametersWidgetStickiness);
+    const main = getMainElement();
+    main.removeEventListener("scroll", this.throttleParameterWidgetStickiness);
+    main.removeEventListener("resize", this.throttleParameterWidgetStickiness);
   }
 
   async loadDashboard(dashboardId) {
@@ -176,14 +192,6 @@ export default class Dashboard extends Component {
     });
   };
 
-  onToggleAddQuestionSidebar = () => {
-    if (this.props.showAddQuestionSidebar) {
-      this.props.closeSidebar();
-    } else {
-      this.props.openAddQuestionSidebar();
-    }
-  };
-
   onCancel = () => {
     this.props.setSharing(false);
   };
@@ -202,18 +210,21 @@ export default class Dashboard extends Component {
       isNightMode,
       isSharing,
       parameters,
-      showAddQuestionSidebar,
       parameterValues,
+      isNavbarOpen,
       editingParameter,
       setParameterValue,
       setParameterIndex,
       setEditingParameter,
+      isHeaderVisible,
+      embedOptions,
     } = this.props;
 
     const { error, isParametersWidgetSticky } = this.state;
 
     const shouldRenderAsNightMode = isNightMode && isFullscreen;
     const dashboardHasCards = dashboard => dashboard.ordered_cards.length > 0;
+    const visibleParameters = getVisibleParameters(parameters);
 
     const parametersWidget = (
       <SyncedParametersList
@@ -230,10 +241,10 @@ export default class Dashboard extends Component {
     );
 
     const shouldRenderParametersWidgetInViewMode =
-      !isEditing && !isFullscreen && parameters.length > 0;
+      !isEditing && !isFullscreen && visibleParameters.length > 0;
 
     const shouldRenderParametersWidgetInEditMode =
-      isEditing && parameters.length > 0;
+      isEditing && visibleParameters.length > 0;
 
     const cardsContainerShouldHaveMarginTop =
       !shouldRenderParametersWidgetInViewMode &&
@@ -249,39 +260,44 @@ export default class Dashboard extends Component {
       >
         {() => (
           <DashboardStyled>
-            <HeaderContainer
-              isFullscreen={isFullscreen}
-              isNightMode={shouldRenderAsNightMode}
-            >
-              <DashboardHeader
-                {...this.props}
-                onEditingChange={this.setEditing}
-                setDashboardAttribute={this.setDashboardAttribute}
-                addParameter={addParameter}
-                parametersWidget={parametersWidget}
-                onSharingClick={this.onSharingClick}
-                onToggleAddQuestionSidebar={this.onToggleAddQuestionSidebar}
-                showAddQuestionSidebar={showAddQuestionSidebar}
-              />
+            {isHeaderVisible && (
+              <HeaderContainer
+                isFullscreen={isFullscreen}
+                isNightMode={shouldRenderAsNightMode}
+                isDataApp={false}
+              >
+                <DashboardHeader
+                  {...this.props}
+                  onEditingChange={this.setEditing}
+                  setDashboardAttribute={this.setDashboardAttribute}
+                  addParameter={addParameter}
+                  parametersWidget={parametersWidget}
+                  onSharingClick={this.onSharingClick}
+                />
 
-              {shouldRenderParametersWidgetInEditMode && (
-                <ParametersWidgetContainer isEditing={isEditing}>
-                  {parametersWidget}
-                </ParametersWidgetContainer>
-              )}
-            </HeaderContainer>
+                {shouldRenderParametersWidgetInEditMode && (
+                  <ParametersWidgetContainer
+                    data-testid="edit-dashboard-parameters-widget-container"
+                    isEditing={isEditing}
+                  >
+                    {parametersWidget}
+                  </ParametersWidgetContainer>
+                )}
+              </HeaderContainer>
+            )}
 
             <DashboardBody isEditingOrSharing={isEditing || isSharing}>
               <ParametersAndCardsContainer
                 data-testid="dashboard-parameters-and-cards"
-                innerRef={element =>
-                  (this.parametersAndCardsContainerRef = element)
-                }
+                ref={element => (this.parametersAndCardsContainerRef = element)}
               >
                 {shouldRenderParametersWidgetInViewMode && (
                   <ParametersWidgetContainer
-                    innerRef={element => (this.parametersWidgetRef = element)}
+                    data-testid="dashboard-parameters-widget-container"
+                    ref={element => (this.parametersWidgetRef = element)}
+                    isNavbarOpen={isNavbarOpen}
                     isSticky={isParametersWidgetSticky}
+                    topNav={embedOptions?.top_nav}
                   >
                     {parametersWidget}
                   </ParametersWidgetContainer>
@@ -293,10 +309,12 @@ export default class Dashboard extends Component {
                   {dashboardHasCards(dashboard) ? (
                     <DashboardGrid
                       {...this.props}
+                      isNightMode={shouldRenderAsNightMode}
                       onEditingChange={this.setEditing}
                     />
                   ) : (
                     <DashboardEmptyState
+                      isDataApp={false}
                       isNightMode={shouldRenderAsNightMode}
                     />
                   )}
@@ -306,7 +324,7 @@ export default class Dashboard extends Component {
               <DashboardSidebars
                 {...this.props}
                 onCancel={this.onCancel}
-                showAddQuestionSidebar={showAddQuestionSidebar}
+                setDashboardAttribute={this.setDashboardAttribute}
               />
             </DashboardBody>
           </DashboardStyled>
@@ -315,3 +333,5 @@ export default class Dashboard extends Component {
     );
   }
 }
+
+export default DashboardControls(Dashboard);

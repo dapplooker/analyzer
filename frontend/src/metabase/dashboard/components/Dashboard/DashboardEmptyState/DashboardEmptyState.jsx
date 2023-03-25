@@ -2,16 +2,17 @@ import React from "react";
 import PropTypes from "prop-types";
 import { t } from "ttag";
 
-import { Container } from "./DashboardEmptyState.styled";
 import EmptyState from "metabase/components/EmptyState";
+import { Container } from "./DashboardEmptyState.styled";
 
 const propTypes = {
+  isDataApp: PropTypes.bool,
   isNightMode: PropTypes.bool.isRequired,
 };
 
 const questionCircle = <span className="QuestionCircle">?</span>;
 
-const DashboardEmptyState = ({ isNightMode }) => (
+const DashboardEmptyState = ({ isDataApp, isNightMode }) => (
   <Container isNightMode={isNightMode}>
     <EmptyState
       illustrationElement={questionCircle}

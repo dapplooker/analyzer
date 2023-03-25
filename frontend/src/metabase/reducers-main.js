@@ -2,7 +2,7 @@
 
 import { combineReducers } from "redux";
 
-import commonReducers from "./reducers-common";
+import { PLUGIN_REDUCERS } from "metabase/plugins";
 
 /* admin */
 import admin from "metabase/admin/admin";
@@ -28,6 +28,7 @@ import alert from "metabase/alert/alert";
 
 /* pulses */
 import * as pulse from "metabase/pulse/reducers";
+import commonReducers from "./reducers-common";
 
 export default {
   ...commonReducers,
@@ -42,4 +43,5 @@ export default {
   revisions,
   setup: combineReducers(setup),
   admin,
+  plugins: combineReducers(PLUGIN_REDUCERS),
 };

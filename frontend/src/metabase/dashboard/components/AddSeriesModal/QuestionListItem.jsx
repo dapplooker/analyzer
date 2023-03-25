@@ -3,7 +3,7 @@ import PropTypes from "prop-types";
 import { t } from "ttag";
 
 import Tooltip from "metabase/components/Tooltip";
-import CheckBox from "metabase/components/CheckBox";
+import CheckBox from "metabase/core/components/CheckBox";
 import {
   QuestionListItemRoot,
   CheckboxContainer,
@@ -25,11 +25,14 @@ export const QuestionListItem = React.memo(function QuestionListItem({
   isBad,
   style,
 }) {
+  const isStructuredQuestion = question.isStructured();
+  const questionName = question.displayName();
   return (
     <QuestionListItemRoot style={style} isDisabled={isBad}>
-      <CheckboxContainer>
+      <CheckboxContainer hasIcon={!isStructuredQuestion}>
         <CheckBox
-          label={question.displayName()}
+          label={questionName}
+          labelEllipsis
           checked={isEnabled}
           onChange={onChange}
         />

@@ -1,8 +1,8 @@
 import _ from "underscore";
 import { t, ngettext, msgid } from "ttag";
+import moment from "moment-timezone";
 import { parseTimestamp } from "metabase/lib/time";
 import MetabaseUtils from "metabase/lib/utils";
-import moment from "moment";
 
 const n2w = (n: number) => MetabaseUtils.numberToWord(n);
 
@@ -55,6 +55,7 @@ export type SettingName =
   | "admin-email"
   | "analytics-uuid"
   | "anon-tracking-enabled"
+  | "site-locale"
   | "user-locale"
   | "available-locales"
   | "available-timezones"
@@ -65,20 +66,30 @@ export type SettingName =
   | "enable-enhancements?"
   | "enable-public-sharing"
   | "enable-xrays"
+  | "experimental-enable-actions"
+  | "persisted-models-enabled"
   | "engines"
   | "ga-code"
   | "ga-enabled"
+  | "google-auth-enabled"
   | "google-auth-client-id"
-  | "has-sample-dataset?"
+  | "has-sample-database?"
+  | "has-user-setup"
   | "hide-embed-branding?"
   | "is-hosted?"
+  | "ldap-enabled"
   | "ldap-configured?"
+  | "other-sso-enabled?"
+  | "enable-password-login"
   | "map-tile-server-url"
   | "password-complexity"
+  | "persisted-model-refresh-interval-hours"
   | "premium-features"
   | "search-typeahead-enabled"
   | "setup-token"
   | "site-url"
+  | "site-uuid"
+  | "token-status"
   | "types"
   | "version-info-last-checked"
   | "version-info"
@@ -87,17 +98,25 @@ export type SettingName =
   | "cloud-gateway-ips"
   | "snowplow-enabled"
   | "snowplow-url"
-  | "engine-deprecation-notice-version";
+  | "deprecation-notice-version"
+  | "show-database-syncing-modal"
+  | "premium-embedding-token"
+  | "metabase-store-managed"
+  | "application-colors"
+  | "application-font"
+  | "available-fonts"
+  | "enable-query-caching"
+  | "start-of-week";
 
 type SettingsMap = Record<SettingName, any>; // provides access to Metabase application settings
 
 type SettingListener = (value: any) => void;
 
 class Settings {
-  _settings: SettingsMap;
+  _settings: Partial<SettingsMap>;
   _listeners: Partial<Record<SettingName, SettingListener[]>> = {};
 
-  constructor(settings: SettingsMap) {
+  constructor(settings: Partial<SettingsMap> = {}) {
     this._settings = settings;
   }
 
@@ -157,20 +176,41 @@ class Settings {
     return this.get("cloud-gateway-ips") || [];
   }
 
-  googleAuthEnabled() {
-    return this.get("google-auth-client-id") != null;
-  }
-
-  hasSetupToken() {
-    return this.get("setup-token") != null;
+  hasUserSetup() {
+    return this.get("has-user-setup");
   }
 
   hideEmbedBranding() {
     return this.get("hide-embed-branding?");
   }
 
-  ldapEnabled() {
+  isGoogleAuthEnabled() {
+    return this.get("google-auth-enabled");
+  }
+
+  isLdapEnabled() {
+    return this.get("ldap-enabled");
+  }
+
+  isLdapConfigured() {
     return this.get("ldap-configured?");
+  }
+
+  // JWT or SAML is enabled
+  isOtherSsoEnabled() {
+    return this.get("other-sso-enabled?");
+  }
+
+  isSsoEnabled() {
+    return (
+      this.isLdapEnabled() ||
+      this.isGoogleAuthEnabled() ||
+      this.isOtherSsoEnabled()
+    );
+  }
+
+  isPasswordLoginEnabled() {
+    return this.get("enable-password-login");
   }
 
   searchTypeaheadEnabled() {
@@ -193,12 +233,16 @@ class Settings {
     return this.get("snowplow-url");
   }
 
-  engineDeprecationNoticeVersion() {
-    return this.get("engine-deprecation-notice-version");
+  deprecationNoticeVersion() {
+    return this.get("deprecation-notice-version");
   }
 
-  engineDeprecationNoticeEnabled() {
-    return this.currentVersion() !== this.engineDeprecationNoticeVersion();
+  deprecationNoticeEnabled() {
+    return this.currentVersion() !== this.deprecationNoticeVersion();
+  }
+
+  token() {
+    return this.get("premium-embedding-token");
   }
 
   formattingOptions() {
@@ -251,12 +295,20 @@ class Settings {
     return `https://docs.dapplooker.com`;
   }
 
+  learnUrl(path = "") {
+    return `https://www.metabase.com/learn/${path}`;
+  }
+
   storeUrl(path = "") {
     return `https://store.metabase.com/${path}`;
   }
 
-  pricingUrl() {
-    return "https://www.metabase.com/pricing/";
+  upgradeUrl() {
+    return "https://www.metabase.com/upgrade/";
+  }
+
+  migrateToCloudGuideUrl() {
+    return "https://www.metabase.com/cloud/docs/migrate/guide";
   }
 
   newVersionAvailable() {
@@ -355,4 +407,8 @@ function makeRegexTest(property: string, regex: RegExp) {
     (password.match(regex) || []).length >= (requirements[property] || 0);
 }
 
-export default new Settings(_.clone(window.MetabaseBootstrap));
+// window is not defined for static charts SSR
+const initValues =
+  typeof window !== "undefined" ? _.clone(window.MetabaseBootstrap) : null;
+
+export default new Settings(initValues);

@@ -17,8 +17,7 @@ const trackEventThrottled = _.throttle(
   10000,
 );
 
-@ExplicitSize({ wrapped: true })
-export default class CardRenderer extends Component {
+class CardRenderer extends Component {
   static propTypes = {
     className: PropTypes.string,
     series: PropTypes.array.isRequired,
@@ -104,3 +103,14 @@ export default class CardRenderer extends Component {
     return <div className={this.props.className} style={this.props.style} />;
   }
 }
+
+export default ExplicitSize({
+  wrapped: true,
+  refreshMode: props => {
+    const { isDashboard, isEditing } = props;
+    if (isDashboard) {
+      return isEditing ? "debounce" : "debounceLeading";
+    }
+    return "throttle";
+  },
+})(CardRenderer);

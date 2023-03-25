@@ -1,5 +1,4 @@
 /* eslint-disable import/no-commonjs */
-const _ = require("underscore");
 const glob = require("glob");
 
 // eslint-disable-next-line no-undef
@@ -19,6 +18,7 @@ module.exports = {
           preserve: false,
         },
         "color-mod-function": true,
+        "focus-visible-pseudo-class": false,
       },
     },
   },

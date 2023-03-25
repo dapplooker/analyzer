@@ -1,35 +1,35 @@
 /* eslint-disable react/prop-types */
 import React from "react";
-
-// import TimeseriesGroupingWidget
-//     from "metabase/modes/components/TimeseriesGroupingWidget";
+import { t } from "ttag";
 import TimeseriesFilterWidget from "metabase/modes/components/TimeseriesFilterWidget";
-
-import { getDefaultDrills } from "../drill";
-
+import TimeseriesGroupingWidget from "metabase/modes/components/TimeseriesGroupingWidget";
 import PivotByCategoryDrill from "../drill/PivotByCategoryDrill";
 import PivotByLocationDrill from "../drill/PivotByLocationDrill";
+import DefaultMode from "./DefaultMode";
 
-import TimeseriesGroupingWidget from "metabase/modes/components/TimeseriesGroupingWidget";
+const TimeseriesModeFooter = props => {
+  const onChange = question => {
+    const { updateQuestion } = props;
+    updateQuestion(question, { run: true });
+  };
 
-export const TimeseriesModeFooter = props => {
   return (
     <div className="flex layout-centered">
-      <span className="mr1">View</span>
+      <span className="mr1">{t`View`}</span>
       <TimeseriesFilterWidget {...props} card={props.lastRunCard} />
-      <span className="mx1">by</span>
-      <TimeseriesGroupingWidget {...props} card={props.lastRunCard} />
+      <span className="mx1">{t`by`}</span>
+      <TimeseriesGroupingWidget
+        {...props}
+        onChange={onChange}
+        card={props.lastRunCard}
+      />
     </div>
   );
 };
 
 const TimeseriesMode = {
   name: "timeseries",
-  drills: () => [
-    PivotByCategoryDrill,
-    PivotByLocationDrill,
-    ...getDefaultDrills(),
-  ],
+  drills: [PivotByCategoryDrill, PivotByLocationDrill, ...DefaultMode.drills],
   ModeFooter: TimeseriesModeFooter,
 };
 

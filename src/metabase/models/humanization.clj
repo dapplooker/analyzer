@@ -23,7 +23,7 @@
   strategy defined by the Setting `humanization-strategy`. With two args, you may specify a custom strategy (intended
   mainly for the internal implementation):
 
-     (humanization-strategy :simple)
+     (humanization-strategy! :simple)
      (name->human-readable-name \"cool_toucans\")                         ;-> \"Cool Toucans\"
      ;; this is the same as:
      (name->human-readable-name (humanization-strategy) \"cool_toucans\") ;-> \"Cool Toucans\"
@@ -87,7 +87,6 @@
   (doseq [model ['Table 'Field]]
     (re-humanize-names! old-strategy model)))
 
-
 (defn- set-humanization-strategy! [new-value]
   (let [new-strategy (keyword (or new-value :simple))]
     ;; check to make sure `new-strategy` is a valid strategy, or throw an Exception it is it not.
@@ -95,9 +94,9 @@
       (throw (IllegalArgumentException.
                (tru "Invalid humanization strategy ''{0}''. Valid strategies are: {1}"
                     new-strategy (keys (methods name->human-readable-name))))))
-    (let [old-strategy (setting/get-keyword :humanization-strategy)]
+    (let [old-strategy (setting/get-value-of-type :keyword :humanization-strategy)]
       ;; ok, now set the new value
-      (setting/set-keyword! :humanization-strategy new-value)
+      (setting/set-value-of-type! :keyword :humanization-strategy new-value)
       ;; now rehumanize all the Tables and Fields using the new strategy.
       ;; TODO: Should we do this in a background thread because it is potentially slow?
       (log/info (trs "Changing Table & Field names humanization strategy from ''{0}'' to ''{1}''"
@@ -105,9 +104,9 @@
       (re-humanize-table-and-field-names! old-strategy))))
 
 (defsetting ^{:added "0.28.0"} humanization-strategy
-  (str (deferred-tru "To make table and field names more human-friendly, Metabase will replace dashes and underscores in them with spaces.")
-       " "
-       (deferred-tru "We’ll capitalize each word while at it, so ‘last_visited_at’ will become ‘Last Visited At’."))
+  (deferred-tru
+    (str "To make table and field names more human-friendly, Metabase will replace dashes and underscores in them "
+         "with spaces. We’ll capitalize each word while at it, so ‘last_visited_at’ will become ‘Last Visited At’."))
   :type    :keyword
   :default :simple
   :setter  set-humanization-strategy!)

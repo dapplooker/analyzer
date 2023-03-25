@@ -1,29 +1,43 @@
-/* eslint-disable react/prop-types */
-import { isFK, isPK } from "metabase/lib/schema_metadata";
 import { t } from "ttag";
+import { zoomInRow } from "metabase/query_builder/actions";
+import {
+  objectDetailDrill,
+  objectDetailFKDrillQuestion,
+  objectDetailPKDrillQuestion,
+} from "metabase-lib/queries/drills/object-detail-drill";
+
+function getAction({ question, clicked, type, objectId }) {
+  switch (type) {
+    case "pk":
+      return {
+        question: () => objectDetailPKDrillQuestion({ question, clicked }),
+      };
+    case "fk":
+      return {
+        question: () => objectDetailFKDrillQuestion({ question, clicked }),
+      };
+    case "zoom":
+      return { action: () => zoomInRow({ objectId }) };
+    case "dashboard":
+      return { question: () => question };
+  }
+}
+
+function getActionExtraData({ objectId, hasManyPKColumns }) {
+  if (!hasManyPKColumns) {
+    return {
+      extra: () => ({ objectId }),
+    };
+  }
+}
 
 export default ({ question, clicked }) => {
-  if (
-    !clicked ||
-    !clicked.column ||
-    clicked.value === undefined ||
-    !(isFK(clicked.column) || isPK(clicked.column))
-  ) {
+  const drill = objectDetailDrill({ question, clicked });
+  if (!drill) {
     return [];
   }
 
-  let field = question.metadata().field(clicked.column.id);
-  if (!field) {
-    return [];
-  }
-
-  if (field.target) {
-    field = field.target;
-  }
-
-  if (!clicked) {
-    return [];
-  }
+  const { type, objectId, hasManyPKColumns } = drill;
 
   return [
     {
@@ -33,8 +47,8 @@ export default ({ question, clicked }) => {
       buttonType: "horizontal",
       icon: "document",
       default: true,
-      question: () =>
-        field ? question.drillPK(field, clicked && clicked.value) : question,
+      ...getAction({ question, clicked, type, objectId }),
+      ...getActionExtraData({ objectId, hasManyPKColumns }),
     },
   ];
 };

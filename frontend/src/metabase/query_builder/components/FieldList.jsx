@@ -1,12 +1,9 @@
 /* eslint-disable react/prop-types */
 import React, { Component } from "react";
 
+import Dimension from "metabase-lib/Dimension";
+import DimensionOptions from "metabase-lib/DimensionOptions";
 import DimensionList from "./DimensionList";
-
-import Dimension from "metabase-lib/lib/Dimension";
-import DimensionOptions from "metabase-lib/lib/DimensionOptions";
-
-// import type { Section } from "metabase/components/AccordionList";
 
 // DEPRECATED: use DimensionList directly
 export default class FieldList extends Component {
@@ -66,9 +63,7 @@ export default class FieldList extends Component {
         // forward DimensionList props
         useOriginalDimension={this.props.useOriginalDimension}
         enableSubDimensions={this.props.enableSubDimensions}
-        preventNumberSubDimensions={
-          this.props.fieldOptions.preventNumberSubDimensions
-        }
+        preventNumberSubDimensions={this.props.preventNumberSubDimensions}
       />
     );
   }

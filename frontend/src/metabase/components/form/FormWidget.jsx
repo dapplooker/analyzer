@@ -1,5 +1,5 @@
 /* eslint-disable react/prop-types */
-import React from "react";
+import React, { forwardRef } from "react";
 
 import { PLUGIN_FORM_WIDGETS } from "metabase/plugins";
 
@@ -19,6 +19,7 @@ import FormCollectionWidget from "./widgets/FormCollectionWidget";
 import FormSnippetCollectionWidget from "./widgets/FormSnippetCollectionWidget";
 import FormHiddenWidget from "./widgets/FormHiddenWidget";
 import FormTextFileWidget from "./widgets/FormTextFileWidget";
+import FormModelWidget from "./widgets/FormModelWidget";
 
 const WIDGETS = {
   info: FormInfoWidget,
@@ -37,9 +38,10 @@ const WIDGETS = {
   snippetCollection: FormSnippetCollectionWidget,
   hidden: FormHiddenWidget,
   textFile: FormTextFileWidget,
+  model: FormModelWidget,
 };
 
-function getWidgetComponent(formField) {
+export function getWidgetComponent(formField) {
   if (typeof formField.type === "string") {
     const widget =
       WIDGETS[formField.type] || PLUGIN_FORM_WIDGETS[formField.type];
@@ -48,9 +50,15 @@ function getWidgetComponent(formField) {
   return formField.type || FormInputWidget;
 }
 
-const FormWidget = ({ field, formField, ...props }) => {
+/**
+ * @deprecated
+ */
+const FormWidget = forwardRef(function FormWidget(
+  { field, formField, ...props },
+  ref,
+) {
   const Widget = getWidgetComponent(formField);
-  return <Widget field={field} {...formField} {...props} />;
-};
+  return <Widget field={field} {...formField} {...props} ref={ref} />;
+});
 
 export default FormWidget;

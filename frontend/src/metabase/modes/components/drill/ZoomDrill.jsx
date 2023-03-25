@@ -1,12 +1,11 @@
-/* eslint-disable react/prop-types */
-import { drillDownForDimensions } from "metabase/modes/lib/actions";
-
 import { t } from "ttag";
+import {
+  zoomDrill,
+  zoomDrillQuestion,
+} from "metabase-lib/queries/drills/zoom-drill";
 
-export default ({ question, clicked, settings }) => {
-  const dimensions = (clicked && clicked.dimensions) || [];
-  const drilldown = drillDownForDimensions(dimensions, question.metadata());
-  if (!drilldown) {
+export default ({ question, clicked }) => {
+  if (!zoomDrill({ question, clicked })) {
     return [];
   }
 
@@ -17,7 +16,7 @@ export default ({ question, clicked, settings }) => {
       title: t`Zoom in`,
       buttonType: "horizontal",
       icon: "zoom_in",
-      question: () => question.pivot(drilldown.breakouts, dimensions),
+      question: () => zoomDrillQuestion({ question, clicked }),
     },
   ];
 };

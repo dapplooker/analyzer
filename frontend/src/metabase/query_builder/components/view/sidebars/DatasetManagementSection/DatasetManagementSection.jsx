@@ -3,15 +3,19 @@ import PropTypes from "prop-types";
 import { connect } from "react-redux";
 import { t } from "ttag";
 
-import Question from "metabase-lib/lib/Question";
-
 import {
   setQueryBuilderMode,
   turnDatasetIntoQuestion,
 } from "metabase/query_builder/actions";
 
+import { PLUGIN_MODERATION } from "metabase/plugins";
+import Question from "metabase-lib/Question";
+
+import DatasetMetadataStrengthIndicator from "./DatasetMetadataStrengthIndicator";
 import {
   Button,
+  MetadataIndicatorContainer,
+  Row,
   SectionContent,
   SectionTitle,
 } from "./DatasetManagementSection.styled";
@@ -28,25 +32,48 @@ DatasetManagementSection.propTypes = {
 };
 
 function DatasetManagementSection({
+  dataset,
   setQueryBuilderMode,
   turnDatasetIntoQuestion,
 }) {
   const onEditQueryDefinitionClick = () => {
-    setQueryBuilderMode("dataset");
+    setQueryBuilderMode("dataset", {
+      datasetEditorTab: "query",
+    });
+  };
+
+  const onCustomizeMetadataClick = () => {
+    setQueryBuilderMode("dataset", {
+      datasetEditorTab: "metadata",
+    });
   };
 
   return (
     <div>
-      <SectionTitle>{t`Dataset management`}</SectionTitle>
+      <SectionTitle>{t`Model management`}</SectionTitle>
       <SectionContent>
         <Button
           icon="notebook"
           onClick={onEditQueryDefinitionClick}
         >{t`Edit query definition`}</Button>
+        <Row>
+          <Button
+            icon="label"
+            onClick={onCustomizeMetadataClick}
+          >{t`Customize metadata`}</Button>
+          <MetadataIndicatorContainer>
+            <DatasetMetadataStrengthIndicator dataset={dataset} />
+          </MetadataIndicatorContainer>
+        </Row>
         <Button
-          icon="dataset_framed"
+          icon="model_framed"
           onClick={turnDatasetIntoQuestion}
         >{t`Turn back into a saved chart`}</Button>
+        <PLUGIN_MODERATION.QuestionModerationSection
+          question={dataset}
+          VerifyButton={Button}
+          reviewBannerClassName="mt1"
+        />
       </SectionContent>
     </div>
   );

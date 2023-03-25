@@ -1,6 +1,6 @@
 (ns metabase.analytics.stats
   "Functions which summarize the usage of an instance"
-  (:require [clj-http.client :as client]
+  (:require [clj-http.client :as http]
             [clojure.string :as str]
             [clojure.tools.logging :as log]
             [java-time :as t]
@@ -96,16 +96,16 @@
   "Figure out what we're running under"
   []
   (cond
-    (= (config/config-str :mb-client) "OSX") :osx
     (config/config-str :rds-hostname)        :elastic-beanstalk
     (config/config-str :database-url)        :heroku ;; Putting this last as 'database-url' seems least specific
-    :default                                 :unknown))
+    :else                                    :unknown))
 
 (defn- instance-settings
   "Figure out global info about this instance"
   []
   {:version              (config/mb-version-info :tag)
    :running_on           (environment-type)
+   :startup_time_millis  (public-settings/startup-time-millis)
    :application_database (config/config-str :mb-db-type)
    :check_for_updates    (public-settings/check-for-updates)
    :site_name            (not= (public-settings/site-name) "Metabase")
@@ -114,7 +114,7 @@
    :friendly_names       (= (humanization/humanization-strategy) "advanced")
    :email_configured     (email/email-configured?)
    :slack_configured     (slack/slack-configured?)
-   :sso_configured       (boolean (google/google-auth-client-id))
+   :sso_configured       (google/google-auth-enabled)
    :instance_started     (snowplow/instance-creation)
    :has_sample_data      (db/exists? Database, :is_sample true)})
 
@@ -394,7 +394,7 @@
   "send stats to Metabase tracking server"
   [stats]
   (try
-     (client/post metabase-usage-url {:form-params stats, :content-type :json, :throw-entire-message? true})
+     (http/post metabase-usage-url {:form-params stats, :content-type :json, :throw-entire-message? true})
      (catch Throwable e
        (log/error e (trs "Sending usage stats FAILED")))))
 

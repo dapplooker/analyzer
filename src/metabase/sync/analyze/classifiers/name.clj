@@ -7,7 +7,8 @@
             [metabase.sync.interface :as i]
             [metabase.sync.util :as sync-util]
             [metabase.util.schema :as su]
-            [schema.core :as s]))
+            [schema.core :as s]
+            [toucan.db :as db]))
 
 (def ^:private bool-or-int-type #{:type/Boolean :type/Integer})
 (def ^:private float-type       #{:type/Float})
@@ -30,14 +31,20 @@
    *  Convert field name to lowercase before matching against a pattern
    *  Consider a nil set-of-valid-base-types to mean \"match any base type\""
   [[#"^id$"                        any-type         :type/PK]
-   [#"^.*_lat$"                    float-type       :type/Latitude]
+   [#"^lon$"                       float-type       :type/Longitude]
    [#"^.*_lon$"                    float-type       :type/Longitude]
    [#"^.*_lng$"                    float-type       :type/Longitude]
    [#"^.*_long$"                   float-type       :type/Longitude]
    [#"^.*_longitude$"              float-type       :type/Longitude]
+   [#"^lng$"                       float-type       :type/Longitude]
+   [#"^long$"                      float-type       :type/Longitude]
+   [#"^longitude$"                 float-type       :type/Longitude]
+   [#"^lat$"                       float-type       :type/Latitude]
+   [#"^.*_lat$"                    float-type       :type/Latitude]
+   [#"^latitude$"                  float-type       :type/Latitude]
+   [#"^.*_latitude$"               float-type       :type/Latitude]
    [#"^.*_type$"                   int-or-text-type :type/Category]
    [#"^.*_url$"                    text-type        :type/URL]
-   [#"^_latitude$"                 float-type       :type/Latitude]
    [#"^active$"                    bool-or-int-type :type/Category]
    [#"^city$"                      text-type        :type/City]
    [#"^country"                    text-type        :type/Country]
@@ -47,12 +54,6 @@
    [#"^full(?:_?)name$"            text-type        :type/Name]
    [#"^gender$"                    int-or-text-type :type/Category]
    [#"^last(?:_?)name$"            text-type        :type/Name]
-   [#"^lat$"                       float-type       :type/Latitude]
-   [#"^latitude$"                  float-type       :type/Latitude]
-   [#"^lon$"                       float-type       :type/Longitude]
-   [#"^lng$"                       float-type       :type/Longitude]
-   [#"^long$"                      float-type       :type/Longitude]
-   [#"^longitude$"                 float-type       :type/Longitude]
    [#"^name$"                      text-type        :type/Name]
    [#"^postal(?:_?)code$"          int-or-text-type :type/ZipCode]
    [#"^role$"                      int-or-text-type :type/Category]
@@ -143,9 +144,10 @@
                 (str/blank? (:name field-or-column)))
     (semantic-type-for-name-and-base-type (:name field-or-column) (:base_type field-or-column))))
 
-(s/defn infer-and-assoc-semantic-type  :- (s/maybe FieldOrColumn)
+(s/defn infer-and-assoc-semantic-type :- (s/maybe FieldOrColumn)
   "Returns `field-or-column` with a computed semantic type based on the name and base type of the `field-or-column`"
-  [field-or-column :- FieldOrColumn, _ :- (s/maybe i/Fingerprint)]
+  [field-or-column :- FieldOrColumn
+   _fingerprint    :- (s/maybe i/Fingerprint)]
   (when-let [inferred-semantic-type (infer-semantic-type field-or-column)]
     (log/debug (format "Based on the name of %s, we're giving it a semantic type of %s."
                        (sync-util/name-for-logging field-or-column)
@@ -182,10 +184,10 @@
                                           (when (re-find pattern table-name)
                                             type))
                                         entity-types-patterns)
-                                  (case (-> table
-                                            :db_id
-                                            Database
-                                            :engine)
+                                  (case (->> table
+                                             :db_id
+                                             (db/select-one Database :id)
+                                             :engine)
                                     :googleanalytics :entity/GoogleAnalyticsTable
                                     :druid           :entity/EventTable
                                     nil)

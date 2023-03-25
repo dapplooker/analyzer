@@ -5,7 +5,7 @@
             [clojure.tools.logging :as log]
             [medley.core :as m]
             [metabase.config :as config]
-            [metabase.server.protocols :as protocols]
+            [metabase.server.protocols :as server.protocols]
             [metabase.util :as u]
             [metabase.util.i18n :refer [trs]]
             [ring.adapter.jetty :as ring-jetty]
@@ -13,7 +13,7 @@
   (:import javax.servlet.AsyncContext
            [javax.servlet.http HttpServletRequest HttpServletResponse]
            [org.eclipse.jetty.server Request Server]
-           org.eclipse.jetty.server.handler.AbstractHandler))
+           [org.eclipse.jetty.server.handler AbstractHandler StatisticsHandler]))
 
 (defn- jetty-ssl-config []
   (m/filter-vals
@@ -56,7 +56,7 @@
   ^Server []
   @instance*)
 
-(defn- ^AbstractHandler async-proxy-handler [handler timeout]
+(defn- async-proxy-handler ^AbstractHandler [handler timeout]
   (proxy [AbstractHandler] []
     (handle [_ ^Request base-request ^HttpServletRequest request ^HttpServletResponse response]
       (let [^AsyncContext context (doto (.startAsync request)
@@ -73,11 +73,11 @@
           (handler
            request-map
            (fn [response-map]
-             (protocols/respond (:body response-map) {:request       request
-                                                      :request-map   request-map
-                                                      :async-context context
-                                                      :response      response
-                                                      :response-map  response-map}))
+             (server.protocols/respond (:body response-map) {:request       request
+                                                             :request-map   request-map
+                                                             :async-context context
+                                                             :response      response
+                                                             :response-map  response-map}))
            raise)
           (catch Throwable e
             (log/error e (trs "Unexpected Exception in API request handler"))
@@ -95,9 +95,12 @@
   ;;
   ;; TODO - I suppose the default value should be moved to the `metabase.config` namespace?
   (let [timeout (or (config/config-int :mb-jetty-async-response-timeout)
-                    (* 10 60 1000))]
+                    (* 10 60 1000))
+        handler (async-proxy-handler handler timeout)
+        stats-handler (doto (StatisticsHandler.)
+                        (.setHandler handler))]
     (doto ^Server (#'ring-jetty/create-server (assoc options :async? true))
-      (.setHandler (async-proxy-handler handler timeout)))))
+      (.setHandler stats-handler))))
 
 (defn start-web-server!
   "Start the embedded Jetty web server. Returns `:started` if a new server was started; `nil` if there was already a

@@ -4,7 +4,7 @@ import React from "react";
 import { t } from "ttag";
 
 import PopoverWithTrigger from "metabase/components/PopoverWithTrigger";
-import CheckBox from "metabase/components/CheckBox";
+import CheckBox from "metabase/core/components/CheckBox";
 import StackedCheckBox from "metabase/components/StackedCheckBox";
 
 export default function FieldsPicker({
@@ -50,7 +50,6 @@ export default function FieldsPicker({
         {dimensions.map(dimension => (
           <li key={dimension.key()} className="px1 pb1 flex align-center">
             <CheckBox
-              data-testid={`field-${dimension.displayName()}`}
               disabled={disableSelected && selected.has(dimension.key())}
               checked={selected.has(dimension.key())}
               label={dimension.displayName()}

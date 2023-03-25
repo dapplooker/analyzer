@@ -5,30 +5,52 @@
             [clojure.set :as set]
             [clojure.string :as str]
             [clojure.tools.logging :as log]
+            [clojure.walk :as walk]
             [honeysql.core :as hsql]
             [honeysql.format :as hformat]
             [java-time :as t]
-            [metabase.db.spec :as db.spec]
+            [metabase.db.spec :as mdb.spec]
             [metabase.driver :as driver]
             [metabase.driver.common :as driver.common]
+            [metabase.driver.ddl.interface :as ddl.i]
+            [metabase.driver.postgres.actions :as postgres.actions]
+            [metabase.driver.postgres.ddl :as postgres.ddl]
             [metabase.driver.sql-jdbc.common :as sql-jdbc.common]
             [metabase.driver.sql-jdbc.connection :as sql-jdbc.conn]
             [metabase.driver.sql-jdbc.execute :as sql-jdbc.execute]
             [metabase.driver.sql-jdbc.sync :as sql-jdbc.sync]
+            [metabase.driver.sql-jdbc.sync.describe-table :as sql-jdbc.describe-table]
             [metabase.driver.sql.query-processor :as sql.qp]
+            [metabase.driver.sql.util :as sql.u]
             [metabase.driver.sql.util.unprepare :as unprepare]
-            [metabase.models :refer [Field]]
+            [metabase.models.field :as field]
             [metabase.models.secret :as secret]
+            [metabase.query-processor.error-type :as qp.error-type]
+            [metabase.query-processor.store :as qp.store]
+            [metabase.query-processor.util.add-alias-info :as add]
             [metabase.util :as u]
             [metabase.util.date-2 :as u.date]
             [metabase.util.honeysql-extensions :as hx]
-            [metabase.util.i18n :refer [trs]]
+            [metabase.util.i18n :refer [trs tru]]
+            [potemkin :as p]
             [pretty.core :refer [PrettyPrintable]])
   (:import [java.sql ResultSet ResultSetMetaData Time Types]
            [java.time LocalDateTime OffsetDateTime OffsetTime]
-           [java.util Date UUID]))
+           [java.util Date UUID]
+           metabase.util.honeysql_extensions.Identifier))
+
+(comment
+  ;; method impls live in these namespaces.
+  postgres.actions/keep-me
+  postgres.ddl/keep-me)
 
 (driver/register! :postgres, :parent :sql-jdbc)
+
+(defmethod driver/database-supports? [:postgres :nested-field-columns] [_ _ database]
+  (let [json-setting (get-in database [:details :json-unfolding])
+        ;; If not set at all, default to true, actually
+        setting-nil? (nil? json-setting)]
+    (or json-setting setting-nil?)))
 
 ;;; +----------------------------------------------------------------------------------------------------------------+
 ;;; |                                             metabase.driver impls                                              |
@@ -36,34 +58,62 @@
 
 (defmethod driver/display-name :postgres [_] "PostgreSQL")
 
+(defmethod driver/database-supports? [:postgres :datetime-diff]
+  [_driver _feat _db]
+  true)
+
+(defmethod driver/database-supports? [:postgres :persist-models]
+  [_driver _feat _db]
+  true)
+
+(defmethod driver/database-supports? [:postgres :persist-models-enabled]
+  [_driver _feat db]
+  (-> db :options :persist-models-enabled))
+
+(defmethod driver/database-supports? [:postgres :convert-timezone]
+  [_driver _feat _db]
+  true)
+
+(doseq [feature [:actions :actions/custom]]
+  (defmethod driver/database-supports? [:postgres feature]
+    [driver _feat _db]
+    ;; only supported for Postgres for right now. Not supported for child drivers like Redshift or whatever.
+    (= driver :postgres)))
+
+(defn- ->timestamp [honeysql-form]
+  (hx/cast-unless-type-in "timestamp" #{"timestamp" "timestamptz" "date"} honeysql-form))
+
 (defmethod sql.qp/add-interval-honeysql-form :postgres
-  [_ hsql-form amount unit]
-  (hx/+ (hx/->timestamp hsql-form)
-        (hsql/raw (format "(INTERVAL '%s %s')" amount (name unit)))))
+  [driver hsql-form amount unit]
+  ;; Postgres doesn't support quarter in intervals (#20683)
+  (if (= unit :quarter)
+    (recur driver hsql-form (* 3 amount) :month)
+    (let [hsql-form (->timestamp hsql-form)]
+      (-> (hx/+ hsql-form (hsql/raw (format "(INTERVAL '%s %s')" amount (name unit))))
+          (hx/with-type-info (hx/type-info hsql-form))))))
 
 (defmethod driver/humanize-connection-error-message :postgres
   [_ message]
   (condp re-matches message
     #"^FATAL: database \".*\" does not exist$"
-    (driver.common/connection-error-messages :database-name-incorrect)
+    :database-name-incorrect
 
     #"^No suitable driver found for.*$"
-    (driver.common/connection-error-messages :invalid-hostname)
+    :invalid-hostname
 
     #"^Connection refused. Check that the hostname and port are correct and that the postmaster is accepting TCP/IP connections.$"
-    (driver.common/connection-error-messages :cannot-connect-check-host-and-port)
+    :cannot-connect-check-host-and-port
 
     #"^FATAL: role \".*\" does not exist$"
-    (driver.common/connection-error-messages :username-incorrect)
+    :username-incorrect
 
     #"^FATAL: password authentication failed for user.*$"
-    (driver.common/connection-error-messages :password-incorrect)
+    :password-incorrect
 
     #"^FATAL: .*$" ; all other FATAL messages: strip off the 'FATAL' part, capitalize, and add a period
     (let [[_ message] (re-matches #"^FATAL: (.*$)" message)]
       (str (str/capitalize message) \.))
 
-    #".*" ; default
     message))
 
 (defmethod driver.common/current-db-time-date-formatters :postgres
@@ -87,6 +137,9 @@
     driver.common/default-user-details
     driver.common/default-password-details
     driver.common/cloud-ip-address-info
+    {:name "schema-filters"
+     :type :schema-filters
+     :display-name "Schemas"}
     driver.common/default-ssl-details
     {:name         "ssl-mode"
      :display-name (trs "SSL Mode")
@@ -120,7 +173,7 @@
      :secret-kind  :pem-cert
      :visible-if   {"ssl-use-client-auth" true}}
     {:name         "ssl-key"
-     :display-name (trs "SSL Client Key (PKCS-8/DER or PKCS-12)")
+     :display-name (trs "SSL Client Key (PKCS-8/DER)")
      :type         :secret
      ;; since this can be either PKCS-8 or PKCS-12, we can't model it as a :keystore
      :secret-kind  :binary-blob
@@ -132,6 +185,8 @@
      :visible-if   {"ssl-use-client-auth" true}}
     driver.common/ssh-tunnel-preferences
     driver.common/advanced-options-start
+    driver.common/json-unfolding
+
     (assoc driver.common/additional-options
            :placeholder "prepareThreshold=0")
     driver.common/default-advanced-options]
@@ -142,14 +197,18 @@
   [_]
   :monday)
 
+(defn- get-typenames [{:keys [nspname typname]}]
+  (cond-> [typname]
+    (not= nspname "public") (conj (format "\"%s\".\"%s\"" nspname typname))))
+
 (defn- enum-types [_driver database]
-  (set
-    (map (comp keyword :typname)
-         (jdbc/query (sql-jdbc.conn/db->pooled-connection-spec database)
-                     [(str "SELECT DISTINCT t.typname "
-                           "FROM pg_enum e "
-                           "LEFT JOIN pg_type t "
-                           "  ON t.oid = e.enumtypid")]))))
+  (into #{}
+        (comp (mapcat get-typenames)
+              (map keyword))
+        (jdbc/query (sql-jdbc.conn/db->pooled-connection-spec database)
+                    [(str "SELECT nspname, typname "
+                          "FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace "
+                          "WHERE t.oid IN (SELECT DISTINCT enumtypid FROM pg_enum e)")])))
 
 (def ^:private ^:dynamic *enum-types* nil)
 
@@ -161,10 +220,22 @@
   (binding [*enum-types* (enum-types driver database)]
     (sql-jdbc.sync/describe-table driver database table)))
 
+;; Describe the nested fields present in a table (currently and maybe forever just JSON),
+;; including if they have proper keyword and type stability.
+;; Not to be confused with existing nested field functionality for mongo,
+;; since this one only applies to JSON fields, whereas mongo only has BSON (JSON basically) fields.
+(defmethod sql-jdbc.sync/describe-nested-field-columns :postgres
+  [driver database table]
+  (let [spec   (sql-jdbc.conn/db->pooled-connection-spec database)]
+    (sql-jdbc.describe-table/describe-nested-field-columns driver spec table)))
 
 ;;; +----------------------------------------------------------------------------------------------------------------+
 ;;; |                                           metabase.driver.sql impls                                            |
 ;;; +----------------------------------------------------------------------------------------------------------------+
+
+(defmethod sql.qp/current-datetime-honeysql-form :postgres
+  [_driver]
+  (hx/with-database-type-info :%now "timestamptz"))
 
 (defmethod sql.qp/unix-timestamp->honeysql [:postgres :seconds]
   [_ _ expr]
@@ -179,54 +250,146 @@
   (sql.qp/cast-temporal-string driver :Coercion/YYYYMMDDHHMMSSString->Temporal
                                (hsql/call :convert_from expr (hx/literal "UTF8"))))
 
-(defn- date-trunc [unit expr] (hsql/call :date_trunc (hx/literal unit) (hx/->timestamp expr)))
-(defn- extract    [unit expr] (hsql/call :extract    unit              (hx/->timestamp expr)))
+(defn- date-trunc [unit expr] (hsql/call :date_trunc (hx/literal unit) (->timestamp expr)))
+(defn- extract    [unit expr] (hsql/call :extract    unit              (->timestamp expr)))
 
 (def ^:private extract-integer (comp hx/->integer extract))
 
-(defmethod sql.qp/date [:postgres :default]         [_ _ expr] expr)
-(defmethod sql.qp/date [:postgres :minute]          [_ _ expr] (date-trunc :minute expr))
-(defmethod sql.qp/date [:postgres :minute-of-hour]  [_ _ expr] (extract-integer :minute expr))
-(defmethod sql.qp/date [:postgres :hour]            [_ _ expr] (date-trunc :hour expr))
-(defmethod sql.qp/date [:postgres :hour-of-day]     [_ _ expr] (extract-integer :hour expr))
-(defmethod sql.qp/date [:postgres :day]             [_ _ expr] (hx/->date expr))
-(defmethod sql.qp/date [:postgres :day-of-month]    [_ _ expr] (extract-integer :day expr))
-(defmethod sql.qp/date [:postgres :day-of-year]     [_ _ expr] (extract-integer :doy expr))
-(defmethod sql.qp/date [:postgres :month]           [_ _ expr] (date-trunc :month expr))
-(defmethod sql.qp/date [:postgres :month-of-year]   [_ _ expr] (extract-integer :month expr))
-(defmethod sql.qp/date [:postgres :quarter]         [_ _ expr] (date-trunc :quarter expr))
-(defmethod sql.qp/date [:postgres :quarter-of-year] [_ _ expr] (extract-integer :quarter expr))
-(defmethod sql.qp/date [:postgres :year]            [_ _ expr] (date-trunc :year expr))
+(defmethod sql.qp/date [:postgres :default]          [_ _ expr] expr)
+(defmethod sql.qp/date [:postgres :second-of-minute] [_ _ expr] (extract-integer :second expr))
+(defmethod sql.qp/date [:postgres :minute]           [_ _ expr] (date-trunc :minute expr))
+(defmethod sql.qp/date [:postgres :minute-of-hour]   [_ _ expr] (extract-integer :minute expr))
+(defmethod sql.qp/date [:postgres :hour]             [_ _ expr] (date-trunc :hour expr))
+(defmethod sql.qp/date [:postgres :hour-of-day]      [_ _ expr] (extract-integer :hour expr))
+(defmethod sql.qp/date [:postgres :day]              [_ _ expr] (hx/->date expr))
+(defmethod sql.qp/date [:postgres :day-of-month]     [_ _ expr] (extract-integer :day expr))
+(defmethod sql.qp/date [:postgres :day-of-year]      [_ _ expr] (extract-integer :doy expr))
+(defmethod sql.qp/date [:postgres :month]            [_ _ expr] (date-trunc :month expr))
+(defmethod sql.qp/date [:postgres :month-of-year]    [_ _ expr] (extract-integer :month expr))
+(defmethod sql.qp/date [:postgres :quarter]          [_ _ expr] (date-trunc :quarter expr))
+(defmethod sql.qp/date [:postgres :quarter-of-year]  [_ _ expr] (extract-integer :quarter expr))
+(defmethod sql.qp/date [:postgres :year]             [_ _ expr] (date-trunc :year expr))
+(defmethod sql.qp/date [:postgres :year-of-era]      [_ _ expr] (extract-integer :year expr))
+
+(defmethod sql.qp/date [:postgres :week-of-year-iso] [_driver _ expr] (extract-integer :week expr))
 
 (defmethod sql.qp/date [:postgres :day-of-week]
-  [_ _ expr]
-  (sql.qp/adjust-day-of-week :postgres (extract-integer :dow expr)))
+  [_ driver expr]
+  ;; Postgres extract(dow ...) returns Sunday(0)...Saturday(6)
+  ;;
+  ;; Since that's different than what we normally consider the [[metabase.driver/db-start-of-week]] for Postgres
+  ;; (Monday) we need to pass in a custom offset here
+  (sql.qp/adjust-day-of-week driver
+                             (hx/+ (extract-integer :dow expr) 1)
+                             (driver.common/start-of-week-offset-for-day :sunday)))
 
 (defmethod sql.qp/date [:postgres :week]
   [_ _ expr]
   (sql.qp/adjust-start-of-week :postgres (partial date-trunc :week) expr))
+
+(defn- quoted? [database-type]
+  (and (str/starts-with? database-type "\"")
+       (str/ends-with? database-type "\"")))
+
+(defmethod sql.qp/->honeysql [:postgres :convert-timezone]
+  [driver [_ arg target-timezone source-timezone]]
+  (let [expr         (sql.qp/->honeysql driver (cond-> arg
+                                                 (string? arg) u.date/parse))
+        timestamptz? (hx/is-of-type? expr "timestamptz")
+        _            (sql.u/validate-convert-timezone-args timestamptz? target-timezone source-timezone)
+        expr         (cond->> expr
+                       (not timestamptz?)
+                       (hsql/call :timezone source-timezone)
+                       :always
+                       (hsql/call :timezone target-timezone))]
+    (hx/with-database-type-info expr "timestamp")))
 
 (defmethod sql.qp/->honeysql [:postgres :value]
   [driver value]
   (let [[_ value {base-type :base_type, database-type :database_type}] value]
     (when (some? value)
       (condp #(isa? %2 %1) base-type
-        :type/UUID         (UUID/fromString value)
+        :type/UUID         (when (not= "" value) ; support is-empty/non-empty checks
+                             (UUID/fromString  value))
         :type/IPAddress    (hx/cast :inet value)
-        :type/PostgresEnum (hx/quoted-cast database-type value)
+        :type/PostgresEnum (if (quoted? database-type)
+                             (hx/cast database-type value)
+                             (hx/quoted-cast database-type value))
         (sql.qp/->honeysql driver value)))))
 
 (defmethod sql.qp/->honeysql [:postgres :median]
   [driver [_ arg]]
   (sql.qp/->honeysql driver [:percentile arg 0.5]))
 
+(defn- datetime-diff-helper [x y unit]
+  (case unit
+    (:year :day)
+    (hx/cast
+     :integer
+     (hsql/call
+      :extract
+      unit
+      (hsql/call
+       (case unit :year :age :day :-)
+       (date-trunc :day y)
+       (date-trunc :day x))))
+
+    :week
+    (hx// (datetime-diff-helper x y :day) 7)
+
+    :month
+    (hx/cast
+     :integer
+     (hx/+
+      (hx/* 12 (datetime-diff-helper x y :year))
+      (hsql/call
+       :extract
+       :month
+       (hsql/call
+        :age
+        (date-trunc :day y)
+        (date-trunc :day x)))))
+
+    (:hour :minute :second)
+    (let [ex            (extract :epoch x)
+          ey            (extract :epoch y)
+          positive-diff (fn [a b]
+                          (hx/cast
+                           :integer
+                           (hx/floor
+                            (if (= unit :second)
+                              (hx/- b a)
+                              (hx// (hx/- b a) (case unit :hour 3600 :minute 60))))))]
+      (hsql/call :case (hsql/call :<= ex ey) (positive-diff ex ey) :else (hx/* -1 (positive-diff ey ex))))))
+
+(defmethod sql.qp/->honeysql [:postgres :datetime-diff]
+  [driver [_ x y unit]]
+  (let [x (sql.qp/->honeysql driver x)
+        y (sql.qp/->honeysql driver y)
+        disallowed-types (keep
+                          (fn [v]
+                            (when-let [db-type (keyword (hx/type-info->db-type (hx/type-info v)))]
+                              (let [base-type (sql-jdbc.sync/database-type->base-type driver db-type)]
+                                (when-not (some #(isa? base-type %) [:type/Date :type/DateTime])
+                                  (name db-type)))))
+                          [x y])]
+    (when (seq disallowed-types)
+      (throw (ex-info (tru "Only datetime, timestamp, or date types allowed. Found {0}"
+                           (pr-str disallowed-types))
+                      {:found disallowed-types
+                       :type  qp.error-type/invalid-query})))
+    (-> (datetime-diff-helper x y unit)
+        (hx/with-database-type-info :integer))))
+
+(p/defrecord+ RegexMatchFirst [identifier pattern]
+  hformat/ToSql
+  (to-sql [_]
+    (str "substring(" (hformat/to-sql identifier) " FROM " (hformat/to-sql pattern) ")")))
+
 (defmethod sql.qp/->honeysql [:postgres :regex-match-first]
   [driver [_ arg pattern]]
-  (let [col-name (hformat/to-sql (sql.qp/->honeysql driver arg))]
-    (reify
-      hformat/ToSql
-      (to-sql [_]
-        (str "substring(" col-name " FROM " (hformat/to-sql pattern) ")")))))
+  (let [identifier (sql.qp/->honeysql driver arg)]
+    (->RegexMatchFirst identifier pattern)))
 
 (defmethod sql.qp/->honeysql [:postgres Time]
   [_ time-value]
@@ -245,13 +408,83 @@
     (pretty [_]
       (format "%s::%s" (pr-str expr) (name psql-type)))))
 
-(defmethod sql.qp/->honeysql [:postgres (class Field)]
-  [driver {database-type :database_type, :as field}]
-  (let [parent-method (get-method sql.qp/->honeysql [:sql (class Field)])
-        identifier    (parent-method driver field)]
-    (if (= database-type "money")
+(defmethod sql.qp/json-query :postgres
+  [_ unwrapped-identifier nfc-field]
+  (letfn [(handle-name [x] (if (number? x) (str x) (name x)))]
+    (let [field-type           (:database_type nfc-field)
+          nfc-path             (:nfc_path nfc-field)
+          parent-identifier    (field/nfc-field->parent-identifier unwrapped-identifier nfc-field)
+          names                (format "{%s}" (str/join "," (map handle-name (rest nfc-path))))]
+      (reify
+        hformat/ToSql
+        (to-sql [_]
+          (hformat/to-params-default names "nfc_path")
+          (format "(%s#>> ?::text[])::%s " (hformat/to-sql parent-identifier) field-type))))))
+
+(defmethod sql.qp/->honeysql [:postgres :field]
+  [driver [_ id-or-name opts :as clause]]
+  (let [stored-field  (when (integer? id-or-name)
+                        (qp.store/field id-or-name))
+        parent-method (get-method sql.qp/->honeysql [:sql :field])
+        identifier    (parent-method driver clause)]
+    (cond
+      (= (:database_type stored-field) "money")
       (pg-conversion identifier :numeric)
+
+      (field/json-field? stored-field)
+      (if (::sql.qp/forced-alias opts)
+        (keyword (::add/source-alias opts))
+        (walk/postwalk #(if (instance? Identifier %)
+                          (sql.qp/json-query :postgres % stored-field)
+                          %)
+                       identifier))
+
+      :else
       identifier)))
+
+;; Postgres is not happy with JSON fields which are in group-bys or order-bys
+;; being described twice instead of using the alias.
+;; Therefore, force the alias, but only for JSON fields to avoid ambiguity.
+;; The alias names in JSON fields are unique wrt nfc path
+(defmethod sql.qp/apply-top-level-clause
+  [:postgres :breakout]
+  [driver clause honeysql-form {breakout-fields :breakout, _fields-fields :fields :as query}]
+  (let [stored-field-ids (map second breakout-fields)
+        stored-fields    (map #(when (integer? %) (qp.store/field %)) stored-field-ids)
+        parent-method    (partial (get-method sql.qp/apply-top-level-clause [:sql :breakout])
+                                  driver clause honeysql-form)
+        qualified        (parent-method query)
+        unqualified      (parent-method (update query
+                                                :breakout
+                                                #(sql.qp/rewrite-fields-to-force-using-column-aliases % {:is-breakout true})))]
+    (if (some field/json-field? stored-fields)
+      (merge qualified
+             (select-keys unqualified #{:group-by}))
+      qualified)))
+
+(defn- order-by-is-json-field?
+  [clause]
+  (let [is-aggregation? (= (-> clause (second) (first)) :aggregation)
+        stored-field-id (-> clause (second) (second))
+        stored-field    (when (and (not is-aggregation?) (integer? stored-field-id))
+                          (qp.store/field stored-field-id))]
+    (and
+      (some? stored-field)
+      (field/json-field? stored-field))))
+
+(defmethod sql.qp/->honeysql [:postgres :desc]
+  [driver clause]
+  (let [new-clause (if (order-by-is-json-field? clause)
+                     (sql.qp/rewrite-fields-to-force-using-column-aliases clause)
+                     clause)]
+    ((get-method sql.qp/->honeysql [:sql :desc]) driver new-clause)))
+
+(defmethod sql.qp/->honeysql [:postgres :asc]
+  [driver clause]
+  (let [new-clause (if (order-by-is-json-field? clause)
+                     (sql.qp/rewrite-fields-to-force-using-column-aliases clause)
+                     clause)]
+    ((get-method sql.qp/->honeysql [:sql :asc]) driver new-clause)))
 
 (defmethod unprepare/unprepare-value [:postgres Date]
   [_ value]
@@ -327,11 +560,30 @@
    (keyword "double precision")           :type/Float
    (keyword "time with time zone")        :type/Time
    (keyword "time without time zone")     :type/Time
-   (keyword "timestamp with timezone")    :type/DateTime
-   (keyword "timestamp without timezone") :type/DateTime})
+   ;; TODO postgres also supports `timestamp(p) with time zone` where p is the precision
+   ;; maybe we should switch this to use `sql-jdbc.sync/pattern-based-database-type->base-type`
+   (keyword "timestamp with time zone")    :type/DateTimeWithTZ
+   (keyword "timestamp without time zone") :type/DateTime})
+
+(doseq [[base-type db-type] {:type/BigInteger          "BIGINT"
+                             :type/Boolean             "BOOL"
+                             :type/Date                "DATE"
+                             :type/DateTime            "TIMESTAMP"
+                             :type/DateTimeWithTZ      "TIMESTAMP WITH TIME ZONE"
+                             :type/DateTimeWithLocalTZ "TIMESTAMP WITH TIME ZONE"
+                             :type/Decimal             "DECIMAL"
+                             :type/Float               "FLOAT"
+                             :type/Integer             "INTEGER"
+                             :type/IPAddress           "INET"
+                             :type/Text                "TEXT"
+                             :type/Time                "TIME"
+                             :type/TimeWithTZ          "TIME WITH TIME ZONE"
+                             :type/UUID                "UUID"}]
+  ;; todo: we get DB types in the metadata, let's persist these in model metadata
+  (defmethod ddl.i/field-base-type->sql-type [:postgres base-type] [_ _] db-type))
 
 (defmethod sql-jdbc.sync/database-type->base-type :postgres
-  [driver column]
+  [_driver column]
   (if (contains? *enum-types* column)
     :type/PostgresEnum
     (default-base-types column)))
@@ -346,34 +598,43 @@
     "inet"  :type/IPAddress
     nil))
 
+(defn- pkcs-12-key-value?
+  "If a value was uploaded for the SSL key, return whether it's using the PKCS-12 format."
+  [ssl-key-value]
+  (when ssl-key-value
+    (= (second (re-find secret/uploaded-base-64-prefix-pattern ssl-key-value))
+       "x-pkcs12")))
+
 (defn- ssl-params
   "Builds the params to include in the JDBC connection spec for an SSL connection."
-  [db-details]
+  [{:keys [ssl-key-value] :as db-details}]
   (let [ssl-root-cert   (when (contains? #{"verify-ca" "verify-full"} (:ssl-mode db-details))
                           (secret/db-details-prop->secret-map db-details "ssl-root-cert"))
         ssl-client-key  (when (:ssl-use-client-auth db-details)
-                          (secret/db-details-prop->secret-map db-details "ssl-client-key"))
+                          (secret/db-details-prop->secret-map db-details "ssl-key"))
         ssl-client-cert (when (:ssl-use-client-auth db-details)
                           (secret/db-details-prop->secret-map db-details "ssl-client-cert"))
         ssl-key-pw      (when (:ssl-use-client-auth db-details)
                           (secret/db-details-prop->secret-map db-details "ssl-key-password"))
-        all-subprops    (apply concat (map :subprops [ssl-root-cert ssl-client-key ssl-client-cert ssl-key-pw]))]
+        all-subprops    (apply concat (map :subprops [ssl-root-cert ssl-client-key ssl-client-cert ssl-key-pw]))
+        has-value?      (comp some? :value)]
     (cond-> (set/rename-keys db-details {:ssl-mode :sslmode})
       ;; if somehow there was no ssl-mode set, just make it required (preserves existing behavior)
       (nil? (:ssl-mode db-details))
       (assoc :sslmode "require")
 
-      ssl-root-cert
+      (has-value? ssl-root-cert)
       (assoc :sslrootcert (secret/value->file! ssl-root-cert :postgres))
 
-      ssl-client-key
-      (assoc :sslkey (secret/value->file! ssl-client-key :postgres))
+      (has-value? ssl-client-key)
+      (assoc :sslkey (secret/value->file! ssl-client-key :postgres (when (pkcs-12-key-value? ssl-key-value) ".p12")))
 
-      ssl-client-cert
+      (has-value? ssl-client-cert)
       (assoc :sslcert (secret/value->file! ssl-client-cert :postgres))
 
-      ssl-key-pw
-      (assoc :sslpassword (secret/value->string ssl-key-pw))
+      ;; Pass an empty string as password if none is provided; otherwise the driver will prompt for one
+      true
+      (assoc :sslpassword (or (secret/value->string ssl-key-pw) ""))
 
       true
       (as-> params ;; from outer cond->
@@ -388,12 +649,12 @@
 (defmethod sql-jdbc.conn/connection-details->spec :postgres
   [_ {ssl? :ssl, :as details-map}]
   (let [props (-> details-map
-                (update :port (fn [port]
-                                (if (string? port)
-                                  (Integer/parseInt port)
-                                  port)))
-                ;; remove :ssl in case it's false; DB will still try (& fail) to connect if the key is there
-                (dissoc :ssl))
+                  (update :port (fn [port]
+                                  (if (string? port)
+                                    (Integer/parseInt port)
+                                    port)))
+                  ;; remove :ssl in case it's false; DB will still try (& fail) to connect if the key is there
+                  (dissoc :ssl))
         props (if ssl?
                 (let [ssl-prms (ssl-params details-map)]
                   ;; if the user happened to specify any of the SSL options directly, allow those to take
@@ -403,10 +664,10 @@
                   ;; internal property values back; only merge in the ones the driver might recognize
                   (merge ssl-prms (select-keys props (keys ssl-prms))))
                 (merge disable-ssl-params props))
-        props (-> props
-                (set/rename-keys {:dbname :db})
-                db.spec/postgres
-                (sql-jdbc.common/handle-additional-options details-map))]
+        props (as-> props it
+                (set/rename-keys it {:dbname :db})
+                (mdb.spec/spec :postgres it)
+                (sql-jdbc.common/handle-additional-options it details-map))]
     props))
 
 (defmethod sql-jdbc.execute/set-timezone-sql :postgres
@@ -417,7 +678,7 @@
 ;; bug with the JDBC driver?
 (defmethod sql-jdbc.execute/read-column-thunk [:postgres Types/TIMESTAMP]
   [_ ^ResultSet rs ^ResultSetMetaData rsmeta ^Integer i]
-  (let [^Class klass (if (= (str/lower-case (.getColumnTypeName rsmeta i)) "timestamptz")
+  (let [^Class klass (if (= (u/lower-case-en (.getColumnTypeName rsmeta i)) "timestamptz")
                        OffsetDateTime
                        LocalDateTime)]
     (fn []
@@ -440,7 +701,7 @@
 ;; around this by checking whether the column type name is `money`, and reading it out as a String and parsing to a
 ;; BigDecimal if so; otherwise, proceeding as normal
 (defmethod sql-jdbc.execute/read-column-thunk [:postgres Types/DOUBLE]
-  [driver ^ResultSet rs ^ResultSetMetaData rsmeta ^Integer i]
+  [_driver ^ResultSet rs ^ResultSetMetaData rsmeta ^Integer i]
   (if (= (.getColumnTypeName rsmeta i) "money")
     (fn []
       (some-> (.getString rs i) u/parse-currency))

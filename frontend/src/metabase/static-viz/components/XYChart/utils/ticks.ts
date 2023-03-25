@@ -1,4 +1,8 @@
 import { TickRendererProps } from "@visx/axis";
+import { getTicks } from "@visx/scale";
+import { timeWeek, timeMonth } from "d3-time";
+
+import type { TimeInterval } from "d3-time";
 import { formatDate, DateFormatOptions } from "metabase/static-viz/lib/dates";
 import {
   formatNumber,
@@ -10,17 +14,19 @@ import {
   truncateText,
 } from "metabase/static-viz/lib/text";
 import { MAX_ROTATED_TICK_WIDTH } from "metabase/static-viz/components/XYChart/constants";
-import {
-  ChartSettings,
-  ContiniousDomain,
+import { getX } from "metabase/static-viz/components/XYChart/utils/series";
+
+import type {
   Series,
   XAxisType,
   XValue,
+  XScale,
+  ChartSettings,
 } from "metabase/static-viz/components/XYChart/types";
-import { getX } from "metabase/static-viz/components/XYChart/utils/series";
+import { ContinuousDomain } from "metabase/visualizations/shared/types/scale";
 
-export const getRotatedXTickHeight = (tickWidth: number) => {
-  return Math.ceil(Math.sqrt(Math.pow(tickWidth, 2) / 2));
+const getRotatedXTickHeight = (tickWidth: number) => {
+  return tickWidth;
 };
 
 export const formatXTick = (
@@ -47,11 +53,15 @@ export const getXTickWidthLimit = (
   actualMaxWidth: number,
   bandwidth?: number,
 ) => {
+  if (settings.tick_display === "hide") {
+    return 0;
+  }
+
   if (settings.type !== "ordinal" || !bandwidth) {
     return Infinity;
   }
 
-  return settings.tick_display === "rotate-45"
+  return settings.tick_display === "rotate-90"
     ? Math.min(actualMaxWidth, MAX_ROTATED_TICK_WIDTH)
     : bandwidth;
 };
@@ -61,6 +71,14 @@ export const getXTicksDimensions = (
   settings: ChartSettings["x"],
   fontSize: number,
 ) => {
+  if (settings.tick_display === "hide") {
+    return {
+      width: 0,
+      height: 0,
+      maxTextWidth: 0,
+    };
+  }
+
   const maxTextWidth = series
     .flatMap(s => s.data)
     .map(datum => {
@@ -69,49 +87,51 @@ export const getXTicksDimensions = (
     })
     .reduce((a, b) => Math.max(a, b), 0);
 
-  if (settings.tick_display === "rotate-45") {
+  if (settings.tick_display === "rotate-90") {
     const rotatedSize = getRotatedXTickHeight(maxTextWidth);
 
     return {
-      width: rotatedSize,
-      height: rotatedSize,
+      width: measureTextHeight(fontSize),
+      height: Math.min(rotatedSize, MAX_ROTATED_TICK_WIDTH),
       maxTextWidth,
     };
   }
 
   return {
+    width: Math.min(maxTextWidth, MAX_ROTATED_TICK_WIDTH),
     height: measureTextHeight(fontSize),
-    width: maxTextWidth,
     maxTextWidth,
   };
 };
 
 export const getXTickProps = (
-  props: TickRendererProps,
+  { x, y, formattedValue, ...props }: TickRendererProps,
   tickFontSize: number,
   truncateToWidth: number,
   shouldRotate?: boolean,
-): TickRendererProps => {
+): Omit<TickRendererProps, "formattedValue"> => {
   const value =
     truncateToWidth != null
-      ? truncateText(props.formattedValue || "", truncateToWidth, tickFontSize)
-      : props.formattedValue;
+      ? truncateText(formattedValue || "", truncateToWidth, tickFontSize)
+      : formattedValue;
 
   const textBaseline = Math.floor(tickFontSize / 2);
   const transform = shouldRotate
-    ? `rotate(45, ${props.x} ${props.y}) translate(-${textBaseline} 0)`
+    ? `rotate(-90, ${x} ${y}) translate(${textBaseline}, ${Math.floor(
+        tickFontSize / 3,
+      )})`
     : undefined;
 
-  const textAnchor = shouldRotate ? "start" : "middle";
+  const textAnchor = shouldRotate ? "end" : "middle";
 
-  return { ...props, transform, children: value, textAnchor };
+  return { x, y, ...props, transform, children: value, textAnchor };
 };
 
 export const getDistinctXValuesCount = (series: Series[]) =>
   new Set(series.flatMap(s => s.data).map(getX)).size;
 
 export const calculateYTickWidth = (
-  domain: ContiniousDomain,
+  domain: ContinuousDomain,
   settings: ChartSettings["y"]["format"],
   fontSize: number,
 ) => {
@@ -125,8 +145,8 @@ export const calculateYTickWidth = (
 export const getYTickWidths = (
   settings: ChartSettings["y"]["format"],
   fontSize: number,
-  leftYDomain?: ContiniousDomain,
-  rightYDomain?: ContiniousDomain,
+  leftYDomain?: ContinuousDomain,
+  rightYDomain?: ContinuousDomain,
 ) => {
   return {
     left:
@@ -139,3 +159,31 @@ export const getYTickWidths = (
         : 0,
   };
 };
+
+export function fixTimeseriesTicksExceedXTickCount(
+  xScaleType: XAxisType,
+  xScale: XScale["scale"],
+  numTicks: number,
+) {
+  const defaultTicks = getTicks(xScale, numTicks);
+
+  if (xScaleType === "timeseries" && defaultTicks.length > numTicks) {
+    let minLengthTicks = defaultTicks;
+    const candidateTickIntervals = [
+      timeWeek.every(2) as TimeInterval,
+      timeMonth.every(2) as TimeInterval,
+    ];
+    candidateTickIntervals
+      .map(tickInterval => getTicks(xScale, tickInterval as unknown as number))
+      .filter(ticks => ticks.length > 0)
+      .forEach(ticks => {
+        if (ticks.length < minLengthTicks.length) {
+          minLengthTicks = ticks;
+        }
+      });
+
+    return minLengthTicks;
+  }
+
+  return defaultTicks;
+}

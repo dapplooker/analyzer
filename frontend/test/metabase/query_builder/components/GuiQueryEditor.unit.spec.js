@@ -2,12 +2,12 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 
 import GuiQueryEditor from "metabase/query_builder/components/GuiQueryEditor";
-import Question from "metabase-lib/lib/Question";
 import {
-  SAMPLE_DATASET,
+  SAMPLE_DATABASE,
   ORDERS,
   metadata,
-} from "__support__/sample_dataset_fixture";
+} from "__support__/sample_database_fixture";
+import Question from "metabase-lib/Question";
 
 const getGuiQueryEditor = query => (
   <GuiQueryEditor
@@ -24,7 +24,7 @@ const getGuiQueryEditor = query => (
 describe("GuiQueryEditor", () => {
   it("should allow adding the first breakout", () => {
     const query = Question.create({
-      databaseId: SAMPLE_DATASET.id,
+      databaseId: SAMPLE_DATABASE.id,
       tableId: ORDERS.id,
       metadata,
     })
@@ -41,7 +41,7 @@ describe("GuiQueryEditor", () => {
 
   it("should allow adding more than one breakout", () => {
     const query = Question.create({
-      databaseId: SAMPLE_DATASET.id,
+      databaseId: SAMPLE_DATABASE.id,
       tableId: ORDERS.id,
       metadata,
     })

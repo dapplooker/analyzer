@@ -15,8 +15,9 @@
 
     \"SET @@session.time_zone = %s;\"
 
-  This method is only called for drivers using the default implementatation of `connection-with-timezone`; it should
-  be considered deprecated in favor of implementing `connection-with-timezone` directly."
+  This method is only called for drivers using the default implementation
+  of [[metabase.driver.sql-jdbc.execute/connection-with-timezone]]; it should be considered deprecated in favor of
+  implementing `connection-with-timezone` directly."
   {:deprecated "0.35.0", :arglists '([driver])}
   driver/dispatch-on-initialized-driver
   :hierarchy #'driver/hierarchy)
@@ -41,7 +42,7 @@
   :hierarchy #'driver/hierarchy)
 
 (defmethod read-column :default
-  [_ col-type ^ResultSet rs _ ^Integer i]
+  [_ _col-type ^ResultSet rs _ ^Integer i]
   (.getObject rs i))
 
 (defn- get-object-of-class [^ResultSet rs, ^Integer index, ^Class klass]

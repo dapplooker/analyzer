@@ -6,14 +6,11 @@ import { t } from "ttag";
 import cx from "classnames";
 import _ from "underscore";
 
-import TagEditorParam from "./TagEditorParam";
-import CardTagEditor from "./CardTagEditor";
-import TagEditorHelp from "./TagEditorHelp";
 import SidebarContent from "metabase/query_builder/components/SidebarContent";
-
 import * as MetabaseAnalytics from "metabase/lib/analytics";
-
-import NativeQuery from "metabase-lib/lib/queries/NativeQuery";
+import NativeQuery from "metabase-lib/queries/NativeQuery";
+import TagEditorParam from "./TagEditorParam";
+import TagEditorHelp from "./TagEditorHelp";
 
 export default class TagEditorSidebar extends React.Component {
   state = {
@@ -24,7 +21,7 @@ export default class TagEditorSidebar extends React.Component {
     card: PropTypes.object.isRequired,
     onClose: PropTypes.func.isRequired,
     databaseFields: PropTypes.array,
-    sampleDatasetId: PropTypes.number,
+    sampleDatabaseId: PropTypes.number,
     setDatasetQuery: PropTypes.func.isRequired,
     setTemplateTag: PropTypes.func.isRequired,
     setParameterValue: PropTypes.func.isRequired,
@@ -43,15 +40,14 @@ export default class TagEditorSidebar extends React.Component {
     const {
       databases,
       databaseFields,
-      sampleDatasetId,
+      sampleDatabaseId,
       setDatasetQuery,
       query,
       setTemplateTag,
       setParameterValue,
       onClose,
     } = this.props;
-    // The tag editor sidebar excludes snippets since they have a separate sidebar.
-    const tags = query.templateTagsWithoutSnippets();
+    const tags = query.variableTemplateTags();
     const database = query.database();
     const parameters = query.question().parameters();
     const parametersById = _.indexBy(parameters, "id");
@@ -65,7 +61,7 @@ export default class TagEditorSidebar extends React.Component {
 
     return (
       <SidebarContent title={t`Variables`} onClose={onClose}>
-        <div>
+        <div data-testid="tag-editor-sidebar">
           <div className="mx3 text-centered Button-group Button-group--brand text-uppercase mb2 flex flex-full">
             <a
               className={cx("Button flex-full Button--small", {
@@ -88,15 +84,13 @@ export default class TagEditorSidebar extends React.Component {
               databaseFields={databaseFields}
               database={database}
               databases={databases}
-              query={query}
-              setDatasetQuery={setDatasetQuery}
               setTemplateTag={setTemplateTag}
               setParameterValue={setParameterValue}
             />
           ) : (
             <TagEditorHelp
               database={database}
-              sampleDatasetId={sampleDatasetId}
+              sampleDatabaseId={sampleDatabaseId}
               setDatasetQuery={setDatasetQuery}
               switchToSettings={() => this.setSection("settings")}
             />
@@ -113,31 +107,22 @@ const SettingsPane = ({
   databaseFields,
   database,
   databases,
-  query,
-  setDatasetQuery,
   setTemplateTag,
   setParameterValue,
 }) => (
   <div>
     {tags.map(tag => (
       <div key={tags.name}>
-        {tag.type === "card" ? (
-          <CardTagEditor
-            query={query}
-            setDatasetQuery={setDatasetQuery}
-            tag={tag}
-          />
-        ) : (
-          <TagEditorParam
-            tag={tag}
-            parameter={parametersById[tag.id]}
-            databaseFields={databaseFields}
-            database={database}
-            databases={databases}
-            setTemplateTag={setTemplateTag}
-            setParameterValue={setParameterValue}
-          />
-        )}
+        <TagEditorParam
+          tag={tag}
+          key={tags.name}
+          parameter={parametersById[tag.id]}
+          databaseFields={databaseFields}
+          database={database}
+          databases={databases}
+          setTemplateTag={setTemplateTag}
+          setParameterValue={setParameterValue}
+        />
       </div>
     ))}
   </div>

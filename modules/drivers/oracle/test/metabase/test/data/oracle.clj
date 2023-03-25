@@ -36,12 +36,13 @@
 ;; Session password is only used when creating session user, not anywhere else
 
 (defn- connection-details []
-  (let [details* {:host     (tx/db-test-env-var-or-throw :oracle :host)
-                  :port     (Integer/parseInt (tx/db-test-env-var-or-throw :oracle :port "1521"))
-                  :user     (tx/db-test-env-var-or-throw :oracle :user)
-                  :password (tx/db-test-env-var-or-throw :oracle :password)
-                  :sid      (tx/db-test-env-var-or-throw :oracle :sid)
-                  :ssl      (tx/db-test-env-var :oracle :ssl false)}
+  (let [details* {:host         (tx/db-test-env-var-or-throw :oracle :host "localhost")
+                  :port         (Integer/parseInt (tx/db-test-env-var-or-throw :oracle :port "1521"))
+                  :user         (tx/db-test-env-var-or-throw :oracle :user "system")
+                  :password     (tx/db-test-env-var-or-throw :oracle :password "password")
+                  :sid          (tx/db-test-env-var :oracle :sid)
+                  :service-name (tx/db-test-env-var :oracle :service-name (when-not (tx/db-test-env-var :oracle :sid) "XEPDB1"))
+                  :ssl          (tx/db-test-env-var :oracle :ssl false)}
         ssl-keys [:ssl-use-truststore :ssl-truststore-options :ssl-truststore-path :ssl-truststore-value
                   :ssl-truststore-password-value
                   :ssl-use-keystore :ssl-use-keystore-options :ssl-keystore-path :ssl-keystore-value
@@ -55,6 +56,8 @@
     (identity conn-details)))
 
 (defmethod tx/sorts-nil-first? :oracle [_ _] false)
+
+(defmethod tx/supports-time-type? :oracle [_driver] false)
 
 (doseq [[base-type sql-type] {:type/BigInteger             "NUMBER(*,0)"
                               :type/Boolean                "NUMBER(1)"
@@ -173,8 +176,7 @@
        "INSERT ALL %s SELECT * FROM dual"
        (str/join
         " "
-        (for [row  (u/one-or-many row-or-rows)
-              :let [columns (keys row)]]
+        (for [row (u/one-or-many row-or-rows)]
           (str/replace
            (hformat/to-sql
             ((get-method ddl/insert-rows-honeysql-form :sql/test-extensions) driver table-identifier row))

@@ -3,9 +3,9 @@ import PropTypes from "prop-types";
 import { t } from "ttag";
 import { connect } from "react-redux";
 
-import { useAsyncFunction } from "metabase/hooks/use-async-function";
+import { useSafeAsyncFunction } from "metabase/hooks/use-safe-async-function";
 import Tables from "metabase/entities/tables";
-import Table from "metabase-lib/lib/metadata/Table";
+import Table from "metabase-lib/metadata/Table";
 
 import {
   Description,
@@ -20,10 +20,11 @@ import ConnectedTables from "./ConnectedTables";
 
 type OwnProps = {
   className?: string;
-  tableId: number;
+  tableId: Table["id"];
+  onConnectedTableClick?: (table: Table) => void;
 };
 
-const mapStateToProps = (state: any, props: OwnProps) => {
+const mapStateToProps = (state: any, props: OwnProps): { table?: Table } => {
   return {
     table: Tables.selectors.getObject(state, {
       entityId: props.tableId,
@@ -32,8 +33,8 @@ const mapStateToProps = (state: any, props: OwnProps) => {
 };
 
 const mapDispatchToProps: {
-  fetchForeignKeys: (args: { id: number }) => Promise<any>;
-  fetchMetadata: (args: { id: number }) => Promise<any>;
+  fetchForeignKeys: (args: { id: Table["id"] }) => Promise<any>;
+  fetchMetadata: (args: { id: Table["id"] }) => Promise<any>;
 } = {
   fetchForeignKeys: Tables.actions.fetchForeignKeys,
   fetchMetadata: Tables.actions.fetchMetadata,
@@ -42,7 +43,7 @@ const mapDispatchToProps: {
 TableInfo.propTypes = {
   className: PropTypes.string,
   tableId: PropTypes.number.isRequired,
-  table: PropTypes.instanceOf(Table).isRequired,
+  table: PropTypes.instanceOf(Table),
   fetchForeignKeys: PropTypes.func.isRequired,
   fetchMetadata: PropTypes.func.isRequired,
 };
@@ -56,17 +57,19 @@ function useDependentTableMetadata({
   table,
   fetchForeignKeys,
   fetchMetadata,
-}: Omit<AllProps, "className">) {
-  const shouldFetchMetadata = !table.numFields();
+}: Pick<AllProps, "tableId" | "table" | "fetchForeignKeys" | "fetchMetadata">) {
+  const isMissingFields = !table?.numFields();
+  const isMissingFks = table?.fks == null;
+  const shouldFetchMetadata = isMissingFields || isMissingFks;
   const [hasFetchedMetadata, setHasFetchedMetadata] = useState(
     !shouldFetchMetadata,
   );
-  const fetchDependentData = useAsyncFunction(() => {
+  const fetchDependentData = useSafeAsyncFunction(() => {
     return Promise.all([
-      fetchForeignKeys({ id: tableId }),
-      fetchMetadata({ id: tableId }),
+      isMissingFields && fetchMetadata({ id: tableId }),
+      isMissingFks && fetchForeignKeys({ id: tableId }),
     ]);
-  }, [tableId, fetchForeignKeys, fetchMetadata]);
+  }, [fetchMetadata, tableId, isMissingFks, isMissingFields, fetchForeignKeys]);
 
   useEffect(() => {
     if (shouldFetchMetadata) {
@@ -85,8 +88,9 @@ export function TableInfo({
   table,
   fetchForeignKeys,
   fetchMetadata,
+  onConnectedTableClick,
 }: AllProps): JSX.Element {
-  const description = table.description;
+  const description = table?.description;
   const hasFetchedMetadata = useDependentTableMetadata({
     tableId,
     table,
@@ -108,10 +112,15 @@ export function TableInfo({
           </AbsoluteContainer>
         </Fade>
         <Fade visible={hasFetchedMetadata}>
-          <ColumnCount table={table} />
+          {table && <ColumnCount table={table} />}
         </Fade>
         <Fade visible={hasFetchedMetadata}>
-          <ConnectedTables table={table} />
+          {table && (
+            <ConnectedTables
+              table={table}
+              onConnectedTableClick={onConnectedTableClick}
+            />
+          )}
         </Fade>
       </MetadataContainer>
     </InfoContainer>
