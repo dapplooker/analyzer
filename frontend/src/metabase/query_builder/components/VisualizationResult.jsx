@@ -71,7 +71,7 @@ export default class VisualizationResult extends Component {
             message={t`This may be the answer you’re looking for. If not, try removing or changing your filters to make them less specific.`}
             action={
               <div>
-                {supportsRowsPresentAlert && !isDirty && (
+                {/* {supportsRowsPresentAlert && !isDirty && (
                   <p>
                     {jt`You can also ${(
                       <a className="link" onClick={this.showCreateAlertModal}>
@@ -79,7 +79,7 @@ export default class VisualizationResult extends Component {
                       </a>
                     )} when there are some results.`}
                   </p>
-                )}
+                )} */}
                 <button
                   className="Button"
                   onClick={() => window.history.back()}
