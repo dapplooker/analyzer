@@ -31,10 +31,12 @@ export interface AppBarLargeProps {
 const DappLookerHeaderLinks = (): JSX.Element => {
   const DAPPLOOKER_DISCOVER_LINK = "https://dapplooker.com/browse/dashboards?sort=popular";
   const DAPPLOOKER_MYPROJECT_LINK = "https://dapplooker.com/user/dashboard";
+  const ANALYZER_BROWSE_DATA_LINK = "https://analytics.dapplooker.com/browse/2";
 
   const anchorTagStyle = {
     color: "#4C5773",
     fontWeight: 700,
+    minwidth: "fit-content",
   }
 
   const changeTextColorOnHover = (e:any) => {
@@ -57,6 +59,11 @@ const DappLookerHeaderLinks = (): JSX.Element => {
         onMouseEnter={changeTextColorOnHover}
         onMouseLeave={resetTextColor}
         style={anchorTagStyle}>My Dashboard</a>
+      <a
+        href={ANALYZER_BROWSE_DATA_LINK}
+        onMouseEnter={changeTextColorOnHover}
+        onMouseLeave={resetTextColor}
+        style={anchorTagStyle}>Browse Data</a>
     </>
   )
 }

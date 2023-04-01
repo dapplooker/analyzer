@@ -1,67 +1,25 @@
-# Metabase
+# DappLooker Query Builder
 
-[Metabase](https://www.metabase.com) is the easy, open-source way for everyone in your company to ask questions and learn from data.
+[DappLooker Query Builder](https://analytics.dapplooker.com/) is an intuitive, no-code tool that empowers users to write SQL queries and build stunning charts and dashboards with ease. Built on top of Metabase, our library offers a seamless user experience that simplifies the process of analyzing complex data sets. With DappLooker Query Builder, you can quickly generate insights that help you make informed decisions and drive business growth. Say goodbye to manual coding and hello to effortless data visualization.
 
-![Metabase Product Screenshot](docs/images/metabase-product-screenshot.svg)
-
-[![Latest Release](https://img.shields.io/github/release/metabase/metabase.svg?label=latest%20release)](https://github.com/metabase/metabase/releases)
-[![Circle CI](https://circleci.com/gh/metabase/metabase.svg?style=svg&circle-token=3ccf0aa841028af027f2ac9e8df17ce603e90ef9)](https://circleci.com/gh/metabase/metabase)
-[![codecov](https://codecov.io/gh/metabase/metabase/branch/master/graph/badge.svg)](https://codecov.io/gh/metabase/metabase)
-![Docker Pulls](https://img.shields.io/docker/pulls/metabase/metabase)
+![Screenshot](docs/images/Display-image.png)
 
 ## Features
 
-- [Set up in five minutes](https://www.metabase.com/docs/latest/setting-up-metabase.html) (we're not kidding).
-- Let anyone on your team [ask questions](https://www.metabase.com/docs/latest/users-guide/04-asking-questions.html) without knowing SQL.
-- Use the [SQL editor](https://www.metabase.com/docs/latest/users-guide/writing-sql.html) for more complex queries.
-- Build handsome, interactive [dashboards](https://www.metabase.com/docs/latest/users-guide/07-dashboards.html) with filters, auto-refresh, fullscreen, and custom click behavior.
-- Create [models](https://www.metabase.com/learn/getting-started/models) that clean up, annotate, and/or combine raw tables.
-- Define canonical [segments and metrics](https://www.metabase.com/docs/latest/administration-guide/07-segments-and-metrics.html) for your team to use.
-- Send data to Slack or email on a schedule with [dashboard subscriptions](https://www.metabase.com/docs/latest/users-guide/dashboard-subscriptions).
-- Set up [alerts](https://www.metabase.com/docs/latest/users-guide/15-alerts.html) to have Metabase notify you when your data changes.
-- [Embed charts and dashboards](https://www.metabase.com/docs/latest/administration-guide/13-embedding.html) in your app, or even [your entire Metabase](https://www.metabase.com/docs/latest/enterprise-guide/full-app-embedding.html).
+- **User-Friendly Analytics:** The library is designed to provide non-technical users with the ability to run analytics on Blockchain Networks and Dapps without requiring them to have technical expertise.
+- **No-Code Chart & Dashboard Building:** The library allows any member of your team to build charts and dashboards without needing to know SQL.
+- **SQL Editor:** Advanced users can use the SQL editor for more complex queries, giving them greater flexibility in their data analysis.
+- **Interactive Dashboards:** The library's dashboard builder enables users to create attractive, interactive dashboards with filters, auto-refresh, fullscreen, and custom click behavior, providing a dynamic experience for users.
+- **Canonical Segments and Metrics** The library enables users to define canonical segments and metrics for their community to use, ensuring consistency in data analysis.
+- **Embedding Capabilities:** Charts and dashboards can be embedded within your application, providing a seamless experience for your users.
+- **Dashboard Sharing:** Users can share dashboards and charts with their community, enabling others to view and use them for their own analysis.
 
-Take a [tour of Metabase](https://www.metabase.com/learn/getting-started/tour-of-metabase).
+Take a [tour of Query Builder](https://www.youtube.com/watch?v=JVgheSmgg1s)
 
-## Supported databases
+## Resources
 
-- [Officially supported databases](../../databases/connecting.md#connecting-to-supported-databases)
-- [Community-supported drivers](../partner-and-community-drivers.md#community-drivers)
-
-## Installation
-
-Metabase can be run just about anywhere. Check out our [Installation Guides](https://www.metabase.com/docs/latest/operations-guide/installing-metabase.html).
-
-## Contributing
-
-To get started with a development installation of the Metabase, check out our [Developers Guide](https://www.metabase.com/docs/latest/developers-guide/start).
-
-## Internationalization
-
-We want Metabase to be available in as many languages as possible. See which translations are available and help contribute to internationalization using our project over at [POEditor](https://poeditor.com/join/project/ynjQmwSsGh). You can also check out our [policies on translations](https://www.metabase.com/docs/latest/administration-guide/localization.html).
-
-## Extending Metabase
-
-Metabase also allows you to hit our Query API directly from Javascript to integrate the simple analytics we provide with your own application or third party services to do things like:
-
-- Build moderation interfaces.
-- Export subsets of your users to third party marketing automation software.
-- Provide a specialized customer lookup application for the people in your company.
-
-Check out our guide, [Working with the Metabase API](https://www.metabase.com/learn/administration/metabase-api).
-
-## Security Disclosure
-
-See [SECURITY.md](./SECURITY.md) for details.
-
-## License
-
-This repository contains the source code for both the Open Source edition of Metabase, released under the AGPL, as well as the [commercial editions of Metabase](https://www.metabase.com/pricing), which are released under the Metabase Commercial Software License.
-
-See [LICENSE.txt](./LICENSE.txt) for details.
-
-Unless otherwise noted, all files © 2022 Metabase, Inc.
-
-## [Metabase Experts](https://www.metabase.com/partners/)
-
-If you’d like more technical resources to set up your data stack with Metabase, connect with a [Metabase Expert](https://www.metabase.com/partners/?utm_source=readme&utm_medium=metabase-expetrs&utm_campaign=readme).
+- [DappLooker Features](https://dapplooker.com/#features)
+- [Network Integrations Details](https://dapplooker.com/integration)
+- [Discover Charts and Dashboards](https://dapplooker.com/explorer)
+- [Ecosystem Partners](https://dapplooker.com/#partner)
+- [Documentation](https://dapplooker.notion.site/dapplooker/Dapplooker-Documentation-f3113336bdce4ecea688fa0ba69cec98)

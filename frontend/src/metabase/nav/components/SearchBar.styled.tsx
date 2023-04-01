@@ -19,7 +19,7 @@ const activeInputCSS = css`
 `;
 
 export const SearchBarRoot = styled.div`
-  width: 44%;
+  width: 35%;
 
   ${breakpointMinSmall} {
     position: relative;

@@ -211,7 +211,7 @@
            (cond-> (assoc view-log :model_object model-object)
              (:dataset model-object) (assoc :model "dataset")
              (:is_app_page model-object) (assoc :model "page")))
-         (take 5))))
+         (take 12))))
 
 (defn- official?
   "Returns true if the item belongs to an official collection. False otherwise. Assumes that `:authority_level` exists
@@ -284,7 +284,7 @@
          (sort-by :score)
          reverse
          order-items
-         (take 5)
+         (take 12)
          (map #(dissoc % :score)))))
 
 (define-routes)

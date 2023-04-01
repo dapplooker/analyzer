@@ -31,10 +31,11 @@ export const AppBarLeftContainer = styled.div<AppBarLeftContainerProps>`
   min-width: 5rem;
 
   ${SidebarButton} {
-    opacity: ${props => (props.isNavBarEnabled ? 0 : 1)};
+    /* opacity: ${props => (props.isNavBarEnabled ? 0 : 1)}; */
+    opacity: 1;
   }
 
-  &:hover {
+  /* &:hover {
     ${LogoLink} {
       opacity: ${props => (props.isNavBarEnabled ? 0 : 1)};
       pointer-events: ${props => (props.isNavBarEnabled ? "none" : "")};
@@ -43,7 +44,7 @@ export const AppBarLeftContainer = styled.div<AppBarLeftContainerProps>`
     ${SidebarButton} {
       opacity: ${props => (props.isNavBarEnabled ? 1 : 0)};
     }
-  }
+  } */
 `;
 
 export const AppBarRightContainer = styled.div`
@@ -51,7 +52,7 @@ export const AppBarRightContainer = styled.div`
   flex: 1 1 auto;
   align-items: center;
   gap: 1rem;
-  max-width: 35.5rem;
+  max-width: 46.5rem;
   justify-content: end;
 `;
 

@@ -22,7 +22,7 @@ export const LogoLink = styled(Link)`
 
 export const ToggleContainer = styled.div`
   position: absolute;
-  top: 0.625rem;
-  left: 0.9375rem;
+  top: 1.2rem;
+  left: -0.6rem;
   transition: opacity 0.3s;
 `;
