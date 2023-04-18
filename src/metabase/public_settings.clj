@@ -171,7 +171,7 @@
 
 (defsetting ga-code
   (deferred-tru "Google Analytics tracking code.")
-  :default    "G-GTHDPZGRBR"
+  :default    "UA-197948260-1"
   :visibility :public)
 
 (defsetting ga-enabled

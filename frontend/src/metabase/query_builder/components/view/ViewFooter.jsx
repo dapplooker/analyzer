@@ -147,23 +147,23 @@ const ViewFooter = ({
               visualizationSettings={visualizationSettings}
             />
           ),
-          // QuestionAlertWidget.shouldRender({
-          //   question,
-          //   visualizationSettings,
-          // }) && (
-          //   <QuestionAlertWidget
-          //     key="alerts"
-          //     className="mx1 hide sm-show"
-          //     canManageSubscriptions={canManageSubscriptions}
-          //     question={question}
-          //     questionAlerts={questionAlerts}
-          //     onCreateAlert={() =>
-          //       question.isSaved()
-          //         ? onOpenModal("create-alert")
-          //         : onOpenModal("save-question-before-alert")
-          //     }
-          //   />
-          // ),
+          QuestionAlertWidget.shouldRender({
+            question,
+            visualizationSettings,
+          }) && (
+            <QuestionAlertWidget
+              key="alerts"
+              className="mx1 hide sm-show"
+              canManageSubscriptions={canManageSubscriptions}
+              question={question}
+              questionAlerts={questionAlerts}
+              onCreateAlert={() =>
+                question.isSaved()
+                  ? onOpenModal("create-alert")
+                  : onOpenModal("save-question-before-alert")
+              }
+            />
+          ),
           QuestionEmbedWidget.shouldRender({ question, isAdmin }) && (
             <QuestionEmbedWidgetTrigger
               key="embeds"
