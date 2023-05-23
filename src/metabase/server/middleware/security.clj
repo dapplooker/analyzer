@@ -20,7 +20,7 @@
     (mapv file-hash [ ;; inline script in index.html that sets `MetabaseBootstrap` and the like
                      "frontend_client/inline_js/index_bootstrap.js"
                      ;; inline script in index.html that loads Google Analytics
-                     "frontend_client/inline_js/index_ganalytics.js"
+                     "frontend_client/inline_js/index_googleTagManager.js"
                      ;; inline script in init.html
                      "frontend_client/inline_js/init.js"])))
 
@@ -55,6 +55,7 @@
                                    "https://maps.google.com"
                                    "https://accounts.google.com"
                                    cloudfront-domain
+                                   "https://www.googletagmanager.com"
                                    (when (public-settings/anon-tracking-enabled)
                                      "https://www.google-analytics.com")
                                    ;; for webpack hot reloading
@@ -68,11 +69,13 @@
                                     (map (partial format "'sha256-%s'") inline-js-hashes)))
                   :child-src    ["'self'"
                                  cloudfront-domain
+                                 "https://www.googletagmanager.com"
                                  ;; TODO - double check that we actually need this for Google Auth
                                  "https://accounts.google.com"]
                   :style-src    ["'self'"
                                  "'unsafe-inline'"
                                  cloudfront-domain
+                                 "https://www.googletagmanager.com"
                                  "https://accounts.google.com"]
                   :font-src     ["*"]
                   :img-src      ["*"
