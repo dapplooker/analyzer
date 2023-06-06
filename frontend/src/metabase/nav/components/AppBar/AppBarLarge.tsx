@@ -39,21 +39,21 @@ const DappLookerHeaderLinks = (): JSX.Element => {
     minwidth: "fit-content",
   }
 
-  const changeTextColorOnHover = (e:any) => {
+  const changeTextColorOnHover = (e: any) => {
     e.target.style.color = "#509ee3";
   }
 
-  const resetTextColor = (e:any) => {
+  const resetTextColor = (e: any) => {
     e.target.style.color = anchorTagStyle.color;
   }
 
   return (
     <>
-      <a
+      {/* <a
         href={DAPPLOOKER_DISCOVER_LINK}
         onMouseEnter={changeTextColorOnHover}
         onMouseLeave={resetTextColor}
-        style={anchorTagStyle}>Discover</a>
+        style={anchorTagStyle}>Discover</a> */}
       <a
         href={DAPPLOOKER_MYPROJECT_LINK}
         onMouseEnter={changeTextColorOnHover}
