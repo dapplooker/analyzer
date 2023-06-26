@@ -13,7 +13,7 @@ export const IconContainer = styled.div`
 `;
 
 interface DescriptionProps {
-    enableMouseEvents?: boolean;
+  enableMouseEvents?: boolean;
 }
 export const APIResponseDescription = styled.p<DescriptionProps>`
   margin-top: 0;
