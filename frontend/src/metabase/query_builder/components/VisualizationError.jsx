@@ -150,7 +150,7 @@ class VisualizationError extends Component {
           </QueryErrorIcon>
           <QueryErrorMessage>{processedError}</QueryErrorMessage>
           <QueryLink
-            href={"https://dapplooker.notion.site/dapplooker/DappLooker-Documentation-f3113336bdce4ecea688fa0ba69cec98"}
+            href={" https://docs.dapplooker.com/"}
           >
             {t`Learn how to debug SQL errors`}
           </QueryLink>

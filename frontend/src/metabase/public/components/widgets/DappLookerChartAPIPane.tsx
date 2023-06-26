@@ -54,7 +54,7 @@ export default function DappLookerChartAPIPane({
                 <Description className="mb2">
                     {t`Copy the API endpoint(/s), to use it and get the results in your desired format. For more details visit our`}
                     <a
-                        href="https://github.com/dapplooker/dapplooker-sdk"
+                        href="https://docs.dapplooker.com/"
                         target="_blank"
                         style={{
                             marginLeft: 4,

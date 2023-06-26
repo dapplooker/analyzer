@@ -72,7 +72,7 @@ function ProfileLink({ user, adminItems, onLogout }) {
       {
         title: t`Documentation`,
         icon: null,
-        link: 'https://dapplooker.notion.site/dapplooker/Dapplooker-Documentation-f3113336bdce4ecea688fa0ba69cec98',
+        link: ' https://docs.dapplooker.com/',
         externalLink: true,
         event: `Navbar;Profile Dropdown;About ${tag}`,
       },
