@@ -97,7 +97,7 @@ export default function DappLookerChartAPIPane({
                     {t`Open API documentation`}
                 </a>
                 <a
-                    href=""
+                    href="https://dapplooker.com/user/api"
                     target="_blank"
                     style={{
                         marginLeft: 10,
