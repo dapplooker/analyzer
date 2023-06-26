@@ -135,6 +135,12 @@ export function publicQuestion(
   );
 }
 
+export function chartApiEndPoint(uuid: string, type: string | null = null) {
+  const siteUrl = "https://api.dapplooker.com/chart";
+  const searchQuery = `?api_key=<API-KEY>&output_format=${type}`;
+  return `${siteUrl}/${uuid}` + searchQuery;
+}
+
 export function embedCard(token: string, type: string | null = null) {
   const siteUrl = MetabaseSettings.get("site-url");
   return `${siteUrl}/embed/question/${token}` + (type ? `.${type}` : ``);

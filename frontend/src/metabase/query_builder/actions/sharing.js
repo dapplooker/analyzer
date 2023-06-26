@@ -22,3 +22,8 @@ export const updateEmbeddingParams = createAction(
   UPDATE_EMBEDDING_PARAMS,
   ({ id }, embedding_params) => CardApi.update({ id, embedding_params }),
 );
+
+export const GET_CHART_API = "metabase/card/GET_CHART_API";
+export const getChartAPI = createAction(GET_CHART_API, ({ id }) => 
+  CardApi.getChartAPI({ id }),
+);
