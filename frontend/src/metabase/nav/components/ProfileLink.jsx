@@ -72,7 +72,7 @@ function ProfileLink({ user, adminItems, onLogout }) {
       {
         title: t`Documentation`,
         icon: null,
-        link: ' https://docs.dapplooker.com/',
+        link: 'https://docs.dapplooker.com/',
         externalLink: true,
         event: `Navbar;Profile Dropdown;About ${tag}`,
       },
