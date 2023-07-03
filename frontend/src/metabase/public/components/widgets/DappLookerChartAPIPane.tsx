@@ -70,6 +70,11 @@ export default function DappLookerChartAPIPane({
                     }}
                 >
                     <APIResponseDescription>
+                        {t`Copy Chart UUID`}
+                    </APIResponseDescription>
+                    <CopyWidget value={resource.public_uuid} />
+
+                    <APIResponseDescription>
                         {t`Results in JSON format`}
                     </APIResponseDescription>
                     <CopyWidget value={getChartApiEndPoint(resource, "json")} />
