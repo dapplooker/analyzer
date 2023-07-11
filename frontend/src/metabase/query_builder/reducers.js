@@ -33,6 +33,7 @@ import {
   CLEAR_OBJECT_DETAIL_FK_REFERENCES,
   SET_CURRENT_STATE,
   CREATE_PUBLIC_LINK,
+  GET_CHART_API,
   DELETE_PUBLIC_LINK,
   UPDATE_ENABLE_EMBEDDING,
   UPDATE_EMBEDDING_PARAMS,
@@ -370,6 +371,11 @@ export const card = handleActions(
 
     [CREATE_PUBLIC_LINK]: {
       next: (state, { payload }) => ({ ...state, public_uuid: payload.uuid }),
+    },
+    [GET_CHART_API]: {
+      next: (state, { payload }) => {
+        return { ...state, public_uuid: payload.uuid }
+      },
     },
     [DELETE_PUBLIC_LINK]: {
       next: (state, { payload }) => ({ ...state, public_uuid: null }),

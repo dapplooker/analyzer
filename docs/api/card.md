@@ -122,6 +122,13 @@ Generate publicly-accessible links for this Card. Returns UUID to be used in pub
   already been shared, it will return the existing public link rather than creating a new one.)  Public sharing must
   be enabled.
 
+## `POST /api/card/:card-id/dl_public_link`
+
+DappLooker's
+Generate publicly-accessible links for this Card. Returns UUID to be used in public links. (If this Card has
+  already been shared, it will return the existing public link rather than creating a new one.)  Public sharing must
+  be enabled.
+
 ### PARAMS:
 
 *  **`card-id`**

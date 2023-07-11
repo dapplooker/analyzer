@@ -31,6 +31,7 @@ import QuestionFilters, {
 } from "./QuestionFilters";
 import { QuestionSummarizeWidget } from "./QuestionSummaries";
 import NativeQueryButton from "./NativeQueryButton";
+import { QuestionAPIWidgetTrigger } from "metabase/query_builder/containers/QuestionEmbedWidget";
 import {
   AdHocViewHeading,
   SaveButton,
@@ -446,6 +447,16 @@ function ViewTitleHeaderRightSide(props) {
           onEditSummary={onEditSummary}
           onCloseSummary={onCloseSummary}
           data-metabase-event="View Mode; Open Summary Widget"
+        />
+      )}
+      {isSaved && (
+        <QuestionAPIWidgetTrigger
+          key="Chart API"
+          onClick={() =>
+            question.isSaved()
+              ? onOpenModal("get-chart-api")
+              : onOpenModal("save-question-before-embed")
+          }
         />
       )}
       {QuestionNotebookButton.shouldRender(props) && (

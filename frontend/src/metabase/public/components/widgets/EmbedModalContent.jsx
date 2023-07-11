@@ -24,6 +24,7 @@ import { getUserIsAdmin } from "metabase/selectors/user";
 import * as MetabaseAnalytics from "metabase/lib/analytics";
 import AdvancedEmbedPane from "./AdvancedEmbedPane";
 import SharingPane from "./SharingPane";
+import DappLookerChartAPIPane from "./DappLookerChartAPIPane";
 
 const mapStateToProps = (state, props) => ({
   isAdmin: getUserIsAdmin(state, props),
@@ -116,6 +117,7 @@ class EmbedModalContent extends Component {
       resourceType,
       resourceParameters,
       onClose,
+      isChartAPI,
     } = this.props;
     const {
       pane,
@@ -146,6 +148,7 @@ class EmbedModalContent extends Component {
             <EmbedTitle
               onClick={() => this.setState({ embedType: null })}
               type={embedType && titleize(embedType)}
+              isChartAPI={isChartAPI}
             />
           </h2>
           <Icon
@@ -165,22 +168,41 @@ class EmbedModalContent extends Component {
           <div className="flex-full">
             {/* Center only using margins because  */}
             <div className="ml-auto mr-auto" style={{ maxWidth: 1040 }}>
-              <SharingPane
-                {...this.props}
-                publicUrl={getUnsignedPreviewUrl(
-                  siteUrl,
-                  resourceType,
-                  resource.public_uuid,
-                  displayOptions,
-                )}
-                iframeUrl={getUnsignedPreviewUrl(
-                  siteUrl,
-                  resourceType,
-                  resource.public_uuid,
-                  displayOptions,
-                )}
-                onChangeEmbedType={embedType => this.setState({ embedType })}
-              />
+              {!isChartAPI ? (
+                <SharingPane
+                  {...this.props}
+                  publicUrl={getUnsignedPreviewUrl(
+                    siteUrl,
+                    resourceType,
+                    resource.public_uuid,
+                    displayOptions,
+                  )}
+                  iframeUrl={getUnsignedPreviewUrl(
+                    siteUrl,
+                    resourceType,
+                    resource.public_uuid,
+                    displayOptions,
+                  )}
+                  onChangeEmbedType={embedType => this.setState({ embedType })}
+                />
+              ) :
+                <DappLookerChartAPIPane
+                  {...this.props}
+                  publicUrl={getUnsignedPreviewUrl(
+                    siteUrl,
+                    resourceType,
+                    resource.public_uuid,
+                    displayOptions,
+                  )}
+                  iframeUrl={getUnsignedPreviewUrl(
+                    siteUrl,
+                    resourceType,
+                    resource.public_uuid,
+                    displayOptions,
+                  )}
+                  onChangeEmbedType={embedType => this.setState({ embedType })}
+                />
+              }
             </div>
           </div>
         ) : embedType === "application" ? (
@@ -242,9 +264,11 @@ class EmbedModalContent extends Component {
 
 export default connect(mapStateToProps)(EmbedModalContent);
 
-export const EmbedTitle = ({ type, onClick }) => (
+export const EmbedTitle = ({ type, onClick,isChartAPI }) => (
   <a className="flex align-center" onClick={onClick}>
-    <span className="text-brand-hover">{t`Sharing`}</span>
+    {!isChartAPI
+      ? <span className="text-brand-hover">{t`Sharing`}</span>
+      : <span className="text-brand-hover">{t`Chart API`}</span>}
     {type && <Icon name="chevronright" className="mx1 text-medium" />}
     {type}
   </a>

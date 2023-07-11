@@ -104,6 +104,7 @@ export const CardApi = {
   listPublic: GET("/api/card/public"),
   listEmbeddable: GET("/api/card/embeddable"),
   createPublicLink: POST("/api/card/:id/public_link"),
+  getChartAPI: POST("/api/card/:id/dl_public_link"),
   deletePublicLink: DELETE("/api/card/:id/public_link"),
   // related
   related: GET("/api/card/:cardId/related"),

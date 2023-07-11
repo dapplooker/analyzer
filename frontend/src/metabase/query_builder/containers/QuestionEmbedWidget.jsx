@@ -14,8 +14,12 @@ import * as MetabaseAnalytics from "metabase/lib/analytics";
 import { getMetadata } from "metabase/selectors/metadata";
 import { getCardUiParameters } from "metabase-lib/parameters/utils/cards";
 
+import { HeaderButton } from "../components/view/ViewHeader.styled";
+import { color } from "metabase/lib/colors";
+
 import {
   createPublicLink,
+  getChartAPI,
   deletePublicLink,
   updateEnableEmbedding,
   updateEmbeddingParams,
@@ -25,6 +29,7 @@ const QuestionEmbedWidgetPropTypes = {
   className: PropTypes.string,
   card: PropTypes.object,
   createPublicLink: PropTypes.func,
+  getChartAPI: PropTypes.func,
   deletePublicLink: PropTypes.func,
   updateEnableEmbedding: PropTypes.func,
   updateEmbeddingParams: PropTypes.func,
@@ -41,6 +46,7 @@ const mapStateToProps = (state, props) => ({
 
 const mapDispatchToProps = {
   createPublicLink,
+  getChartAPI,
   deletePublicLink,
   updateEnableEmbedding,
   updateEmbeddingParams,
@@ -51,6 +57,8 @@ class QuestionEmbedWidget extends Component {
     const {
       className,
       card,
+      isChartAPI,
+      getChartAPI,
       createPublicLink,
       deletePublicLink,
       updateEnableEmbedding,
@@ -65,6 +73,7 @@ class QuestionEmbedWidget extends Component {
         resource={card}
         resourceType="question"
         resourceParameters={getCardUiParameters(card, metadata)}
+        onGetChartApi={()=> getChartAPI(card)}
         onCreatePublicLink={() => createPublicLink(card)}
         onDisablePublicLink={() => deletePublicLink(card)}
         onUpdateEnableEmbedding={enableEmbedding =>
@@ -76,7 +85,11 @@ class QuestionEmbedWidget extends Component {
         getPublicUrl={({ public_uuid }, extension) =>
           Urls.publicQuestion(public_uuid, extension)
         }
+        getChartApiEndPoint = {({ public_uuid }, extension) =>
+          Urls.chartApiEndPoint(public_uuid, extension)
+        }
         extensions={Urls.exportFormats}
+        isChartAPI={isChartAPI}
       />
     );
   }
@@ -92,8 +105,12 @@ class QuestionEmbedWidget extends Component {
       return false;
     }
 
+    // return (
+    //   (isPublicLinksEnabled && (isAdmin || question.publicUUID())) ||
+    //   (isEmbeddingEnabled && isAdmin)
+    // );
     return (
-      (isPublicLinksEnabled && (isAdmin || question.publicUUID())) ||
+      (isPublicLinksEnabled && isAdmin) ||
       (isEmbeddingEnabled && isAdmin)
     );
   }
@@ -119,6 +136,29 @@ export function QuestionEmbedWidgetTrigger({ onClick }) {
         onClick();
       }}
     />
+  );
+}
+
+export function QuestionAPIWidgetTrigger({ onClick }) {
+  return (
+    <HeaderButton
+      large
+      labelBreakpoint="sm"
+      className="hide sm-show"
+      color={color("filter")}
+      onClick={() => {
+        MetabaseAnalytics.trackStructEvent(
+          "Sharing / Embedding",
+          "question",
+          "Sharing Link Clicked",
+        );
+        onClick();
+      }}
+      aria-label={t`Get chart API`}
+      data-metabase-event="View Mode; Open Filter Modal"
+    >
+      {t`API`}
+    </HeaderButton>
   );
 }
 

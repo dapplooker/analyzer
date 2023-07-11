@@ -228,6 +228,10 @@ class QueryModals extends React.Component {
       <Modal full onClose={onCloseModal}>
         <QuestionEmbedWidget card={this.props.card} onClose={onCloseModal} />
       </Modal>
+    ) : modal === MODAL_TYPES.GET_CHART_API ? (
+      <Modal full onClose={onCloseModal}>
+        <QuestionEmbedWidget card={this.props.card} onClose={onCloseModal} isChartAPI={true}/>
+      </Modal>
     ) : modal === MODAL_TYPES.CLONE ? (
       <Modal onClose={onCloseModal}>
         <EntityCopyModal
