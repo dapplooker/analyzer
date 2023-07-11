@@ -27,13 +27,14 @@ export interface CardRootProps {
   isPreview?: boolean;
 }
 
-export const CardRoot = styled(Link)<CardRootProps>`
+export const CardRoot = styled(Link) <CardRootProps>`
   position: relative;
   display: block;
   height: ${props => props.isPreview && "15.625rem"};
   padding: 0.5rem 0;
   border: 1px solid ${color("border")};
-  border-radius: 0.375rem;
+  /* border-radius: 0.375rem; */
+  border-radius: 4px;
   background-color: ${color("white")};
 
   &:hover {

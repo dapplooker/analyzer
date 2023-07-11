@@ -367,7 +367,7 @@ class DashboardGrid extends Component {
         breakpoints={GRID_BREAKPOINTS}
         cols={GRID_COLUMNS}
         width={width}
-        margin={{ desktop: [6, 6], mobile: [6, 10] }}
+        margin={{ desktop: [9, 9], mobile: [6, 10] }} // original {{desktop: [6,6], mobile:[6,10]}}
         containerPadding={[0, 0]}
         rowHeight={rowHeight}
         onLayoutChange={this.onLayoutChange}

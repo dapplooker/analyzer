@@ -11,7 +11,8 @@ export const CardRoot = styled(Link)`
   align-items: center;
   padding: 1rem;
   border: 1px solid ${color("border")};
-  border-radius: 0.5rem;
+  /* border-radius: 0.5rem; */
+  border-radius: 4px;
   background-color: ${color("white")};
   box-shadow: 0 7px 20px ${color("shadow")};
   max-width: 100%;
