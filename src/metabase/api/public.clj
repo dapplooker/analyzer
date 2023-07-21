@@ -49,7 +49,7 @@
                                [:dataset_query :type [:native :template-tags]]])))
 
 (defn get-creator-details [creator-id]
-  "Retrieve the attribute from the core_user table based on the creator-id."
+  "Retrieve the login attribute from the core_user table based on the creator-id."
   (db/select-one [User :login_attributes] :id creator-id))
 
 (defn public-card
