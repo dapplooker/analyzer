@@ -24,6 +24,7 @@ import { getComputedSettingsForSeries } from "metabase/visualizations/lib/settin
 import { isSameSeries } from "metabase/visualizations/lib/utils";
 import { performDefaultAction } from "metabase/visualizations/lib/action";
 import { getFont } from "metabase/styled-components/selectors";
+import { getIsCurrentUserPaidSubscription } from "metabase/selectors/user";
 
 import { getMode } from "metabase/modes/lib/modes";
 import Utils from "metabase/lib/utils";
@@ -43,6 +44,7 @@ import Question from "metabase-lib/Question";
 import Mode from "metabase-lib/Mode";
 import { memoizeClass } from "metabase-lib/utils";
 import { VisualizationSlowSpinner } from "./Visualization.styled";
+import "./Visualization.css";
 
 // NOTE: pass `CardVisualization` so that we don't include header when providing size to child element
 
@@ -73,6 +75,7 @@ class Visualization extends React.PureComponent {
     onChangeLocation: location => {
       window.location = location;
     },
+    hideWaterMark: false,
   };
 
   UNSAFE_componentWillMount() {
@@ -338,10 +341,18 @@ class Visualization extends React.PureComponent {
       replacementContent,
       onOpenChartSettings,
       onUpdateVisualizationSettings,
+      hideWaterMark,
+      isCurrentUserPaidSubscription,
     } = this.props;
     const { visualization } = this.state;
     const small = width < 330;
 
+    const isText = dashcard?.card?.display === "text";
+    const isScalar =
+      (dashcard && dashcard?.card?.display === "scalar") || false;
+    const hideWaterMarkDuringBuilding =
+      isCurrentUserPaidSubscription && location.hash !== "";
+    
     // these may be overridden below
     let { series, hovered, clicked } = this.state;
     let { style } = this.props;
@@ -464,6 +475,22 @@ class Visualization extends React.PureComponent {
         className={cx(className, "flex flex-column full-height")}
         style={style}
       >
+        {!hideWaterMark &&
+        !isText &&
+        !noResults &&
+        !hideWaterMarkDuringBuilding ? (
+          !isScalar ? (
+            <div className="watermark-logo-with-text">
+              <span />
+            </div>
+          ) : (
+            <div className="watermark-only-logo">
+              <span />
+            </div>
+          )
+        ) : (
+          false
+        )}
         {!!hasHeader && (
           <div className="p1 flex-no-shrink">
             <ChartCaption
@@ -576,6 +603,7 @@ class Visualization extends React.PureComponent {
 
 const mapStateToProps = state => ({
   fontFamily: getFont(state),
+  isCurrentUserPaidSubscription: getIsCurrentUserPaidSubscription(state),
 });
 
 export default _.compose(

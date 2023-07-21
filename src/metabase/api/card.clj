@@ -19,6 +19,7 @@
             [metabase.mbql.normalize :as mbql.normalize]
             [metabase.models :refer [Card CardBookmark Collection Database PersistedInfo Pulse Table ViewLog]]
             [metabase.models.collection :as collection]
+            [metabase.models.user :as user :refer [User]]
             [metabase.models.interface :as mi]
             [metabase.models.moderation-review :as moderation-review]
             [metabase.models.persisted-info :as persisted-info]
@@ -148,6 +149,10 @@
                      card)))
             cards))))
 
+(defn get-creator-details [creator-id]
+  "Retrieve the login attribute from the core_user table based on the creator-id."
+  (db/select-one [User :login_attributes] :id creator-id))
+
 (api/defendpoint GET "/:id"
   "Get `Card` with ID."
   [id ignore_view]
@@ -164,10 +169,32 @@
                    (:dataset raw-card) (hydrate :persisted)
                    (:is_write raw-card) (hydrate :card/action-id))
                  api/read-check
-                 (last-edit/with-last-edit-info :card))]
-    (u/prog1 card
+                 (last-edit/with-last-edit-info :card))
+        creator-details (get-creator-details (:creator_id card))]
+    (u/prog1 (assoc card :creator_details creator-details)
       (when-not (Boolean/parseBoolean ignore_view)
         (events/publish-event! :card-read (assoc <> :actor_id api/*current-user-id*))))))
+
+;; (api/defendpoint GET "/:id"
+;;   "Get `Card` with ID."
+;;   [id ignore_view]
+;;   (let [raw-card (db/select-one Card :id id)
+;;         card (-> raw-card
+;;                  (hydrate :creator
+;;                           :bookmarked
+;;                           :dashboard_count
+;;                           :can_write
+;;                           :average_query_time
+;;                           :last_query_start
+;;                           :collection [:moderation_reviews :moderator_details])
+;;                  (cond-> ;; card
+;;                    (:dataset raw-card) (hydrate :persisted)
+;;                    (:is_write raw-card) (hydrate :card/action-id))
+;;                  api/read-check
+;;                  (last-edit/with-last-edit-info :card))]
+;;     (u/prog1 card
+;;       (when-not (Boolean/parseBoolean ignore_view)
+;;         (events/publish-event! :card-read (assoc <> :actor_id api/*current-user-id*))))))
 
 (api/defendpoint GET "/:id/timelines"
   "Get the timelines for card with ID. Looks up the collection the card is in and uses that."
@@ -360,6 +387,7 @@ saved later when it is ready."
          metadata-timeout     (a/timeout metadata-sync-wait-ms)
          [metadata port]      (a/alts!! [result-metadata-chan metadata-timeout])
          timed-out?           (= port metadata-timeout)
+         creator-details      (get-creator-details (:creator_id card-data)) ; Fetch creator details
          card                 (db/transaction
                                ;; Adding a new card at `collection_position` could cause other cards in this
                                ;; collection to change position, check that and fix it if needed
@@ -373,7 +401,7 @@ saved later when it is ready."
        (log/info (trs "Metadata not available soon enough. Saving new card and asynchronously updating metadata")))
      ;; include same information returned by GET /api/card/:id since frontend replaces the Card it currently has with
      ;; returned one -- See #4283
-     (u/prog1 (-> card
+     (let [card-with-creator (-> card
                   (hydrate :creator
                            :dashboard_count
                            :can_write
@@ -382,9 +410,11 @@ saved later when it is ready."
                            :collection [:moderation_reviews :moderator_details])
                   (cond-> ;; card
                       (:is_write card) (hydrate :card/action-id))
-                  (assoc :last-edit-info (last-edit/edit-information-for-user @api/*current-user*)))
+                  (assoc :last-edit-info (last-edit/edit-information-for-user @api/*current-user*))
+                  (assoc :creator_details creator-details))]
        (when timed-out?
-         (schedule-metadata-saving result-metadata-chan <>))))))
+         (schedule-metadata-saving result-metadata-chan card-with-creator))
+        card-with-creator))))
 
 (api/defendpoint POST "/"
   "Create a new `Card`."

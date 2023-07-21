@@ -14,6 +14,7 @@
             [metabase.mbql.util :as mbql.u]
             [metabase.models.card :as card :refer [Card]]
             [metabase.models.dashboard :refer [Dashboard]]
+            [metabase.models.user :as user :refer [User]]
             [metabase.models.dimension :refer [Dimension]]
             [metabase.models.field :refer [Field]]
             [metabase.models.interface :as mi]
@@ -44,17 +45,35 @@
   [card]
   (mi/instance
    Card
-   (u/select-nested-keys card [:id :name :description :display :visualization_settings
+   (u/select-nested-keys card [:id :name :description :display :visualization_settings :creator_details
                                [:dataset_query :type [:native :template-tags]]])))
+
+(defn get-creator-details [creator-id]
+  "Retrieve the login attribute from the core_user table based on the creator-id."
+  (db/select-one [User :login_attributes] :id creator-id))
 
 (defn public-card
   "Return a public Card matching key-value `conditions`, removing all columns that should not be visible to the general
    public. Throws a 404 if the Card doesn't exist."
   [& conditions]
-  (-> (api/check-404 (apply db/select-one [Card :id :dataset_query :description :display :name :visualization_settings]
-                            :archived false, conditions))
-      remove-card-non-public-columns
-      (hydrate :param_fields)))
+  (let [card (api/check-404 (apply db/select-one [Card :id :dataset_query :description :display :name :visualization_settings :creator_id]
+                              :archived false conditions))
+        creator-id (-> card :creator_id)
+        creator-details (get-creator-details creator-id)]
+    (-> card
+        (dissoc :creator_id) ; Remove the creator_id from the card map
+        (assoc :creator_details creator-details) ; Include the logged attribute in the card map
+        remove-card-non-public-columns
+        (hydrate :param_fields))))
+
+;; (defn public-card
+;;   "Return a public Card matching key-value `conditions`, removing all columns that should not be visible to the general
+;;    public. Throws a 404 if the Card doesn't exist."
+;;   [& conditions]
+;;   (-> (api/check-404 (apply db/select-one [Card :id :dataset_query :description :display :name :visualization_settings]
+;;                             :archived false, conditions))
+;;       remove-card-non-public-columns
+;;       (hydrate :param_fields)))
 
 (defn- card-with-uuid [uuid] (public-card :public_uuid uuid))
 
@@ -166,17 +185,38 @@
   "Return a public Dashboard matching key-value `conditions`, removing all columns that should not be visible to the
    general public. Throws a 404 if the Dashboard doesn't exist."
   [& conditions]
-  (-> (api/check-404 (apply db/select-one [Dashboard :name :description :id :parameters], :archived false, conditions))
-      (hydrate [:ordered_cards :card :series] :param_fields)
-      api.dashboard/add-query-average-durations
-      (update :ordered_cards (fn [dashcards]
-                               (for [dashcard dashcards]
-                                 (-> (select-keys dashcard [:id :card :card_id :dashboard_id :series :col :row :size_x
-                                                            :size_y :parameter_mappings :visualization_settings])
-                                     (update :card remove-card-non-public-columns)
-                                     (update :series (fn [series]
-                                                       (for [series series]
-                                                         (remove-card-non-public-columns series))))))))))
+  (let [dashboard (api/check-404 (apply db/select-one [Dashboard :name :description :id :parameters :creator_id], :archived false, conditions))
+        creator-id (:creator_id dashboard)
+        creator-details (get-creator-details creator-id)]
+    (-> dashboard
+        (dissoc :creator_id)
+        (assoc :creator_details creator-details)
+        (hydrate [:ordered_cards :card :series] :param_fields)
+        api.dashboard/add-query-average-durations
+        (update :ordered_cards (fn [dashcards]
+                                 (for [dashcard dashcards]
+                                   (-> (select-keys dashcard [:id :card :card_id :dashboard_id :series :col :row :size_x
+                                                              :size_y :parameter_mappings :visualization_settings])
+                                       (update :card remove-card-non-public-columns)
+                                       (update :series (fn [series]
+                                                         (for [series series]
+                                                           (remove-card-non-public-columns series)))))))))))
+
+;; (defn public-dashboard
+;;   "Return a public Dashboard matching key-value `conditions`, removing all columns that should not be visible to the
+;;    general public. Throws a 404 if the Dashboard doesn't exist."
+;;   [& conditions]
+;;   (-> (api/check-404 (apply db/select-one [Dashboard :name :description :id :parameters], :archived false, conditions))
+;;       (hydrate [:ordered_cards :card :series] :param_fields)
+;;       api.dashboard/add-query-average-durations
+;;       (update :ordered_cards (fn [dashcards]
+;;                                (for [dashcard dashcards]
+;;                                  (-> (select-keys dashcard [:id :card :card_id :dashboard_id :series :col :row :size_x
+;;                                                             :size_y :parameter_mappings :visualization_settings])
+;;                                      (update :card remove-card-non-public-columns)
+;;                                      (update :series (fn [series]
+;;                                                        (for [series series]
+;;                                                          (remove-card-non-public-columns series))))))))))
 
 (defn- dashboard-with-uuid [uuid] (public-dashboard :public_uuid uuid))
 

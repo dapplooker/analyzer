@@ -18,6 +18,7 @@
             [metabase.models.card :refer [Card]]
             [metabase.models.collection :as collection]
             [metabase.models.dashboard :as dashboard :refer [Dashboard]]
+            [metabase.models.user :as user :refer [User]]
             [metabase.models.dashboard-card :as dashboard-card :refer [DashboardCard]]
             [metabase.models.field :refer [Field]]
             [metabase.models.interface :as mi]
@@ -203,19 +204,41 @@
   [dashboard]
   (update dashboard :ordered_cards add-query-average-duration-to-dashcards))
 
+(defn get-creator-details [creator-id]
+  "Retrieve the login attribute from the core_user table based on the creator-id."
+  (db/select-one [User :login_attributes] :id creator-id))
+
 (defn- get-dashboard
   "Get Dashboard with ID."
   [id]
-  (-> (db/select-one Dashboard :id id)
-      api/check-404
-      ;; i'm a bit worried that this is an n+1 situation here. The cards can be batch hydrated i think because they
-      ;; have a hydration key and an id. moderation_reviews currently aren't batch hydrated but i'm worried they
-      ;; cannot be in this situation
-      (hydrate [:ordered_cards [:card [:moderation_reviews :moderator_details]] :series :dashcard/action] :collection_authority_level :can_write :param_fields)
-      api/read-check
-      api/check-not-archived
-      hide-unreadable-cards
-      add-query-average-durations))
+  (let [dashboard (-> (db/select-one Dashboard :id id)
+                      api/check-404
+                      ;; Hydrate other fields
+                      (hydrate [:ordered_cards [:card [:moderation_reviews :moderator_details]] :series :dashcard/action] :collection_authority_level :can_write :param_fields)
+                      api/read-check
+                      api/check-not-archived
+                      hide-unreadable-cards
+                      add-query-average-durations)]
+    (let [creator-id (get-in dashboard [:creator_id])]
+      (let [creator-details (get-creator-details creator-id)]
+        ;; Merge the actual response with the creator-detail response
+        (let [dashboard-with-creator (assoc dashboard :creator_details creator-details)]
+          ;; return the merged response
+          dashboard-with-creator))))) 
+
+;; (defn- get-dashboard
+;;   "Get Dashboard with ID."
+;;   [id]
+;;   (-> (db/select-one Dashboard :id id)
+;;       api/check-404
+;;       ;; i'm a bit worried that this is an n+1 situation here. The cards can be batch hydrated i think because they
+;;       ;; have a hydration key and an id. moderation_reviews currently aren't batch hydrated but i'm worried they
+;;       ;; cannot be in this situation
+;;       (hydrate [:ordered_cards [:card [:moderation_reviews :moderator_details]] :series :dashcard/action] :collection_authority_level :can_write :param_fields)
+;;       api/read-check
+;;       api/check-not-archived
+;;       hide-unreadable-cards
+;;       add-query-average-durations))
 
 (defn- cards-to-copy
   "Returns a map of which cards we need to copy and which are not to be copied. The `:copy` key is a map from id to

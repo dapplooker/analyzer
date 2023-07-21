@@ -65,6 +65,7 @@ class DashboardGrid extends Component {
     onReplaceAllDashCardVisualizationSettings: PropTypes.func.isRequired,
 
     onChangeLocation: PropTypes.func.isRequired,
+    hideWaterMark: PropTypes.bool,
   };
 
   static defaultProps = {
@@ -322,6 +323,7 @@ class DashboardGrid extends Component {
         dashboard={this.props.dashboard}
         showClickBehaviorSidebar={this.props.showClickBehaviorSidebar}
         clickBehaviorSidebarDashcard={this.props.clickBehaviorSidebarDashcard}
+        hideWaterMark={this.props.hideWaterMark}
       />
     );
   }

@@ -186,6 +186,10 @@ class PublicQuestion extends Component {
       card &&
       getCardUiParameters(card, metadata, {}, card.parameters || undefined);
 
+    const hideWaterMark =
+      (card && card?.creator_details?.login_attributes?.isPaidSubscription) ||
+      false;
+    
     return (
       <EmbedFrame
         name={card && card.name}
@@ -221,6 +225,7 @@ class PublicQuestion extends Component {
               mode={PublicMode}
               metadata={this.props.metadata}
               onChangeCardAndRun={() => {}}
+              hideWaterMark={hideWaterMark}
             />
           )}
         </LoadingAndErrorWrapper>

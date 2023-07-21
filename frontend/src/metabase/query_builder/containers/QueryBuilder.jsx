@@ -407,6 +407,10 @@ function QueryBuilder(props) {
     setIsShowingToaster(false);
   }, []);
 
+  const hideWaterMark =
+    (card && card?.creator_details?.login_attributes?.isPaidSubscription) ||
+    false;
+  
   return (
     <View
       {...props}
@@ -422,6 +426,7 @@ function QueryBuilder(props) {
       onDismissToast={onDismissToast}
       onConfirmToast={onConfirmToast}
       isShowingToaster={isShowingToaster}
+      hideWaterMark={hideWaterMark}
     />
   );
 }
