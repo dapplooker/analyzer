@@ -1,11 +1,14 @@
 .EmbedFrame {
-  background-color: white;
+  /* background-color: white; */
+  background-color: #f3f8fd;
 }
 
 .EmbedFrame-header,
 .EmbedFrame-footer {
-  color: var(--color-text-dark);
-  background-color: white;
+  /* color: var(--color-text-dark); */
+  color: #3a4359;
+  /* background-color: white; */
+  background-color: #f3f8fd;
 }
 
 .Theme--night.EmbedFrame {

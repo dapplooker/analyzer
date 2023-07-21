@@ -122,11 +122,11 @@ export const TBody = styled.tbody`
 
   tr:first-of-type {
     td:first-of-type {
-      border-top-left-radius: 8px;
+      border-top-left-radius: 4px; // original 8px
     }
 
     td:last-child {
-      border-top-right-radius: 8px;
+      border-top-right-radius: 4px; // original 8px
     }
   }
 
@@ -135,11 +135,11 @@ export const TBody = styled.tbody`
       border-bottom: 1px solid ${color("border")};
 
       &:last-child {
-        border-bottom-right-radius: 8px;
+        border-bottom-right-radius: 4px; // original 8px
       }
 
       &:first-of-type {
-        border-bottom-left-radius: 8px;
+        border-bottom-left-radius: 4px; // original 8px
       }
     }
   }

@@ -25,7 +25,8 @@ body {
   font-size: var(--default-font-size);
   font-weight: 400;
   font-style: normal;
-  color: var(--color-text-dark);
+  /* color: var(--color-text-dark); */
+  color: #3a4359;
   margin: 0;
   height: 100%; /* ensure the entire page will fill the window */
   display: flex;
