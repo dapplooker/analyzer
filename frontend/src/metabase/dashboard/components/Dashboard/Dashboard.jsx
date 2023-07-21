@@ -224,6 +224,10 @@ class Dashboard extends Component {
 
     const shouldRenderAsNightMode = isNightMode && isFullscreen;
     const dashboardHasCards = dashboard => dashboard.ordered_cards.length > 0;
+    const hideWaterMark =
+      (dashboard &&
+        dashboard?.creator_details?.login_attributes?.isPaidSubscription) ||
+      false;
     const visibleParameters = getVisibleParameters(parameters);
 
     const parametersWidget = (
@@ -311,6 +315,7 @@ class Dashboard extends Component {
                       {...this.props}
                       isNightMode={shouldRenderAsNightMode}
                       onEditingChange={this.setEditing}
+                      hideWaterMark={hideWaterMark}
                     />
                   ) : (
                     <DashboardEmptyState

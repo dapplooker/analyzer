@@ -113,6 +113,11 @@ class PublicDashboard extends Component {
       ? getDashboardActions(this, { ...this.props, isPublic: true })
       : [];
 
+    const hideWaterMark =
+      (dashboard &&
+        dashboard?.creator_details?.login_attributes?.isPaidSubscription) ||
+      false;
+    
     return (
       <EmbedFrame
         name={dashboard && dashboard.name}
@@ -139,6 +144,7 @@ class PublicDashboard extends Component {
               mode={PublicMode}
               metadata={this.props.metadata}
               navigateToNewCardFromDashboard={() => {}}
+              hideWaterMark={hideWaterMark}
             />
           )}
         </LoadingAndErrorWrapper>

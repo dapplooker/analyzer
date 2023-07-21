@@ -55,6 +55,7 @@ export default class VisualizationResult extends Component {
       timelineEvents,
       selectedTimelineEventIds,
       className,
+      hideWaterMark,
     } = this.props;
     const { showCreateAlertModal } = this.state;
 
@@ -132,6 +133,7 @@ export default class VisualizationResult extends Component {
             }
             query={this.props.query}
             {...vizSpecificProps}
+            hideWaterMark={hideWaterMark}
           />
           {this.props.isObjectDetail && (
             <Visualization

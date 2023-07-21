@@ -63,6 +63,7 @@ export default class DashCard extends Component {
     navigateToNewCardFromDashboard: PropTypes.func.isRequired,
     headerIcon: PropTypes.shape(iconPropTypes),
     isNightMode: PropTypes.bool,
+    hideWaterMark: PropTypes.bool,
   };
 
   constructor(props) {
@@ -119,6 +120,7 @@ export default class DashCard extends Component {
       mode,
       headerIcon,
       isNightMode,
+      hideWaterMark,
     } = this.props;
 
     const mainCard = {
@@ -312,6 +314,7 @@ export default class DashCard extends Component {
               : null
           }
           onChangeLocation={this.props.onChangeLocation}
+          hideWaterMark={hideWaterMark}
         />
       </DashCardRoot>
     );

@@ -57,6 +57,7 @@ export default class QueryVisualization extends Component {
       isNativeEditorOpen,
       result,
       loadingMessage,
+      hideWaterMark,
     } = this.props;
 
     return (
@@ -98,6 +99,7 @@ export default class QueryVisualization extends Component {
               className="spread"
               lastRunDatasetQuery={this.state.lastRunDatasetQuery}
               onUpdateWarnings={this.handleUpdateWarnings}
+              hideWaterMark={hideWaterMark}
             />
           ) : !isRunning ? (
             <VisualizationEmptyState className="spread" />

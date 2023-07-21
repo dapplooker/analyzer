@@ -320,8 +320,14 @@ class View extends React.Component {
   };
 
   renderMain = ({ leftSidebar, rightSidebar }) => {
-    const { query, mode, parameters, isLiveResizable, setParameterValue } =
-      this.props;
+    const {
+      query,
+      mode,
+      parameters,
+      isLiveResizable,
+      setParameterValue,
+      hideWaterMark,
+    } = this.props;
 
     const queryMode = mode && mode.queryMode();
     const ModeFooter = queryMode && queryMode.ModeFooter;
@@ -367,6 +373,7 @@ class View extends React.Component {
               onRemoveSeries={onRemoveSeries}
               onEditBreakout={onEditBreakout}
               mode={queryMode}
+              hideWaterMark={hideWaterMark}
             />
           </StyledDebouncedFrame>
         )}
