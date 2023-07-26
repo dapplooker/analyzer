@@ -10,7 +10,7 @@ export const getColorsForValues = (
   if (keys.length <= ACCENT_COUNT) {
     return getHashBasedMapping(
       keys,
-      getAccentColors({ light: false, dark: false }, palette),
+      getAccentColors({ light: false, main: false }, palette),
       existingMapping,
       (color: string) => getPreferredColor(color, palette),
     );

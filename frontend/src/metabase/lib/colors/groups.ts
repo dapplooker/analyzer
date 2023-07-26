@@ -12,9 +12,9 @@ export const getAccentColors = (
   palette?: ColorPalette,
 ) => {
   const ranges = [];
+  dark && ranges.push(getDarkAccentColors(palette));
   main && ranges.push(getMainAccentColors(palette));
   light && ranges.push(getLightAccentColors(palette));
-  dark && ranges.push(getDarkAccentColors(palette));
 
   return harmony ? _.unzip(ranges).flat() : ranges.flat();
 };
