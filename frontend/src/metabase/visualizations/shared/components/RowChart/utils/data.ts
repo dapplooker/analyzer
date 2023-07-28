@@ -2,7 +2,6 @@ import _ from "underscore";
 import { stack, stackOffsetDiverging, stackOffsetExpand } from "d3-shape";
 import type { Series as D3Series } from "d3-shape";
 import d3 from "d3";
-
 import { ContinuousScaleType } from "metabase/visualizations/shared/types/scale";
 import { formatNullable } from "metabase/lib/formatting/nullable";
 import { BarData, Series, SeriesData, StackOffset } from "../types";

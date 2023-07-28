@@ -4,15 +4,16 @@ import Radio, { RadioOption, RadioProps } from "metabase/core/components/Radio";
 import FormField from "metabase/core/components/FormField";
 
 export interface FormRadioProps<
-  TValue extends Key,
+  TValue extends Key = string,
   TOption = RadioOption<TValue>,
 > extends Omit<
-    RadioProps<TValue, TOption>,
-    "value" | "error" | "onChange" | "onBlur"
-  > {
+  RadioProps<TValue, TOption>,
+  "value" | "error" | "onChange" | "onBlur"
+> {
   name: string;
   title?: string;
   description?: ReactNode;
+  optional?: boolean;
 }
 
 const FormRadio = forwardRef(function FormRadio<
@@ -25,6 +26,7 @@ const FormRadio = forwardRef(function FormRadio<
     style,
     title,
     description,
+    optional,
     ...props
   }: FormRadioProps<TValue, TOption>,
   ref: Ref<HTMLDivElement>,
@@ -39,6 +41,7 @@ const FormRadio = forwardRef(function FormRadio<
       title={title}
       description={description}
       error={touched ? error : undefined}
+      optional={optional}
     >
       <Radio
         {...props}

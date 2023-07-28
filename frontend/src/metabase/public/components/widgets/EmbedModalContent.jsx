@@ -4,6 +4,7 @@ import { connect } from "react-redux";
 import { titleize } from "inflection";
 import { t } from "ttag";
 
+import _ from "underscore";
 import Icon from "metabase/components/Icon";
 
 import {
@@ -13,12 +14,7 @@ import {
 } from "metabase/public/lib/embed";
 import { color } from "metabase/lib/colors";
 
-import {
-  getSiteUrl,
-  getEmbeddingSecretKey,
-  getIsPublicSharingEnabled,
-  getIsApplicationEmbeddingEnabled,
-} from "metabase/selectors/settings";
+import { getSetting } from "metabase/selectors/settings";
 import { getUserIsAdmin } from "metabase/selectors/user";
 
 import * as MetabaseAnalytics from "metabase/lib/analytics";
@@ -28,10 +24,10 @@ import DappLookerChartAPIPane from "./DappLookerChartAPIPane";
 
 const mapStateToProps = (state, props) => ({
   isAdmin: getUserIsAdmin(state, props),
-  siteUrl: getSiteUrl(state, props),
-  secretKey: getEmbeddingSecretKey(state, props),
-  isPublicSharingEnabled: getIsPublicSharingEnabled(state, props),
-  isApplicationEmbeddingEnabled: getIsApplicationEmbeddingEnabled(state, props),
+  siteUrl: getSetting(state, "site-url"),
+  secretKey: getSetting(state, "embedding-secret-key"),
+  isPublicSharingEnabled: getSetting(state, "enable-public-sharing"),
+  isApplicationEmbeddingEnabled: getSetting(state, "enable-embedding"),
 });
 
 class EmbedModalContent extends Component {
@@ -46,7 +42,7 @@ class EmbedModalContent extends Component {
     this.state = {
       pane: "preview",
       embedType: null,
-      embeddingParams: props.resource.embedding_params || {},
+      embeddingParams: getDefaultEmbeddingParams(props),
       displayOptions,
       parameterValues: {},
     };
@@ -79,8 +75,7 @@ class EmbedModalContent extends Component {
   };
 
   handleDiscard = () => {
-    const { resource } = this.props;
-    this.setState({ embeddingParams: resource.embedding_params || {} });
+    this.setState({ embeddingParams: getDefaultEmbeddingParams(this.props) });
   };
 
   getPreviewParameters(resourceParameters, embeddingParams) {
@@ -262,7 +257,20 @@ class EmbedModalContent extends Component {
   }
 }
 
-export default connect(mapStateToProps)(EmbedModalContent);
+function getDefaultEmbeddingParams(props) {
+  const { resource, resourceParameters } = props;
+
+  return filterValidResourceParameters(
+    resource.embedding_params || {},
+    resourceParameters,
+  );
+}
+
+function filterValidResourceParameters(embeddingParams, resourceParameters) {
+  const validParameters = resourceParameters.map(parameter => parameter.slug);
+
+  return _.pick(embeddingParams, validParameters);
+}
 
 export const EmbedTitle = ({ type, onClick,isChartAPI }) => (
   <a className="flex align-center" onClick={onClick}>
@@ -273,3 +281,5 @@ export const EmbedTitle = ({ type, onClick,isChartAPI }) => (
     {type}
   </a>
 );
+
+export default connect(mapStateToProps)(EmbedModalContent);

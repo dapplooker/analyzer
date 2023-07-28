@@ -1,6 +1,7 @@
 (ns metabase.shared.parameters.parameters-test
-  (:require [clojure.test :as t]
-            [metabase.shared.parameters.parameters :as params]))
+  (:require
+   [clojure.test :as t]
+   [metabase.shared.parameters.parameters :as params]))
 
 (defn- tag-names
   [text]
@@ -8,7 +9,7 @@
     #?(:clj result
        :cljs (set (js->clj result)))))
 
-(t/deftest parse-tag-names-test
+(t/deftest ^:parallel parse-tag-names-test
   (t/testing "Tag names are correctly parsed from text card contents"
     (t/are [text tags] (= tags (tag-names text))
       ;; Valid tags
@@ -37,7 +38,7 @@
       "{{*foo*}}"         #{}
       "{{&()'}}"          #{})))
 
-(t/deftest substitute-tags-test
+(t/deftest ^:parallel substitute-tags-test
   (t/testing "Tags are correctly substituted into card text, and formatted appropriately based on their type"
     (t/are [text tag->param expected] (= expected (params/substitute_tags text tag->param))
       "{{foo}}"
@@ -154,7 +155,7 @@
       {"foo" {:value "today"}}
       "today")))
 
-(t/deftest substitute-tags-date-filters
+(t/deftest ^:parallel substitute-tags-date-filters
   (t/testing "Basic date values are formatted correctly"
     (t/are [text tag->param expected] (= expected (params/substitute_tags text tag->param))
       "{{foo}}"
@@ -229,7 +230,7 @@
       {"foo" {:type :date/month-year :value "2019-08"}}
       "agosto\\, 2019")))
 
-(t/deftest substitute-tags-optional-blocks-test
+(t/deftest ^:parallel substitute-tags-optional-blocks-test
   (t/testing "Optional blocks are removed when necessary"
     (t/are [text tag->param expected] (= expected (params/substitute_tags text tag->param))
       "[[{{foo}}]]"

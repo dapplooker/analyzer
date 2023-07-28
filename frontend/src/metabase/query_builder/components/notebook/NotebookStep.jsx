@@ -8,7 +8,7 @@ import styled from "@emotion/styled";
 
 import { color as c, lighten, darken, alpha } from "metabase/lib/colors";
 
-import Tooltip from "metabase/components/Tooltip";
+import Tooltip from "metabase/core/components/Tooltip";
 import Icon from "metabase/components/Icon";
 import Button from "metabase/core/components/Button";
 import ExpandingContent from "metabase/components/ExpandingContent";
@@ -111,8 +111,15 @@ export default class NotebookStep extends React.Component {
   };
 
   render() {
-    const { step, openStep, isLastStep, isLastOpened, updateQuery } =
-      this.props;
+    const {
+      step,
+      openStep,
+      isLastStep,
+      isLastOpened,
+      updateQuery,
+      reportTimezone,
+      sourceQuestion,
+    } = this.props;
     const { showPreview } = this.state;
 
     const {
@@ -178,8 +185,10 @@ export default class NotebookStep extends React.Component {
                   color={color}
                   step={step}
                   query={step.query}
+                  sourceQuestion={sourceQuestion}
                   updateQuery={updateQuery}
                   isLastOpened={isLastOpened}
+                  reportTimezone={reportTimezone}
                 />
               </StepContent>
               <StepButtonContainer>

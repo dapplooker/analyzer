@@ -188,7 +188,14 @@ const RowChartVisualization = ({
       onHoverChange?.(null);
       return;
     }
-    const hoverData = getHoverData(bar, settings, chartColumns, data.cols);
+    const hoverData = getHoverData(
+      bar,
+      settings,
+      chartColumns,
+      data.cols,
+      series,
+      seriesColors,
+    );
 
     onHoverChange?.({
       ...hoverData,
@@ -227,9 +234,9 @@ const RowChartVisualization = ({
   const hoverData =
     hovered?.index != null
       ? {
-          seriesIndex: hovered?.index,
-          datumIndex: hovered?.datumIndex,
-        }
+        seriesIndex: hovered?.index,
+        datumIndex: hovered?.datumIndex,
+      }
       : null;
 
   const hasTitle = showTitle && settings["card.title"];

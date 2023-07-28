@@ -10,7 +10,6 @@ export const MODAL_TYPES = {
   SAVE_QUESTION_BEFORE_ALERT: "save-question-before-alert",
   SAVE_QUESTION_BEFORE_EMBED: "save-question-before-embed",
   FILTERS: "filters",
-  HISTORY: "history",
   EMBED: "embed",
   TURN_INTO_DATASET: "turn-into-dataset",
   CAN_NOT_CREATE_MODEL: "can-not-create-model",
@@ -18,6 +17,8 @@ export const MODAL_TYPES = {
   EDIT_EVENT: "edit-event",
   MOVE_EVENT: "move-event",
   GET_CHART_API: "get-chart-api",
+  PREVIEW_QUERY: "preview-query",
+  CONVERT_QUERY: "convert-query",
 };
 
 export const SIDEBAR_SIZES = {

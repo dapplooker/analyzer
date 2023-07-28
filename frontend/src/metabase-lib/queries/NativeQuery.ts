@@ -6,6 +6,7 @@ import _ from "underscore";
 import slugg from "slugg";
 import { humanize } from "metabase/lib/formatting";
 import Utils from "metabase/lib/utils";
+import { ParameterValuesConfig } from "metabase-types/api";
 import {
   Card,
   DatasetQuery,
@@ -21,6 +22,7 @@ import Question from "metabase-lib/Question";
 import Table from "metabase-lib/metadata/Table";
 import Database from "metabase-lib/metadata/Database";
 import AtomicQuery from "metabase-lib/queries/AtomicQuery";
+import { getTemplateTagParameter } from "metabase-lib/parameters/utils/template-tags";
 import Variable from "metabase-lib/variables/Variable";
 import TemplateTagVariable from "metabase-lib/variables/TemplateTagVariable";
 import { createTemplateTag } from "metabase-lib/queries/TemplateTag";
@@ -333,6 +335,10 @@ export default class NativeQuery extends AtomicQuery {
     );
   }
 
+  hasVariableTemplateTags(): boolean {
+    return this.variableTemplateTags().length > 0;
+  }
+
   hasSnippets() {
     return this.templateTags().some(t => t.type === "snippet");
   }
@@ -360,7 +366,7 @@ export default class NativeQuery extends AtomicQuery {
     return this.templateTags()
       .map(tag => {
         if (!tag["display-name"]) {
-          return new ValidationError(t`Missing wiget label: ${tag.name}`);
+          return new ValidationError(t`Missing widget label: ${tag.name}`);
         }
         const dimension = new TemplateTagDimension(
           tag.name,
@@ -383,10 +389,21 @@ export default class NativeQuery extends AtomicQuery {
     return tagErrors.length === 0;
   }
 
-  setTemplateTag(name: string, tag: TemplateTag) {
+  setTemplateTag(name: string, tag: TemplateTag): NativeQuery {
     return this.setDatasetQuery(
-      assocIn(this.datasetQuery(), ["native", "template-tags", name], tag),
+      updateIn(this.datasetQuery(), ["native", "template-tags"], tags => ({
+        ...tags,
+        [name]: tag,
+      })),
     );
+  }
+
+  setTemplateTagConfig(
+    tag: TemplateTag,
+    config: ParameterValuesConfig,
+  ): NativeQuery {
+    const newParameter = getTemplateTagParameter(tag, config);
+    return this.question().setParameter(tag.id, newParameter).query();
   }
 
   setDatasetQuery(datasetQuery: DatasetQuery): NativeQuery {
@@ -416,7 +433,7 @@ export default class NativeQuery extends AtomicQuery {
 
   updateSnippetsWithIds(snippets): NativeQuery {
     const tagsBySnippetName = _.chain(this.templateTags())
-      .filter(tag => tag.type === "snippet" && tag["snippet-id"] == null)
+      .filter(tag => tag.type === "snippet")
       .groupBy(tag => tag["snippet-name"])
       .value();
 

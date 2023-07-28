@@ -149,6 +149,10 @@ describe("metabase-lib/expressions/resolve", () => {
       expect(() => expr(["concat", "1", "2", "3"])).not.toThrow();
     });
 
+    it("should allow nested datetime expressions", () => {
+      expect(() => expr(["get-year", ["now"]])).not.toThrow();
+    });
+
     it("should accept COALESCE for number", () => {
       expect(() => expr(["round", ["coalesce", 0]])).not.toThrow();
     });
@@ -158,6 +162,16 @@ describe("metabase-lib/expressions/resolve", () => {
 
     it("should honor CONCAT's implicit casting", () => {
       expect(() => expr(["concat", ["coalesce", "B", 1]])).not.toThrow();
+    });
+
+    describe("arg validation", () => {
+      it("should not allow substring with index=0", () => {
+        expect(() => expr(["substring", "foo", 0, 1])).toThrow();
+      });
+
+      it("should allow substring with index=1", () => {
+        expect(() => expr(["substring", "foo", 1, 1])).not.toThrow();
+      });
     });
 
     describe("datetime functions", () => {
@@ -249,9 +263,9 @@ describe("metabase-lib/expressions/resolve", () => {
 
     it("should handle Distinct/Min/Max aggregating over non-numbers", () => {
       // DISTINCT(COALESCE("F")) also for MIN and MAX
-      expect(() => aggregation(["distinct", ["coalesce", "F"]]).not.toThrow());
-      expect(() => aggregation(["min", ["coalesce", "F"]]).not.toThrow());
-      expect(() => aggregation(["max", ["coalesce", "F"]]).not.toThrow());
+      expect(() => aggregation(["distinct", ["coalesce", "F"]])).not.toThrow();
+      expect(() => aggregation(["min", ["coalesce", "F"]])).not.toThrow();
+      expect(() => aggregation(["max", ["coalesce", "F"]])).not.toThrow();
     });
   });
 

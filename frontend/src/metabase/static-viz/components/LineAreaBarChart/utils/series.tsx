@@ -1,6 +1,6 @@
 import _ from "underscore";
 import { merge } from "icepick";
-import { isNotNull } from "metabase/core/utils/array";
+import { isNotNull } from "metabase/core/utils/types";
 import { getColorsForValues } from "metabase/lib/colors/charts";
 import { formatStaticValue } from "metabase/static-viz/lib/format";
 import { ColorPalette } from "metabase/lib/colors/types";
@@ -22,8 +22,8 @@ export function getSeriesWithColors(
   const seriesSettings = settings.visualization_settings.series_settings;
   const seriesColors = seriesSettings
     ? _.mapObject(seriesSettings, value => {
-        return value.color;
-      })
+      return value.color;
+    })
     : undefined;
   const chartColors = getColorsForValues(
     keys,
@@ -53,8 +53,8 @@ export function getSeriesWithLegends(
   const seriesSettings = settings.visualization_settings.series_settings;
   const seriesTitles = seriesSettings
     ? _.mapObject(seriesSettings, value => {
-        return value.title;
-      })
+      return value.title;
+    })
     : undefined;
 
   let index = -1;

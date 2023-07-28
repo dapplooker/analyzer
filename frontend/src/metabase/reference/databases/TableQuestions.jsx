@@ -30,7 +30,7 @@ import {
 const emptyStateData = table => {
   return {
     message: t`Collection about this table will appear here as they're added`,
-    icon: "all",
+    icon: "folder",
     action: t`Create a chart`,
     link: getQuestionUrl({
       dbId: table.db_id,
