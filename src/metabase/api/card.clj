@@ -1014,7 +1014,8 @@ saved later when it is ready."
                    :public_uuid       <>
                    :made_public_by_id api/*current-user-id*)))}))
 
-(api/defendpoint POST "/:card-id/dl_public_link"
+#_{:clj-kondo/ignore [:deprecated-var]}
+(api/defendpoint-schema POST "/:card-id/dl_public_link"
   "Generate publicly-accessible links for this Card (***ADMIN PERMISSION IS BYPASSED***). Returns UUID to be used in public links. (If this Card has
   already been shared, it will return the existing public link rather than creating a new one.)  Public sharing must
   be enabled."
@@ -1022,17 +1023,13 @@ saved later when it is ready."
   ;; (validation/check-has-application-permission :setting)
   (validation/check-public-sharing-enabled)
   (api/check-not-archived (api/read-check Card card-id))
-  (let [{existing-public-uuid :public_uuid, is-write? :is_write} (db/select-one [Card :public_uuid :is_write] :id card-id)]
-    ;; don't allow sharing `is_write` (QueryAction) Cards, since they can't be executed for results under the public QP
-    ;; pathway
-    (when is-write?
-      (throw (ex-info (tru "You cannot share an is_write Card.")
-                      {:status-code 400})))
+  (let [{existing-public-uuid :public_uuid} (db/select-one [Card :public_uuid] :id card-id)]
     {:uuid (or existing-public-uuid
                (u/prog1 (str (UUID/randomUUID))
                  (db/update! Card card-id
                    :public_uuid       <>
                    :made_public_by_id api/*current-user-id*)))}))
+
 
 #_{:clj-kondo/ignore [:deprecated-var]}
 (api/defendpoint-schema DELETE "/:card-id/public_link"

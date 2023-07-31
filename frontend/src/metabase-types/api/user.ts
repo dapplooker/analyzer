@@ -21,13 +21,17 @@ export interface BaseUser {
 
 export interface User extends BaseUser {
   google_auth: boolean;
-  login_attributes: UserAttribute[] | null;
+  // login_attributes: UserAttribute[] | null;
+  login_attributes: CustomLoginAttributes | null;
   is_installer: boolean;
   has_invited_second_user: boolean;
   has_question_and_dashboard: boolean;
   personal_collection_id: number;
 }
 
+export interface CustomLoginAttributes {
+  isPaidSubscription?: boolean;
+}
 // Used when hydrating `creator` property
 export type UserInfo = Pick<
   BaseUser,

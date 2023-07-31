@@ -14,7 +14,7 @@ export const SidebarButton = styled.button<SidebarButtonProps>`
   cursor: pointer;
   display: block;
 
-  ${({ isNavBarEnabled, isLogoVisible, isSmallAppBar }) =>
+  /* ${({ isNavBarEnabled, isLogoVisible, isSmallAppBar }) =>
     isLogoVisible && !isSmallAppBar
       ? css`
           opacity: ${isNavBarEnabled ? 0 : 1};
@@ -25,14 +25,14 @@ export const SidebarButton = styled.button<SidebarButtonProps>`
         `
       : css`
           opacity: 1;
-        `}
+        `} */
 `;
 
 interface SidebarIconProps {
   isLogoVisible?: boolean;
 }
 
-export const SidebarIcon = styled(Icon)<SidebarIconProps>`
+export const SidebarIcon = styled(Icon) <SidebarIconProps>`
   color: ${color("brand")};
   display: block;
 

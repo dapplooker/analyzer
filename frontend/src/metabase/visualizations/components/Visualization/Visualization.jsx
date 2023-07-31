@@ -29,6 +29,7 @@ import { isSameSeries, getCardKey } from "metabase/visualizations/lib/utils";
 
 import { getMode } from "metabase/modes/lib/modes";
 import { getFont } from "metabase/styled-components/selectors";
+import { getIsCurrentUserPaidSubscription } from "metabase/selectors/user";
 
 import ErrorBoundary from "metabase/ErrorBoundary";
 import Question from "metabase-lib/Question";
@@ -46,6 +47,7 @@ import {
   VisualizationActionButtonsContainer,
   VisualizationSlowSpinner,
 } from "./Visualization.styled";
+import "./Visualization.css";
 
 const defaultProps = {
   showTitle: false,
@@ -58,10 +60,12 @@ const defaultProps = {
   onChangeLocation: location => {
     window.location = location;
   },
+  hideWaterMark: false,
 };
 
 const mapStateToProps = state => ({
   fontFamily: getFont(state),
+  isCurrentUserPaidSubscription: getIsCurrentUserPaidSubscription(state),
 });
 
 class Visualization extends React.PureComponent {
@@ -333,9 +337,19 @@ class Visualization extends React.PureComponent {
       replacementContent,
       onOpenChartSettings,
       onUpdateVisualizationSettings,
+      hideWaterMark,
+      isCurrentUserPaidSubscription,
     } = this.props;
     const { visualization } = this.state;
     const small = width < 330;
+
+    const isText = dashcard?.card?.display === "text";
+    const isScalar =
+      (dashcard && dashcard?.card?.display === "scalar") || false;
+    const isTrend =
+      (dashcard && dashcard?.card?.display === "smartscalar") || false;
+    const hideWaterMarkDuringBuilding =
+      isCurrentUserPaidSubscription && location.hash !== "";
 
     // these may be overridden below
     let { series, hovered, clicked } = this.state;
@@ -453,6 +467,22 @@ class Visualization extends React.PureComponent {
     return (
       <ErrorBoundary>
         <VisualizationRoot className={className} style={style}>
+          {!hideWaterMark &&
+          !isText &&
+          !noResults &&
+          !hideWaterMarkDuringBuilding ? (
+            !isScalar && !isTrend ? (
+              <div className="watermark-logo-with-text">
+                <span />
+              </div>
+            ) : (
+              <div className="watermark-only-logo">
+                <span />
+              </div>
+            )
+          ) : (
+            false
+          )}
           {!!hasHeader && (
             <VisualizationHeader>
               <ChartCaption

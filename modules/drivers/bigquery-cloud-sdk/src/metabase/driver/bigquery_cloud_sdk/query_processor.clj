@@ -456,18 +456,6 @@
         (datetime target-timezone)
         (with-temporal-type :datetime))))
 
-(defmethod sql.qp/->honeysql [:bigquery-cloud-sdk :convert-timezone]
-  [driver [_ arg target-timezone source-timezone]]
-  (let [datetime     (partial hsql/call :datetime)
-        hsql-form    (sql.qp/->honeysql driver arg)
-        timestamptz? (hx/is-of-type? hsql-form "timestamp")]
-    (sql.u/validate-convert-timezone-args timestamptz? target-timezone source-timezone)
-    (-> (if timestamptz?
-          hsql-form
-          (hsql/call :timestamp hsql-form (or source-timezone (qp.timezone/results-timezone-id))))
-        (datetime target-timezone)
-        (with-temporal-type :datetime))))
-
 (defmethod sql.qp/->float :bigquery-cloud-sdk
   [_ value]
   (hx/cast :float64 value))

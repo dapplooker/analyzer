@@ -27,14 +27,14 @@ export const LogoLink = styled(Link) <LogoLinkProps>`
     background-color: ${color("bg-light")};
   }
 
-  ${props =>
+  /* ${props =>
     !props.isSmallAppBar &&
     css`
       ${AppBarLeftContainer}:hover & {
         opacity: ${props.isNavBarEnabled ? 0 : 1};
         pointer-events: ${props.isNavBarEnabled ? "none" : ""};
       }
-    `}
+    `} */
 `;
 
 interface ToggleContainerProps {

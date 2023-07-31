@@ -75,6 +75,7 @@ interface DashCardVisualizationProps {
   isMobile?: boolean;
   isNightMode?: boolean;
   isPublic?: boolean;
+  hideWaterMark?: boolean;
 
   error?: { message?: string; icon?: IconProps["name"] };
   headerIcon?: IconProps;
@@ -126,6 +127,7 @@ function DashCardVisualization({
   showClickBehaviorSidebar,
   onChangeLocation,
   onUpdateVisualizationSettings,
+  hideWaterMark,
 }: DashCardVisualizationProps) {
   const renderVisualizationOverlay = useCallback(() => {
     if (isClickBehaviorSidebarOpen) {
@@ -258,6 +260,7 @@ function DashCardVisualization({
       onUpdateVisualizationSettings={onUpdateVisualizationSettings}
       onChangeCardAndRun={onChangeCardAndRun}
       onChangeLocation={onChangeLocation}
+      hideWaterMark={hideWaterMark}
     />
   );
 }

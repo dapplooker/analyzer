@@ -40,7 +40,7 @@ RUN apk add -U bash ttf-dejavu fontconfig curl java-cacerts && \
     mkdir -p /plugins && chmod a+rwx /plugins
 
 # add Metabase script and uberjar
-COPY --from=builder /home/node/target/uberjar/metabase.jar /app/
+COPY target/uberjar/metabase.jar /app/
 COPY bin/docker/run_metabase.sh /app/
 
 # expose our default runtime port

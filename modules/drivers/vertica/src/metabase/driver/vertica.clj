@@ -145,17 +145,6 @@
         (h2x/at-time-zone target-timezone)
         (h2x/with-database-type-info "timestamp"))))
 
-(defmethod sql.qp/->honeysql [:vertica :convert-timezone]
-  [driver [_ arg target-timezone source-timezone]]
-  (let [expr         (cast-timestamp (sql.qp/->honeysql driver arg))
-        timestamptz? (hx/is-of-type? expr "timestamptz")]
-    (sql.u/validate-convert-timezone-args timestamptz? target-timezone source-timezone)
-    (-> (if timestamptz?
-          expr
-          (hx/->AtTimeZone expr (or source-timezone (qp.timezone/results-timezone-id))))
-        (hx/->AtTimeZone target-timezone)
-        (hx/with-database-type-info "timestamp"))))
-
 (defmethod sql.qp/->honeysql [:vertica :concat]
   [driver [_ & args]]
   (transduce

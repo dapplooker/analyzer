@@ -339,7 +339,7 @@
     "build-storybook": "yarn build:cljs && build-storybook",
     "chromatic": "yarn build:cljs && chromatic",
     "docs-lint-links": "find docs -type f -name '*.md' -print0 | xargs -0 markdown-link-check --quiet --config .mlc_config.json",
-    "build-metabase:jar": "INTERACTIVE=false CI=true MB_EDITION=oss bin/build",
+    "build-metabase:jar": "INTERACTIVE=false CI=true MB_EDITION=oss bin/build.sh",
     "build:analyzer":"cd resources/frontend_client/app && rm -rf dist && cd ../../../ && yarn build-metabase:jar",
     "s3-upload":"cd resources/frontend_client/aws && rm -rf node_modules && rm -rf package-lock.json && npm i && ts-node s3UploadWrapper.ts cd ../../../",
     "s3Upload:development": "yarn s3-upload --mode DEVELOPMENT",

@@ -377,12 +377,6 @@ class FieldValuesWidgetInner extends Component {
         : parseStringValue(value);
     };
 
-    const parseFreeformValue = value => {
-      return isNumeric(fields[0], parameter)
-        ? parseNumberValue(value)
-        : parseStringValue(value);
-    };
-
     return (
       <div
         style={{
@@ -547,9 +541,8 @@ function getNonSearchableTokenFieldPlaceholder(firstField, parameter) {
     return t`Enter some text`;
   }
 
-    // fallback
-    return t`Enter some text`;
-  }
+  // fallback
+  return t`Enter some text`;
 }
 
 export function searchField(field, disablePKRemappingForSearch) {

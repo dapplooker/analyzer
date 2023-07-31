@@ -30,6 +30,7 @@ import QuestionFilters, {
   QuestionFilterWidget,
 } from "./QuestionFilters";
 import { QuestionSummarizeWidget } from "./QuestionSummaries";
+import { QuestionAPIWidgetTrigger } from "metabase/query_builder/containers/QuestionEmbedWidget";
 import {
   AdHocViewHeading,
   SaveButton,

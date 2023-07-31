@@ -18,12 +18,12 @@ function LogoBadge({
   const logoSize = variant === "large" ? 42 : 28;
   const Metabase = (
     <MetabaseName key="metabase" isDark={dark} variant={variant}>
-      {t`Metabase`}
+      {t`DappLooker`}
     </MetabaseName>
   );
   return (
     <MetabaseLink
-      href="https://metabase.com/"
+      href="https://dapplooker.com/"
       target="_blank"
       variant={variant}
     >

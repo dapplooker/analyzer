@@ -27,8 +27,8 @@
 
 (defsetting analytics-uuid
   (deferred-tru
-   (str "Unique identifier to be used in Snowplow analytics, to identify this instance of Metabase. "
-        "This is a public setting since some analytics events are sent prior to initial setup."))
+    (str "Unique identifier to be used in Snowplow analytics, to identify this instance of Metabase. "
+         "This is a public setting since some analytics events are sent prior to initial setup."))
   :visibility :public
   :setter     :none
   :type       ::public-settings/uuid-nonce
@@ -150,18 +150,6 @@
   (t2/with-connection [^java.sql.Connection conn]
     (let [metadata (.getMetaData conn)]
       (format "%d.%d" (.getDatabaseMajorVersion metadata) (.getDatabaseMinorVersion metadata)))))
-
-(defn- app-db-type
-  "Returns the type of the Metabase application database as a string (e.g. PostgreSQL, MySQL)"
-  []
-  (jdbc/with-db-metadata [metadata (db/connection)]
-    (.getDatabaseProductName metadata)))
-
-(defn- app-db-version
-  "Returns the version of the Metabase application database as a string"
-  []
-  (jdbc/with-db-metadata [metadata (db/connection)]
-    (format "%d.%d" (.getDatabaseMajorVersion metadata) (.getDatabaseMinorVersion metadata))))
 
 (defn- context
   "Common context included in every analytics event"

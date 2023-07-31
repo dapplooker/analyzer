@@ -30,3 +30,8 @@ export const getUserPersonalCollectionId = createSelector(
   [getUser],
   user => user?.personal_collection_id,
 );
+
+export const getIsCurrentUserPaidSubscription = createSelector(
+  [getUser],
+  user => (user && user?.login_attributes?.isPaidSubscription) || false,
+);

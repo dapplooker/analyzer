@@ -104,6 +104,7 @@ interface DashCardProps {
   isMobile?: boolean;
   isNightMode?: boolean;
   isPublic?: boolean;
+  hideWaterMark?: boolean;
 
   headerIcon?: IconProps;
 
@@ -145,6 +146,7 @@ function DashCard({
   onChangeLocation,
   onUpdateVisualizationSettings,
   onReplaceAllVisualizationSettings,
+  hideWaterMark,
 }: DashCardProps) {
   const [isPreviewingCard, setIsPreviewingCard] = useState(false);
   const cardRootRef = useRef<HTMLDivElement>(null);
@@ -357,6 +359,7 @@ function DashCard({
           onUpdateVisualizationSettings={onUpdateVisualizationSettings}
           onChangeCardAndRun={changeCardAndRunHandler}
           onChangeLocation={onChangeLocation}
+          hideWaterMark={hideWaterMark}
         />
       </DashCardRoot>
     </ErrorBoundary>
