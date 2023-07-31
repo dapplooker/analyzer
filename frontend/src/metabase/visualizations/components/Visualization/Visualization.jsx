@@ -61,6 +61,7 @@ const defaultProps = {
     window.location = location;
   },
   hideWaterMark: false,
+  isNightMode: false,
 };
 
 const mapStateToProps = state => ({
@@ -338,6 +339,7 @@ class Visualization extends React.PureComponent {
       onOpenChartSettings,
       onUpdateVisualizationSettings,
       hideWaterMark,
+      isNightMode,
       isCurrentUserPaidSubscription,
     } = this.props;
     const { visualization } = this.state;
@@ -467,22 +469,30 @@ class Visualization extends React.PureComponent {
     return (
       <ErrorBoundary>
         <VisualizationRoot className={className} style={style}>
-          {!hideWaterMark &&
-          !isText &&
-          !noResults &&
-          !hideWaterMarkDuringBuilding ? (
-            !isScalar && !isTrend ? (
-              <div className="watermark-logo-with-text">
-                <span />
-              </div>
+          {
+            !hideWaterMark &&
+            !isText &&
+            !noResults &&
+            !hideWaterMarkDuringBuilding ? (
+              !isScalar && !isTrend ? (
+                !isNightMode ? (
+                  <div className="watermark-with-text-light-theme">
+                    <span />
+                  </div>
+                ) : (
+                  <div className="watermark-with-text-dark-theme">
+                    <span />
+                  </div>   
+                )
+              ) : (
+                <div className="watermark-only-logo">
+                  <span />
+                </div>
+              )
             ) : (
-              <div className="watermark-only-logo">
-                <span />
-              </div>
+              false
             )
-          ) : (
-            false
-          )}
+          }
           {!!hasHeader && (
             <VisualizationHeader>
               <ChartCaption

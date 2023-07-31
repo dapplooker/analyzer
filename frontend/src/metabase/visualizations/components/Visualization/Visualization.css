@@ -1,10 +1,11 @@
-.watermark-logo-with-text,
+.watermark-with-text-light-theme,
+.watermark-with-text-dark-theme,
 .watermark-only-logo {
   display: block;
   width: 100%;
 }
 
-.watermark-logo-with-text span {
+.watermark-with-text-light-theme span {
   pointer-events: none;
   content: " ";
   font-size: 18px;
@@ -13,7 +14,7 @@
   display: block;
   text-align: center;
   line-height: 100%;
-  background-image: url("https://d2yxqfr8upg55w.cloudfront.net/assets/img/dapplooker_watermark.png");
+  background-image: url("https://d2yxqfr8upg55w.cloudfront.net/assets/img/dl_watermark_withtext_lighttheme.png");
   width: calc(100% - 40px);
   background-size: 30%;
   background-repeat: no-repeat;
@@ -35,9 +36,31 @@
   display: block;
   text-align: center;
   line-height: 100%;
-  background-image: url("https://d2yxqfr8upg55w.cloudfront.net/assets/img/dapplooker_watermark_only_logo.png");
+  background-image: url("https://d2yxqfr8upg55w.cloudfront.net/assets/img/dl_watermark_onlylogo.png");
   width: 100%;
   background-size: 25%;
+  background-repeat: no-repeat;
+  background-position: center;
+  height: 90%;
+  position: absolute;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+.watermark-with-text-dark-theme span {
+  pointer-events: none;
+  content: " ";
+  font-size: 18px;
+  color: rgba(203, 203, 255, 0.5);
+  z-index: 0;
+  display: block;
+  text-align: center;
+  line-height: 100%;
+  background-image: url("https://d2yxqfr8upg55w.cloudfront.net/assets/img/dl_watermark_withtext_darktheme.png");
+  width: calc(100% - 40px);
+  background-size: 30%;
   background-repeat: no-repeat;
   background-position: center;
   height: 90%;
