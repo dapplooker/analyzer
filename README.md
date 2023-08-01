@@ -14,14 +14,13 @@
 - **Embedding Capabilities:** Charts and dashboards can be embedded within your application, providing a seamless experience for your users.
 - **Dashboard Sharing:** Users can share dashboards and charts with their community, enabling others to view and use them for their own analysis.
 
-Take a [tour of Query Builder](https://www.youtube.com/watch?v=JVgheSmgg1s)
+Take a [tour of Query Builder](https://www.youtube.com/@dapplooker)
 
 ## Resources
-
-- [DappLooker Features](https://dapplooker.com/#features)
+- [Discover Charts and Dashboards](https://dapplooker.com/discover)
+- [DappLooker Features](https://dapplooker.com/home#features)
 - [Network Integrations Details](https://dapplooker.com/integration)
-- [Discover Charts and Dashboards](https://dapplooker.com/explorer)
-- [Ecosystem Partners](https://dapplooker.com/#partner)
+- [Ecosystem Partners](https://dapplooker.com/home#partner)
 - [Documentation](https://docs.dapplooker.com/)
 
 ## License
