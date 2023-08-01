@@ -23,3 +23,11 @@ Take a [tour of Query Builder](https://www.youtube.com/watch?v=JVgheSmgg1s)
 - [Discover Charts and Dashboards](https://dapplooker.com/explorer)
 - [Ecosystem Partners](https://dapplooker.com/#partner)
 - [Documentation](https://docs.dapplooker.com/)
+
+## License
+
+This repository contains the source code for both the Open Source edition of Metabase, released under the AGPL, as well as the [commercial editions of Metabase](https://www.metabase.com/pricing), which are released under the Metabase Commercial Software License.
+
+See [LICENSE.txt](./LICENSE.txt) for details.
+
+Unless otherwise noted, all files © 2023 Metabase, Inc.
