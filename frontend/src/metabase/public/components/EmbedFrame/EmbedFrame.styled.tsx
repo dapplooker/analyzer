@@ -38,7 +38,7 @@ export const ContentContainer = styled.div<{ hasScroll: boolean }>`
   flex-direction: column;
   flex: 1 0 auto;
   position: relative;
-
+  background-color: #f3f8fd;
   overflow-y: ${props => props.hasScroll && "auto"};
 `;
 
