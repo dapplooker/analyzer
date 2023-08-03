@@ -350,6 +350,7 @@ class Visualization extends React.PureComponent {
       (dashcard && dashcard?.card?.display === "scalar") || false;
     const isTrend =
       (dashcard && dashcard?.card?.display === "smartscalar") || false;
+    const isLink = (dashcard && dashcard?.card?.display === "link") || false;
     const hideWaterMarkDuringBuilding =
       isCurrentUserPaidSubscription && location.hash !== "";
 
@@ -472,6 +473,7 @@ class Visualization extends React.PureComponent {
           {
             !hideWaterMark &&
             !isText &&
+            !isLink &&
             !noResults &&
             !hideWaterMarkDuringBuilding ? (
               !isScalar && !isTrend ? (

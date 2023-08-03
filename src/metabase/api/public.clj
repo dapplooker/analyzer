@@ -212,7 +212,7 @@
    uuid
    export-format
    (json/parse-string parameters keyword)
-   :constraints nil
+  ;;  :constraints nil
    :middleware {:process-viz-settings? true
                 :js-int-to-string?     false
                 :format-rows?          false}))
