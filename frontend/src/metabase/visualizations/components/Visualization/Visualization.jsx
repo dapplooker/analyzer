@@ -352,7 +352,12 @@ class Visualization extends React.PureComponent {
       (dashcard && dashcard?.card?.display === "smartscalar") || false;
     const isLink = (dashcard && dashcard?.card?.display === "link") || false;
     const hideWaterMarkDuringBuilding =
-      isCurrentUserPaidSubscription && location.hash !== "";
+      isCurrentUserPaidSubscription &&
+      location.hash !== "" &&
+      location.hash !== "#fullscreen" &&
+      location.hash !== "#fullscreen&theme=night" &&
+      location.hash !== "#theme=night" &&
+      location.hash !== "#theme=night&fullscreen";
 
     // these may be overridden below
     let { series, hovered, clicked } = this.state;
