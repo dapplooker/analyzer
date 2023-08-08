@@ -22,7 +22,7 @@ const getSettingsStyle = settings => ({
 
 const REMARK_PLUGINS = [remarkGfm];
 const REHYPE_PLUGINS = [
-  [rehypeExternalLinks, { rel: ["noreferrer"], target: "_blank" }],
+  [rehypeExternalLinks, { rel: ["noreferrer"] }],
 ];
 
 export default class Text extends Component {
