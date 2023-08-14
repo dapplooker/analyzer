@@ -1,5 +1,5 @@
 import { extent } from "d3-array";
-import { isNotNull } from "metabase/core/utils/array";
+import { isNotNull } from "metabase/core/utils/types";
 import {
   ContinuousDomain,
   ContinuousScaleType,

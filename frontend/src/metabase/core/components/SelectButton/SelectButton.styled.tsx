@@ -18,14 +18,14 @@ const getColor = ({ hasValue, highlighted }: SelectButtonRootProps) => {
 };
 
 export const SelectButtonRoot = styled.button<SelectButtonRootProps>`
-  ${inputPadding}
+  ${inputPadding()}
   cursor: pointer;
   display: flex;
   width: ${props => (props.fullWidth ? "100%" : "unset")};
   align-items: center;
   border: 1px solid
     ${({ hasValue, highlighted }) =>
-      hasValue && highlighted ? color("brand") : color("border")};
+    hasValue && highlighted ? color("brand") : color("border")};
   background-color: ${({ hasValue, highlighted }) =>
     hasValue && highlighted ? color("brand") : color("white")};
   border-radius: ${space(1)};
@@ -35,8 +35,8 @@ export const SelectButtonRoot = styled.button<SelectButtonRootProps>`
   color: ${getColor};
 
   &:focus {
-    border-color: ${() => color("brand")};
-    outline: 2px solid ${() => color("focus")};
+    border-color: ${color("brand")};
+    outline: 2px solid ${color("focus")};
   }
 
   &:not(:focus-visible) {
@@ -55,7 +55,7 @@ interface SelectButtonIconProps {
   highlighted: boolean;
 }
 
-export const SelectButtonIcon = styled(Icon)<SelectButtonIconProps>`
+export const SelectButtonIcon = styled(Icon) <SelectButtonIconProps>`
   display: flex;
   margin-left: auto;
   color: ${({ hasValue, highlighted }) =>

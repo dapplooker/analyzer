@@ -3,6 +3,7 @@ import PropTypes from "prop-types";
 import { t } from "ttag";
 import cx from "classnames";
 
+import { usePrevious } from "react-use";
 import * as Urls from "metabase/lib/urls";
 import { SERVER_ERROR_TYPES } from "metabase/lib/errors";
 import MetabaseSettings from "metabase/lib/settings";
@@ -10,9 +11,7 @@ import MetabaseSettings from "metabase/lib/settings";
 import Link from "metabase/core/components/Link";
 import ViewButton from "metabase/query_builder/components/view/ViewButton";
 
-import { usePrevious } from "metabase/hooks/use-previous";
 import { useToggle } from "metabase/hooks/use-toggle";
-import { useOnMount } from "metabase/hooks/use-on-mount";
 
 import { MODAL_TYPES } from "metabase/query_builder/constants";
 import SavedQuestionHeaderButton from "metabase/query_builder/components/SavedQuestionHeaderButton/SavedQuestionHeaderButton";
@@ -24,13 +23,13 @@ import { HeadBreadcrumbs } from "./HeaderBreadcrumbs";
 import QuestionDataSource from "./QuestionDataSource";
 import QuestionDescription from "./QuestionDescription";
 import QuestionNotebookButton from "./QuestionNotebookButton";
+import ConvertQueryButton from "./ConvertQueryButton";
 import QuestionFilters, {
   FilterHeaderToggle,
   FilterHeader,
   QuestionFilterWidget,
 } from "./QuestionFilters";
 import { QuestionSummarizeWidget } from "./QuestionSummaries";
-import NativeQueryButton from "./NativeQueryButton";
 import { QuestionAPIWidgetTrigger } from "metabase/query_builder/containers/QuestionEmbedWidget";
 import {
   AdHocViewHeading,
@@ -180,12 +179,12 @@ function SavedQuestionLeftSide(props) {
 
   const [showSubHeader, setShowSubHeader] = useState(true);
 
-  useOnMount(() => {
+  useEffect(() => {
     const timerId = setTimeout(() => {
       setShowSubHeader(false);
     }, 4000);
     return () => clearTimeout(timerId);
-  });
+  }, []);
 
   const hasLastEditInfo = question.lastEditInfo() != null;
   const isDataset = question.isDataset();
@@ -339,8 +338,6 @@ ViewTitleHeaderRightSide.propTypes = {
   onEditSummary: PropTypes.func,
   onCloseSummary: PropTypes.func,
   setQueryBuilderMode: PropTypes.func,
-  turnQuestionIntoAction: PropTypes.func,
-  turnActionIntoQuestion: PropTypes.func,
   turnDatasetIntoQuestion: PropTypes.func,
   areFiltersExpanded: PropTypes.bool,
   onExpandFilters: PropTypes.func,
@@ -372,15 +369,12 @@ function ViewTitleHeaderRightSide(props) {
     isResultDirty,
     isActionListVisible,
     runQuestionQuery,
-    updateQuestion,
     cancelQuery,
     onOpenModal,
     onEditSummary,
     onCloseSummary,
     setQueryBuilderMode,
     turnDatasetIntoQuestion,
-    turnQuestionIntoAction,
-    turnActionIntoQuestion,
     areFiltersExpanded,
     onExpandFilters,
     onCollapseFilters,
@@ -474,15 +468,8 @@ function ViewTitleHeaderRightSide(props) {
           />
         </ViewHeaderIconButtonContainer>
       )}
-      {NativeQueryButton.shouldRender(props) && (
-        <ViewHeaderIconButtonContainer>
-          <NativeQueryButton
-            size={16}
-            question={question}
-            updateQuestion={updateQuestion}
-            data-metabase-event="Notebook Mode; Convert to SQL Click"
-          />
-        </ViewHeaderIconButtonContainer>
+      {ConvertQueryButton.shouldRender(props) && (
+        <ConvertQueryButton question={question} onOpenModal={onOpenModal} />
       )}
       {hasExploreResultsLink && <ExploreResultsLink question={question} />}
       {hasRunButton && !isShowingNotebook && (
@@ -512,8 +499,6 @@ function ViewTitleHeaderRightSide(props) {
           question={question}
           setQueryBuilderMode={setQueryBuilderMode}
           turnDatasetIntoQuestion={turnDatasetIntoQuestion}
-          turnQuestionIntoAction={turnQuestionIntoAction}
-          turnActionIntoQuestion={turnActionIntoQuestion}
           onInfoClick={handleInfoClick}
           onModelPersistenceChange={onModelPersistenceChange}
         />

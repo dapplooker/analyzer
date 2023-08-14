@@ -1,5 +1,7 @@
 export type UserId = number;
 
+export type UserAttribute = string;
+
 export interface BaseUser {
   id: UserId;
   first_name: string | null;
@@ -19,8 +21,27 @@ export interface BaseUser {
 
 export interface User extends BaseUser {
   google_auth: boolean;
+  // login_attributes: UserAttribute[] | null;
+  login_attributes: CustomLoginAttributes | null;
   is_installer: boolean;
   has_invited_second_user: boolean;
   has_question_and_dashboard: boolean;
   personal_collection_id: number;
 }
+
+export interface CustomLoginAttributes {
+  isPaidSubscription?: boolean;
+}
+// Used when hydrating `creator` property
+export type UserInfo = Pick<
+  BaseUser,
+  | "id"
+  | "common_name"
+  | "first_name"
+  | "last_name"
+  | "email"
+  | "date_joined"
+  | "last_login"
+  | "is_superuser"
+  | "is_qbnewb"
+>;

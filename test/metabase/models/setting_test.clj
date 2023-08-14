@@ -1,32 +1,35 @@
 (ns metabase.models.setting-test
-  (:require [clojure.test :refer :all]
-            [environ.core :as env]
-            [medley.core :as m]
-            [metabase.models.serialization.hash :as serdes.hash]
-            [metabase.models.setting :as setting :refer [defsetting Setting]]
-            [metabase.models.setting.cache :as setting.cache]
-            [metabase.test :as mt]
-            [metabase.test.fixtures :as fixtures]
-            [metabase.test.util :as tu]
-            [metabase.util :as u]
-            [metabase.util.encryption-test :as encryption-test]
-            [metabase.util.i18n :as i18n :refer [deferred-tru]]
-            [schema.core :as s]
-            [toucan.db :as db]))
+  (:require
+   [clojure.test :refer :all]
+   [clojure.walk :as walk]
+   [environ.core :as env]
+   [medley.core :as m]
+   [metabase.db.query :as mdb.query]
+   [metabase.models.serialization.hash :as serdes.hash]
+   [metabase.models.setting :as setting :refer [defsetting Setting]]
+   [metabase.models.setting.cache :as setting.cache]
+   [metabase.test :as mt]
+   [metabase.test.fixtures :as fixtures]
+   [metabase.test.util :as tu]
+   [metabase.util :as u]
+   [metabase.util.encryption-test :as encryption-test]
+   [metabase.util.i18n :as i18n :refer [deferred-tru]]
+   [schema.core :as s]
+   [toucan.db :as db]))
 
 (use-fixtures :once (fixtures/initialize :db))
 
 ;; ## TEST SETTINGS DEFINITIONS
 
 (defsetting test-setting-1
-  (deferred-tru "Test setting - this only shows up in dev (1)"))
+  "Test setting - this only shows up in dev (1)")
 
 (defsetting test-setting-2
-  (deferred-tru "Test setting - this only shows up in dev (2)")
+  "Test setting - this only shows up in dev (2)"
   :default "[Default Value]")
 
 (defsetting test-setting-3
-  (deferred-tru "Test setting - this only shows up in dev (3)")
+  "Test setting - this only shows up in dev (3)"
   :visibility :internal)
 
 (defsetting test-boolean-setting
@@ -35,7 +38,7 @@
   :type :boolean)
 
 (defsetting test-json-setting
-  (deferred-tru "Test setting - this only shows up in dev (4)")
+  "Test setting - this only shows up in dev (4)"
   :type :json)
 
 (defsetting test-csv-setting
@@ -264,26 +267,13 @@
     (is (= {:value nil, :is_env_setting true, :env_name "MB_TEST_SETTING_2", :default "Using value of env var $MB_TEST_SETTING_2"}
            (user-facing-info-with-db-and-env-var-values :test-setting-2 "WOW" "ENV VAR")))))
 
-(deftest admin-writable-settings-test
-  (testing `setting/admin-writable-settings
-    (test-setting-1! nil)
-    (test-setting-2! "TOUCANS")
-    (is (= {:key            :test-setting-2
-            :value          "TOUCANS"
-            :description    "Test setting - this only shows up in dev (2)"
-            :is_env_setting false
-            :env_name       "MB_TEST_SETTING_2"
-            :default        "[Default Value]"}
-           (some (fn [setting]
-                   (when (re-find #"^test-setting-2$" (name (:key setting)))
-                     setting))
-                 (setting/admin-writable-settings))))
-
-    (testing "with a custom getter"
+(deftest writable-settings-test
+  (testing `setting/writable-settings
+    (mt/with-test-user :crowberto
       (test-setting-1! nil)
       (test-setting-2! "TOUCANS")
       (is (= {:key            :test-setting-2
-              :value          7
+              :value          "TOUCANS"
               :description    "Test setting - this only shows up in dev (2)"
               :is_env_setting false
               :env_name       "MB_TEST_SETTING_2"
@@ -291,44 +281,59 @@
              (some (fn [setting]
                      (when (re-find #"^test-setting-2$" (name (:key setting)))
                        setting))
-                   (setting/admin-writable-settings :getter (comp count (partial setting/get-value-of-type :string)))))))
+                   (setting/writable-settings))))
 
-    ;; TODO -- probably don't need both this test and the "TOUCANS" test above, we should combine them
-    (testing "test settings"
-      (test-setting-1! nil)
-      (test-setting-2! "S2")
-      (is (= [{:key            :test-setting-1
-               :value          nil
-               :is_env_setting false
-               :env_name       "MB_TEST_SETTING_1"
-               :description    "Test setting - this only shows up in dev (1)"
-               :default        nil}
-              {:key            :test-setting-2
-               :value          "S2"
-               :is_env_setting false
-               :env_name       "MB_TEST_SETTING_2"
-               :description    "Test setting - this only shows up in dev (2)"
-               :default        "[Default Value]"}]
-             (for [setting (setting/admin-writable-settings)
-                   :when   (re-find #"^test-setting-\d$" (name (:key setting)))]
-               setting))))))
+      (testing "with a custom getter"
+        (test-setting-1! nil)
+        (test-setting-2! "TOUCANS")
+        (is (= {:key            :test-setting-2
+                :value          7
+                :description    "Test setting - this only shows up in dev (2)"
+                :is_env_setting false
+                :env_name       "MB_TEST_SETTING_2"
+                :default        "[Default Value]"}
+               (some (fn [setting]
+                       (when (re-find #"^test-setting-2$" (name (:key setting)))
+                         setting))
+                     (setting/writable-settings :getter (comp count (partial setting/get-value-of-type :string)))))))
+
+      ;; TODO -- probably don't need both this test and the "TOUCANS" test above, we should combine them
+      (testing "test settings"
+        (test-setting-1! nil)
+        (test-setting-2! "S2")
+        (is (= [{:key            :test-setting-1
+                 :value          nil
+                 :is_env_setting false
+                 :env_name       "MB_TEST_SETTING_1"
+                 :description    "Test setting - this only shows up in dev (1)"
+                 :default        nil}
+                {:key            :test-setting-2
+                 :value          "S2"
+                 :is_env_setting false
+                 :env_name       "MB_TEST_SETTING_2"
+                 :description    "Test setting - this only shows up in dev (2)"
+                 :default        "[Default Value]"}]
+               (for [setting (setting/writable-settings)
+                     :when   (re-find #"^test-setting-\d$" (name (:key setting)))]
+                 setting)))))))
 
 (defsetting test-i18n-setting
   (deferred-tru "Test setting - with i18n"))
 
 (deftest validate-description-test
   (testing "Validate setting description with i18n string"
-    (mt/with-mock-i18n-bundles {"zz" {:messages {"Test setting - with i18n" "TEST SETTING - WITH I18N"}}}
-      (letfn [(description []
-                (some (fn [{:keys [key description]}]
-                        (when (= :test-i18n-setting key)
-                          description))
-                      (setting/admin-writable-settings)))]
-        (is (= "Test setting - with i18n"
-               (description)))
-        (mt/with-user-locale "zz"
-          (is (= "TEST SETTING - WITH I18N"
-                 (description))))))))
+    (mt/with-test-user :crowberto
+      (mt/with-mock-i18n-bundles {"zz" {:messages {"Test setting - with i18n" "TEST SETTING - WITH I18N"}}}
+        (letfn [(description []
+                  (some (fn [{:keys [key description]}]
+                          (when (= :test-i18n-setting key)
+                            description))
+                        (setting/writable-settings)))]
+          (is (= "Test setting - with i18n"
+                 (description)))
+          (mt/with-user-locale "zz"
+            (is (= "TEST SETTING - WITH I18N"
+                   (description)))))))))
 
 
 ;;; ------------------------------------------------ BOOLEAN SETTINGS ------------------------------------------------
@@ -447,9 +452,9 @@
 ;;; ----------------------------------------------- Encrypted Settings -----------------------------------------------
 
 (defn- actual-value-in-db [setting-key]
-  (-> (db/query {:select [:value]
-                 :from   [:setting]
-                 :where  [:= :key (name setting-key)]})
+  (-> (mdb.query/query {:select [:value]
+                        :from   [:setting]
+                        :where  [:= :key (name setting-key)]})
       first :value))
 
 (deftest encrypted-settings-test
@@ -576,119 +581,65 @@
     (is (= "Banana Beak"
            (toucan-name)))))
 
-(deftest duplicated-setting-name
-  (testing "can re-register a setting in the same ns (redefining or reloading ns)"
-    (is (defsetting foo (deferred-tru "A testing setting") :visibility :public))
-    (is (defsetting foo (deferred-tru "A testing setting") :visibility :public)))
-  (testing "if attempt to register in a different ns throws an error"
-    (let [current-ns (ns-name *ns*)]
-      (try
-        (ns nested-setting-test
-          (:require [metabase.models.setting :refer [defsetting]]
-                    [metabase.util.i18n :as i18n :refer [deferred-tru]]))
-        (defsetting foo (deferred-tru "A testing setting") :visibility :public)
-        (catch Exception e
-          (is (schema= {:existing-setting
-                        {:description (s/eq (deferred-tru "A testing setting"))
-                         :name        (s/eq :foo)
-                         :munged-name (s/eq "foo")
-                         :type        (s/eq :string)
-                         :sensitive?  (s/eq false)
-                         :tag         (s/eq 'java.lang.String)
-                         :namespace   (s/eq current-ns)
-                         :visibility  (s/eq :public)
-                         s/Keyword s/Any}}
-                       (ex-data e)))
-          (is (= (str "Setting :foo already registered in " current-ns)
-                 (ex-message e))))
-        (finally (in-ns current-ns))))))
 
-(defsetting test-setting-with-question-mark?
-  "Test setting - this only shows up in dev (6)"
+;;; ------------------------------------------------- Setting Visibility ------------------------------------------------
+
+(defsetting test-internal-setting
+  "test Setting"
   :visibility :internal)
 
-(deftest munged-setting-name-test
-  (testing "Only valid characters used for environment lookup"
-    (is (nil? (test-setting-with-question-mark?)))
-    ;; note now question mark on the environmental setting
-    (with-redefs [env/env {:mb-test-setting-with-question-mark "resolved"}]
-      (binding [setting/*disable-cache* false]
-        (is (= "resolved" (test-setting-with-question-mark?))))))
-  (testing "Setting a setting that would munge the same throws an error"
-    (is (= {:existing-setting
-            {:name :test-setting-with-question-mark?
-             :munged-name "test-setting-with-question-mark"}
-            :new-setting
-            {:name :test-setting-with-question-mark????
-             :munged-name "test-setting-with-question-mark"}}
-           (m/map-vals #(select-keys % [:name :munged-name])
-                       (try (defsetting test-setting-with-question-mark????
-                              "Test setting - this only shows up in dev (6)"
-                              :visibility :internal)
-                            (catch Exception e (ex-data e)))))))
-  (testing "Munge collision on first definition"
-    (defsetting test-setting-normal
-      "Test setting - this only shows up in dev (6)"
-      :visibility :internal)
-    (is (= {:existing-setting {:name :test-setting-normal, :munged-name "test-setting-normal"},
-            :new-setting {:name :test-setting-normal??, :munged-name "test-setting-normal"}}
-           (m/map-vals #(select-keys % [:name :munged-name])
-                       (try (defsetting test-setting-normal??
-                              "Test setting - this only shows up in dev (6)"
-                              :visibility :internal)
-                            (catch Exception e (ex-data e)))))))
-  (testing "Munge collision on second definition"
-    (defsetting test-setting-normal-1??
-      "Test setting - this only shows up in dev (6)"
-      :visibility :internal)
-    (is (= {:new-setting {:munged-name "test-setting-normal-1", :name :test-setting-normal-1},
-             :existing-setting {:munged-name "test-setting-normal-1", :name :test-setting-normal-1??}}
-           (m/map-vals #(select-keys % [:name :munged-name])
-                       (try (defsetting test-setting-normal-1
-                              "Test setting - this only shows up in dev (6)"
-                              :visibility :internal)
-                            (catch Exception e (ex-data e)))))))
-  (testing "Removes characters not-compliant with shells"
-    (is (= "aa1aa-b2b_cc3c"
-           (#'setting/munge-setting-name "aa1'aa@#?-b2@b_cc'3?c?")))))
+(defsetting test-public-setting
+  (deferred-tru "test Setting")
+  :visibility :public)
 
-(deftest validate-default-value-for-type-test
-  (letfn [(validate [tag default]
-            (@#'setting/validate-default-value-for-type
-             {:tag tag, :default default, :name :a-setting, :type :fake-type}))]
-    (testing "No default value"
-      (is (nil? (validate `String nil))))
-    (testing "No tag"
-      (is (nil? (validate nil "abc"))))
-    (testing "tag is not a symbol or string"
-      (is (thrown-with-msg?
-           AssertionError
-           #"Setting :tag should be a symbol or string, got: \^clojure\.lang\.Keyword :string"
-           (validate :string "Green Friend"))))
-    (doseq [[tag valid-tag?]     {"String"           false
-                                  "java.lang.String" true
-                                  'STRING            false
-                                  `str               false
-                                  `String            true}
-            [value valid-value?] {"Green Friend" true
-                                  :green-friend  false}]
-      (testing (format "Tag = %s (valid = %b)" (pr-str tag) valid-tag?)
-        (testing (format "Value = %s (valid = %b)" (pr-str value) valid-value?)
-          (cond
-            (and valid-tag? valid-value?)
-            (is (nil? (validate tag value)))
+(defsetting test-authenticated-setting
+  (deferred-tru "test Setting")
+  :visibility :authenticated)
 
-            (not valid-tag?)
-            (is (thrown-with-msg?
-                 Exception
-                 #"Cannot resolve :tag .+ to a class"
-                 (validate tag value)))
+(defsetting test-settings-manager-setting
+  (deferred-tru "test Setting")
+  :visibility :settings-manager)
 
-            (not valid-value?)
-            (is (thrown-with-msg?
-                 Exception
-                 #"Wrong :default type: got \^clojure\.lang\.Keyword :green-friend, but expected a java\.lang\.String"
-                 (validate tag value)))))))))
+(defsetting test-admin-setting
+  (deferred-tru "test Setting")
+  :visibility :admin)
+
+(deftest can-read-setting-test
+  (testing "no authenticated user"
+    (mt/with-current-user nil
+      (doseq [[setting expected] {:test-public-setting           true
+                                  :test-authenticated-setting    false
+                                  :test-settings-manager-setting false
+                                  :test-admin-setting            false}]
+        (testing setting
+          (is (= expected (setting/can-read-setting? setting (setting/current-user-readable-visibilities))))))))
+  (testing "authenticated non-admin user"
+    (mt/with-current-user (mt/user->id :rasta)
+      (doseq [[setting expected] {:test-public-setting           true
+                                  :test-authenticated-setting    true
+                                  :test-settings-manager-setting false
+                                  :test-admin-setting            false}]
+        (testing setting
+          (is (= expected (setting/can-read-setting? setting (setting/current-user-readable-visibilities))))))))
+  (testing "non-admin user with advanced setting access"
+    (with-redefs [setting/has-advanced-setting-access? (constantly true)]
+      (mt/with-current-user (mt/user->id :rasta)
+        (doseq [[setting expected] {:test-public-setting           true
+                                    :test-authenticated-setting    true
+                                    :test-settings-manager-setting true
+                                    :test-admin-setting            false}]
+          (testing setting
+            (is (= expected (setting/can-read-setting? setting (setting/current-user-readable-visibilities)))))))))
+  (testing "admin user"
+    (mt/with-current-user (mt/user->id :crowberto)
+      (doseq [[setting expected] {:test-public-setting           true
+                                  :test-authenticated-setting    true
+                                  :test-settings-manager-setting true
+                                  :test-admin-setting            true}]
+        (testing setting
+          (is (= expected (setting/can-read-setting? setting (setting/current-user-readable-visibilities)))))))))
+
+;;; ------------------------------------------------- DB-local Settings ------------------------------------------------
 
 (defsetting ^:private test-database-local-only-setting
   "test Setting"
@@ -813,47 +764,27 @@
 (deftest database-local-settings-api-functions-test
   ;; we'll use `::not-present` below to signify that the Setting isn't returned AT ALL (as opposed to being returned
   ;; with a `nil` value)
-  (doseq [[fn-name f] {`setting/admin-writable-settings
-                       (fn [k]
-                         (let [m (into {} (map (juxt :key :value)) (setting/admin-writable-settings))]
-                           (get m k ::not-present)))
+  (mt/with-test-user :crowberto
+    (doseq [[fn-name f] {`setting/writable-settings
+                         (fn [k]
+                           (let [m (into {} (map (juxt :key :value)) (setting/writable-settings))]
+                             (get m k ::not-present)))
 
-                       `setting/user-readable-values-map
-                       (fn [k]
-                         (get (setting/user-readable-values-map :authenticated) k ::not-present))}]
-    (testing fn-name
-      (testing "should return Database-local-allowed Settings (site-wide-value only)"
-        (mt/with-temporary-setting-values [test-database-local-allowed-setting 2]
-          (binding [setting/*database-local-values* {:test-database-local-allowed-setting "1"}]
-            (is (= 2
-                   (f :test-database-local-allowed-setting))))))
-      (testing "should not return Database-local-only Settings regardless of visibility even if they have a default value"
-        (is (= ::not-present
-               (f :test-database-local-only-setting-with-default)))))))
+                         `setting/user-readable-values-map
+                         (fn [k]
+                           (get (setting/user-readable-values-map #{:authenticated}) k ::not-present))}]
+      (testing fn-name
+        (testing "should return Database-local-allowed Settings (site-wide-value only)"
+          (mt/with-temporary-setting-values [test-database-local-allowed-setting 2]
+            (binding [setting/*database-local-values* {:test-database-local-allowed-setting "1"}]
+              (is (= 2
+                     (f :test-database-local-allowed-setting))))))
+        (testing "should not return Database-local-only Settings regardless of visibility even if they have a default value"
+          (is (= ::not-present
+                 (f :test-database-local-only-setting-with-default))))))))
 
-(defsetting ^:private test-integer-setting
-  "test Setting"
-  :visibility :internal
-  :type       :integer)
 
-(deftest integer-setting-test
-  (testing "Should be able to set integer setting with a string"
-    (test-integer-setting! "100")
-    (is (= 100
-           (test-integer-setting)))
-    (testing "should be able to set to a negative number (thanks Howon for spotting this)"
-      (test-integer-setting! "-2")
-      (is (= -2
-             (test-integer-setting))))))
-
-(deftest retired-settings-test
-  (testing "Should not be able to define a setting with a retired name"
-    (with-redefs [setting/retired-setting-names #{"retired-setting"}]
-      (try
-        (defsetting retired-setting (deferred-tru "A retired setting name"))
-        (catch Exception e
-          (is (= "Setting name 'retired-setting' is retired; use a different name instead"
-                 (ex-message e))))))))
+;;; ------------------------------------------------- User-local Settings ----------------------------------------------
 
 (defsetting test-user-local-only-setting
   (deferred-tru  "test Setting")
@@ -949,3 +880,156 @@
     (binding [*enabled?* true]
       (is (= "custom" (test-enabled-setting-default)))
       (is (= "custom" (test-enabled-setting-no-default))))))
+
+
+;;; ------------------------------------------------- Misc tests -------------------------------------------------------
+
+(defsetting ^:private test-integer-setting
+  "test Setting"
+  :visibility :internal
+  :type       :integer)
+
+(deftest integer-setting-test
+  (testing "Should be able to set integer setting with a string"
+    (test-integer-setting! "100")
+    (is (= 100
+           (test-integer-setting)))
+    (testing "should be able to set to a negative number (thanks Howon for spotting this)"
+      (test-integer-setting! "-2")
+      (is (= -2
+             (test-integer-setting))))))
+
+(deftest retired-settings-test
+  (testing "Should not be able to define a setting with a retired name"
+    (with-redefs [setting/retired-setting-names #{"retired-setting"}]
+      (try
+        (defsetting retired-setting (deferred-tru "A retired setting name"))
+        (catch Exception e
+          (is (= "Setting name 'retired-setting' is retired; use a different name instead"
+                 (ex-message e))))))))
+
+(deftest duplicated-setting-name
+  (testing "can re-register a setting in the same ns (redefining or reloading ns)"
+    (is (defsetting foo (deferred-tru "A testing setting") :visibility :public))
+    (is (defsetting foo (deferred-tru "A testing setting") :visibility :public)))
+  (testing "if attempt to register in a different ns throws an error"
+    (let [current-ns (ns-name *ns*)]
+      (try
+        (ns nested-setting-test
+          (:require
+           [metabase.models.setting :refer [defsetting]]
+           [metabase.util.i18n :as i18n :refer [deferred-tru]]))
+        (defsetting foo (deferred-tru "A testing setting") :visibility :public)
+        (catch Exception e
+          (is (schema= {:existing-setting
+                        {:description (s/eq (deferred-tru "A testing setting"))
+                         :name        (s/eq :foo)
+                         :munged-name (s/eq "foo")
+                         :type        (s/eq :string)
+                         :sensitive?  (s/eq false)
+                         :tag         (s/eq 'java.lang.String)
+                         :namespace   (s/eq current-ns)
+                         :visibility  (s/eq :public)
+                         s/Keyword s/Any}}
+                       (ex-data e)))
+          (is (= (str "Setting :foo already registered in " current-ns)
+                 (ex-message e))))
+        (finally (in-ns current-ns))))))
+
+(defsetting test-setting-with-question-mark?
+  "Test setting - this only shows up in dev (6)"
+  :visibility :internal)
+
+(deftest munged-setting-name-test
+  (testing "Only valid characters used for environment lookup"
+    (is (nil? (test-setting-with-question-mark?)))
+    ;; note now question mark on the environmental setting
+    (with-redefs [env/env {:mb-test-setting-with-question-mark "resolved"}]
+      (binding [setting/*disable-cache* false]
+        (is (= "resolved" (test-setting-with-question-mark?))))))
+  (testing "Setting a setting that would munge the same throws an error"
+    (is (= {:existing-setting
+            {:name :test-setting-with-question-mark?
+             :munged-name "test-setting-with-question-mark"}
+            :new-setting
+            {:name :test-setting-with-question-mark????
+             :munged-name "test-setting-with-question-mark"}}
+           (m/map-vals #(select-keys % [:name :munged-name])
+                       (try (defsetting test-setting-with-question-mark????
+                              "Test setting - this only shows up in dev (6)"
+                              :visibility :internal)
+                            (catch Exception e (ex-data e)))))))
+  (testing "Munge collision on first definition"
+    (defsetting test-setting-normal
+      "Test setting - this only shows up in dev (6)"
+      :visibility :internal)
+    (is (= {:existing-setting {:name :test-setting-normal, :munged-name "test-setting-normal"},
+            :new-setting {:name :test-setting-normal??, :munged-name "test-setting-normal"}}
+           (m/map-vals #(select-keys % [:name :munged-name])
+                       (try (defsetting test-setting-normal??
+                              "Test setting - this only shows up in dev (6)"
+                              :visibility :internal)
+                            (catch Exception e (ex-data e)))))))
+  (testing "Munge collision on second definition"
+    (defsetting test-setting-normal-1??
+      "Test setting - this only shows up in dev (6)"
+      :visibility :internal)
+    (is (= {:new-setting {:munged-name "test-setting-normal-1", :name :test-setting-normal-1},
+             :existing-setting {:munged-name "test-setting-normal-1", :name :test-setting-normal-1??}}
+           (m/map-vals #(select-keys % [:name :munged-name])
+                       (try (defsetting test-setting-normal-1
+                              "Test setting - this only shows up in dev (6)"
+                              :visibility :internal)
+                            (catch Exception e (ex-data e)))))))
+  (testing "Removes characters not-compliant with shells"
+    (is (= "aa1aa-b2b_cc3c"
+           (#'setting/munge-setting-name "aa1'aa@#?-b2@b_cc'3?c?")))))
+
+(deftest validate-default-value-for-type-test
+  (letfn [(validate [tag default]
+            (@#'setting/validate-default-value-for-type
+             {:tag tag, :default default, :name :a-setting, :type :fake-type}))]
+    (testing "No default value"
+      (is (nil? (validate `String nil))))
+    (testing "No tag"
+      (is (nil? (validate nil "abc"))))
+    (testing "tag is not a symbol or string"
+      (is (thrown-with-msg?
+           AssertionError
+           #"Setting :tag should be a symbol or string, got: \^clojure\.lang\.Keyword :string"
+           (validate :string "Green Friend"))))
+    (doseq [[tag valid-tag?]     {"String"           false
+                                  "java.lang.String" true
+                                  'STRING            false
+                                  `str               false
+                                  `String            true}
+            [value valid-value?] {"Green Friend" true
+                                  :green-friend  false}]
+      (testing (format "Tag = %s (valid = %b)" (pr-str tag) valid-tag?)
+        (testing (format "Value = %s (valid = %b)" (pr-str value) valid-value?)
+          (cond
+            (and valid-tag? valid-value?)
+            (is (nil? (validate tag value)))
+
+            (not valid-tag?)
+            (is (thrown-with-msg?
+                 Exception
+                 #"Cannot resolve :tag .+ to a class"
+                 (validate tag value)))
+
+            (not valid-value?)
+            (is (thrown-with-msg?
+                 Exception
+                 #"Wrong :default type: got \^clojure\.lang\.Keyword :green-friend, but expected a java\.lang\.String"
+                 (validate tag value)))))))))
+
+(deftest validate-description-translation-test
+  (with-redefs [metabase.models.setting/in-test? (constantly false)]
+    (testing "When not in a test, defsetting descriptions must be i18n'ed"
+      (try
+        (walk/macroexpand-all
+         `(defsetting ~'test-asdf-asdf-asdf
+            "untranslated description"))
+        (catch Exception e
+          (is (re-matches #"defsetting docstrings must be a \*deferred\* i18n form.*"
+                          (:cause (Throwable->map e)))))))))

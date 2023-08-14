@@ -1,4 +1,4 @@
-import React, { ErrorInfo, ReactNode, useState } from "react";
+import React, { ReactNode, useEffect, useState } from "react";
 import { connect } from "react-redux";
 import { Location } from "history";
 
@@ -18,7 +18,6 @@ import {
   getIsNavBarEnabled,
 } from "metabase/selectors/app";
 import { setErrorPage } from "metabase/redux/app";
-import { useOnMount } from "metabase/hooks/use-on-mount";
 import { initializeIframeResizer } from "metabase/lib/dom";
 
 import AppBanner from "metabase/components/AppBanner";
@@ -30,6 +29,7 @@ import { ContentViewportContext } from "metabase/core/context/ContentViewportCon
 import { AppErrorDescriptor, State } from "metabase-types/store";
 
 import { AppContainer, AppContent, AppContentContainer } from "./App.styled";
+import ErrorBoundary from "./ErrorBoundary";
 
 const getErrorComponent = ({ status, data, context }: AppErrorDescriptor) => {
   if (status === 403 || data?.error_code === "unauthorized") {
@@ -80,18 +80,6 @@ const mapDispatchToProps: AppDispatchProps = {
   onError: setErrorPage,
 };
 
-class ErrorBoundary extends React.Component<{
-  onError: (errorInfo: ErrorInfo) => void;
-}> {
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    this.props.onError(errorInfo);
-  }
-
-  render() {
-    return this.props.children;
-  }
-}
-
 function App({
   errorPage,
   isAdminApp,
@@ -102,16 +90,16 @@ function App({
 }: AppProps) {
   const [viewportElement, setViewportElement] = useState<HTMLElement | null>();
 
-  useOnMount(() => {
+  useEffect(() => {
     initializeIframeResizer();
-  });
+  }, []);
 
   return (
     <ErrorBoundary onError={onError}>
       <ScrollToTop>
         <AppContainer className="spread">
           <AppBanner />
-          {isAppBarVisible && <AppBar isNavBarEnabled={isNavBarEnabled} />}
+          {isAppBarVisible && <AppBar />}
           <AppContentContainer isAdminApp={isAdminApp}>
             {isNavBarEnabled && <Navbar />}
             <AppContent ref={setViewportElement}>

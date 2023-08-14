@@ -10,6 +10,14 @@ import {
 
 describe("parameters/utils/mbql", () => {
   describe("dateParameterValueToMBQL", () => {
+    const date = () =>
+      moment().utc().hours(0).minutes(0).seconds(0).milliseconds(0);
+
+    beforeEach(() => {
+      jest.useFakeTimers();
+      jest.setSystemTime(date().date(1).month(1).toDate());
+    });
+
     it("should parse past30days", () => {
       expect(dateParameterValueToMBQL("past30days", null)).toEqual([
         "time-interval",
@@ -135,7 +143,7 @@ describe("parameters/utils/mbql", () => {
         date().quarter(1).format("YYYY-MM-DD"),
       ]);
     });
-    it.skip("should parse exclude-quarters-1-2", () => {
+    it("should parse exclude-quarters-1-2", () => {
       expect(dateParameterValueToMBQL("exclude-quarters-1-2", null)).toEqual([
         "!=",
         ["field", null, { "temporal-unit": "quarter-of-year" }],
@@ -159,9 +167,6 @@ describe("parameters/utils/mbql", () => {
         date().day(5).format("YYYY-MM-DD"),
       ]);
     });
-
-    const date = () =>
-      moment().utc().hours(0).minutes(0).seconds(0).milliseconds(0);
   });
 
   describe("stringParameterValueToMBQL", () => {
