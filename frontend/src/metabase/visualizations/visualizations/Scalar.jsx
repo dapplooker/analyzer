@@ -31,7 +31,7 @@ export default class Scalar extends Component {
   static uiName = t`Number`;
   static identifier = "scalar";
   static iconName = "number";
-  static canSavePng = false;
+  static canSavePng = true;
 
   static noHeader = true;
   static supportsSeries = true;

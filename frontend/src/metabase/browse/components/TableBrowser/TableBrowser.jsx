@@ -132,9 +132,9 @@ const TableBrowserItemButtons = ({ tableId, dbId, xraysEnabled }) => {
         >
           <Icon
             name="bolt"
-            size={20}
+            size={28}
             tooltip={t`X-ray this table`}
-            color={color("warning")}
+            color={color("dl-warning")}
           />
         </TableActionLink>
       )}
@@ -145,7 +145,8 @@ const TableBrowserItemButtons = ({ tableId, dbId, xraysEnabled }) => {
         <Icon
           name="reference"
           tooltip={t`Learn about this table`}
-          color={color("text-medium")}
+          size={20}
+          color={color("text-light")}
         />
       </TableActionLink>
     </Fragment>

@@ -57,6 +57,15 @@ class AddToDashSelectDashModal extends Component {
           title={t`Add this chart to a dashboard`}
           onClose={this.props.onClose}
         >
+          <Link
+            mt={1}
+            onClick={() => this.setState({ shouldCreateDashboard: true })}
+          >
+            <LinkContent>
+              <Icon name="add" mx={1} bordered />
+              <h4>{t`Create a new dashboard`}</h4>
+            </LinkContent>
+          </Link>
           <DashboardPicker onChange={this.onDashboardSelected} />
           <Link
             mt={1}

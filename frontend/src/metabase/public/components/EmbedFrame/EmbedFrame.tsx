@@ -108,6 +108,8 @@ function EmbedFrame({
 
   const hasHeader = Boolean(finalName || hasParameters);
 
+  const isNotInIframe = !isWithinIframe();
+
   return (
     <Root
       hasScroll={hasInnerScroll}
@@ -120,7 +122,7 @@ function EmbedFrame({
       <ContentContainer hasScroll={hasInnerScroll}>
         {hasHeader && (
           <Header className="EmbedFrame-header">
-            {finalName && (
+            {finalName && isNotInIframe && (
               <TitleAndDescription
                 title={finalName}
                 description={description}

@@ -109,9 +109,10 @@ class PublicDashboard extends Component {
       isFullscreen,
       isNightMode,
     } = this.props;
-    const buttons = !isWithinIframe()
-      ? getDashboardActions(this, { ...this.props, isPublic: true })
-      : [];
+    // const buttons = !isWithinIframe()
+    //   ? getDashboardActions(this, { ...this.props, isPublic: true })
+    //   : [];
+    const buttons = [];
 
     const hideWaterMark =
       (dashboard &&
