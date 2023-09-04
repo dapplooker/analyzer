@@ -46,6 +46,8 @@ export const colors = {
   "saturated-purple": "#885AB1",
   "saturated-red": "#ED6E6E",
   "saturated-yellow": "#F9CF48",
+
+  "dl-warning": "#FBBC05",
 };
 /* eslint-enable no-color-literals */
 
