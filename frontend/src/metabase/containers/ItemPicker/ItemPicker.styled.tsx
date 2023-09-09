@@ -8,7 +8,7 @@ import { color } from "metabase/lib/colors";
 
 export const ScrollAwareLoadingAndErrorWrapper = styled(
   LoadingAndErrorWrapper,
-)<{ hasScroll?: boolean }>`
+) <{ hasScroll?: boolean }>`
   ${props =>
     props.hasScroll &&
     css`
@@ -24,6 +24,7 @@ export const ItemPickerHeader = styled.div`
   display: flex;
   align-items: center;
 
+  margin-top: 27px;
   margin-bottom: 1rem;
   padding-bottom: 0.5rem;
 

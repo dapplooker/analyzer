@@ -73,7 +73,7 @@ function ProfileLink({ user, adminItems, onLogout }) {
       {
         title: t`API Keys`,
         icon: null,
-        link: 'https://github.com/dapplooker/dapplooker-sdk',
+        link: 'https://dapplooker.com/user/api',
         externalLink: true,
         event: `Navbar;Profile Dropdown;About ${tag}`,
       },

@@ -175,7 +175,8 @@ class PublicQuestion extends Component {
     const { card, result, initialized, parameterValues } = this.state;
     const question = new Question(card, metadata);
 
-    const actionButtons = result && (
+    // const actionButtons = result && (
+    const actionButtons = false && ( // hide download button from the footer
       <QueryDownloadWidget
         className="m1 text-medium-hover"
         uuid={uuid}
