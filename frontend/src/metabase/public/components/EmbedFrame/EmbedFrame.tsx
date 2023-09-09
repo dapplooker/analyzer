@@ -99,8 +99,9 @@ function EmbedFrame({
     hide_download_button,
   } = parseHashOptions(location.hash) as HashOptions;
 
-  const showFooter =
-    hasEmbedBranding || (!hide_download_button && actionButtons);
+  // const showFooter =
+  //   hasEmbedBranding || (!hide_download_button && actionButtons);
+  const showFooter = false;
 
   const finalName = titled ? name : null;
 

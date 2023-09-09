@@ -9,8 +9,8 @@ export interface DashCardRootProps {
 }
 
 const rootNightModeStyle = css`
-  border-color: ${color("bg-night")};
-  background-color: ${color("bg-night")};
+  border-color: ${color("dapplooker-color-bg-card-dark")};
+  background-color: ${color("dapplooker-color-bg-card-dark")};
 `;
 
 const rootSlowCardStyle = css`

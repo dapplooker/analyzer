@@ -28,7 +28,7 @@ export const Root = styled.div<{
     props.isBordered &&
     css`
       border: 1px solid ${color("border")};
-      border-radius: 8px;
+      border-radius: 0px;
       box-shadow: 0 2px 2px ${color("shadow")};
     `}
 `;

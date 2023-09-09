@@ -23,6 +23,8 @@
   --color-focus: #cbe2f7;
   --color-shadow: rgba(0, 0, 0, 0.13);
   --color-border: #eeecec;
+  --dapplooker-color-bg-dark: #03000c;
+  --dapplooker-color-bg-card-dark: #0a0d15;
 }
 
 .text-default,
@@ -137,7 +139,7 @@
 
 .bg-dark,
 .bg-dark-hover:hover {
-  background-color: var(--color-bg-dark);
+  background-color: var(--dapplooker-color-bg-dark);
 }
 
 .bg-black,
@@ -195,7 +197,7 @@
 /* entity colors */
 
 .bg-question {
-  background-color: var(--color-bg-dark);
+  background-color: var(--dapplooker-color-bg-dark);
 }
 .text-question {
   color: var(--color-text-medium);
