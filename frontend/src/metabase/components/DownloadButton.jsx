@@ -100,11 +100,17 @@ export const DownloadButtonBase = ({ format, onClick, ...rest }) => {
 const getFileName = card =>
   `${card.name ?? t`New question`}-${new Date().toLocaleString()}.png`;
 
-export const SaveAsPngButton = ({ card, onSave }) => {
+export const SaveAsPngButton = ({ card, onSave, hideWaterMark }) => {
   const handleSave = async () => {
     const cardNodeSelector = `[data-card-key='${getCardKey(card)}']`;
     const name = getFileName(card);
-    await saveChartImage(cardNodeSelector, name);
+    let isShowWatermark = true;
+    if (card?.creator_details) {
+      isShowWatermark = card.creator_details.login_attributes.isPaidSubscription === false
+    } else {
+      isShowWatermark = hideWaterMark === false;
+    }
+    await saveChartImage(cardNodeSelector, name, isShowWatermark);
     onSave?.();
   };
 

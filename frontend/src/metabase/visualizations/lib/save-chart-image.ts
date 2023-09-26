@@ -12,7 +12,7 @@ export const saveChartImageStyles = css`
   }
 `;
 
-export const saveChartImage = async (selector: string, fileName: string) => {
+export const saveChartImage = async (selector: string, fileName: string, isShowWatermark: boolean = true) => {
   const node = document.querySelector(selector);
 
   if (!node || !(node instanceof HTMLElement)) {
@@ -26,12 +26,40 @@ export const saveChartImage = async (selector: string, fileName: string) => {
 
   node.classList.remove(SAVING_CHART_IMAGE_CLASS);
 
+  let combinedCanvas;
+  if (isShowWatermark) {
+    const watermarkImage = new Image();
+    watermarkImage.setAttribute('crossorigin', 'anonymous');
+    watermarkImage.src = "https://d2yxqfr8upg55w.cloudfront.net/assets/img/dl_watermark_withtext_lighttheme.png";
+
+    await new Promise((resolve) => {
+      watermarkImage.onload = resolve;
+    })
+
+    combinedCanvas = document.createElement("canvas");
+    combinedCanvas.width = canvas.width;
+    combinedCanvas.height = canvas.height;
+    const ctx = combinedCanvas.getContext("2d")!;
+
+    ctx.drawImage(canvas, 0, 0);
+
+    const watermarkWidthPercentage = 25;
+    const watermarkWidth = (canvas.width * watermarkWidthPercentage) / 100;
+    const aspectRatio = watermarkImage.width / watermarkImage.height;
+    const watermarkHeight = watermarkWidth / aspectRatio;
+    const x = (canvas.width - watermarkWidth) / 2;
+    const y = (canvas.height - watermarkHeight) / 2;
+    ctx.drawImage(watermarkImage, x, y, watermarkWidth, watermarkHeight);
+  } else {
+    combinedCanvas = canvas;
+  }
+
   const link = document.createElement("a");
 
   link.setAttribute("download", fileName);
   link.setAttribute(
     "href",
-    canvas.toDataURL("image/png").replace("image/png", "image/octet-stream"),
+    combinedCanvas.toDataURL("image/png").replace("image/png", "image/octet-stream"),
   );
 
   link.click();

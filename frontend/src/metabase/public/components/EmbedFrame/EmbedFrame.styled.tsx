@@ -56,12 +56,13 @@ export const Header = styled.header`
   }
 `;
 
-export const Body = styled.main`
+export const Body = styled.main<{ isNightTheme: boolean }>`
   display: flex;
   flex-direction: column;
   flex: 1 0 auto;
   width: 100%;
   position: relative;
+  background-color: ${props => props.isNightTheme ? color("dapplooker-color-bg-dark") : color("dapplooker-color-bg-light")};
 `;
 
 export const ActionButtonsContainer = styled.div`

@@ -44,6 +44,7 @@ const QueryDownloadWidget = ({
   iconSize = 20,
   params,
   visualizationSettings,
+  hideWaterMark,
 }) => {
   const [status, setStatus] = useState(`idle`);
 
@@ -96,7 +97,7 @@ const QueryDownloadWidget = ({
                 </WidgetFormat>
               ))}
               {canSavePng(card.display) ? (
-                <SaveAsPngButton card={card} onSave={closePopover} />
+                <SaveAsPngButton card={card} onSave={closePopover} hideWaterMark={hideWaterMark} />
               ) : null}
             </>
           </div>

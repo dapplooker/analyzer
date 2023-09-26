@@ -147,7 +147,7 @@ function EmbedFrame({
             )}
           </Header>
         )}
-        <Body>{children}</Body>
+        <Body isNightTheme={theme === "night"}>{children}</Body>
       </ContentContainer>
       {showFooter && (
         <Footer className="EmbedFrame-footer" variant={footerVariant}>
