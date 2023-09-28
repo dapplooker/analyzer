@@ -28,7 +28,7 @@ export const Root = styled.div<{
     props.isBordered &&
     css`
       border: 1px solid ${color("border")};
-      border-radius: 8px;
+      border-radius: 0px;
       box-shadow: 0 2px 2px ${color("shadow")};
     `}
 `;
@@ -56,12 +56,13 @@ export const Header = styled.header`
   }
 `;
 
-export const Body = styled.main`
+export const Body = styled.main<{ isNightTheme: boolean }>`
   display: flex;
   flex-direction: column;
   flex: 1 0 auto;
   width: 100%;
   position: relative;
+  background-color: ${props => props.isNightTheme ? color("dapplooker-color-bg-dark") : color("dapplooker-color-bg-light")};
 `;
 
 export const ActionButtonsContainer = styled.div`

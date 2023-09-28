@@ -16,15 +16,15 @@ body {
 }
 
 .Theme--night.EmbedFrame {
-  background-color: var(--color-bg-black);
-  border: 1px solid var(--color-bg-dark);
+  background-color: var(--dapplooker-color-bg-dark);
+  border: 1px solid var(--dapplooker-color-bg-dark);
 }
 
 .Theme--night .EmbedFrame-header,
 .Theme--night .EmbedFrame-footer {
   color: color-mod(var(--color-text-white) alpha(-14%));
-  background-color: var(--color-bg-black);
-  border-color: var(--color-bg-dark);
+  background-color: var(--dapplooker-color-bg-dark);
+  border-color: var(--dapplooker-color-bg-dark);
 }
 
 .Theme--night.EmbedFrame .fullscreen-night-text {
@@ -38,8 +38,8 @@ body {
 }
 
 .Theme--night.EmbedFrame .DashCard .Card {
-  background-color: var(--color-bg-black);
-  border: 1px solid var(--color-bg-dark);
+  background-color: var(--dapplooker-color-bg-card-dark);
+  border: 1px solid var(--dapplooker-color-bg-card-dark);
 }
 
 .Theme--night.EmbedFrame .enable-dots-onhover .dc-tooltip circle.dot:hover,

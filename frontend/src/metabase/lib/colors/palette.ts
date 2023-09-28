@@ -48,6 +48,9 @@ export const colors = {
   "saturated-yellow": "#F9CF48",
 
   "dl-warning": "#FBBC05",
+  "dapplooker-color-bg-light": "#f3f8fd",
+  "dapplooker-color-bg-dark": "#03000c",
+  "dapplooker-color-bg-card-dark": "#182034",
 };
 /* eslint-enable no-color-literals */
 

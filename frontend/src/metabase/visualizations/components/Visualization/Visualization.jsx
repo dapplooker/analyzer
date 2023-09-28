@@ -10,6 +10,7 @@ import ExplicitSize from "metabase/components/ExplicitSize";
 import * as MetabaseAnalytics from "metabase/lib/analytics";
 import { formatNumber } from "metabase/lib/formatting";
 import Utils from "metabase/lib/utils";
+import { parseHashOptions } from "metabase/lib/browser";
 
 import {
   getVisualizationTransformed,
@@ -358,6 +359,7 @@ class Visualization extends React.PureComponent {
       location.hash !== "#fullscreen&theme=night" &&
       location.hash !== "#theme=night" &&
       location.hash !== "#theme=night&fullscreen";
+    const isNightTheme = parseHashOptions(location.hash)?.theme === "night";
 
     // these may be overridden below
     let { series, hovered, clicked } = this.state;
@@ -482,7 +484,7 @@ class Visualization extends React.PureComponent {
             !noResults &&
             !hideWaterMarkDuringBuilding ? (
               !isScalar && !isTrend ? (
-                !isNightMode ? (
+                (!isNightMode && !isNightTheme) ? (
                   <div className="watermark-with-text-light-theme">
                     <span />
                   </div>
@@ -531,7 +533,7 @@ class Visualization extends React.PureComponent {
           ) : (
             <div
               data-card-key={getCardKey(series[0].card)}
-              className="flex flex-column flex-full"
+              className={`flex flex-column flex-full ${isNightTheme ? "Card--night": ""}`}
             >
               <CardVisualization
                 {...this.props}

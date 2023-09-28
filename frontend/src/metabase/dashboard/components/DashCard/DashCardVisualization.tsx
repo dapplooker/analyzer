@@ -209,6 +209,7 @@ function DashCardVisualization({
         token={isEmbed ? dashcard.dashboard_id : undefined}
         icon="ellipsis"
         iconSize={17}
+        hideWaterMark={hideWaterMark}
       />
     );
   }, [
