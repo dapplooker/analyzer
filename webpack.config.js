@@ -68,7 +68,7 @@ const config = (module.exports = {
     // filename: "[name].bundle.js?[chunkhash]",
     filename: "[name].bundle.[contenthash].js",
     // publicPath: "app/dist/",
-    publicPath: "https://d2yxqfr8upg55w.cloudfront.net/analyzer/dist/"
+    publicPath: "https://d2yxqfr8upg55w.cloudfront.net/analyzer_dev/dist/"
   },
 
   module: {
