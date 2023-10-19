@@ -1,11 +1,11 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { withRouter } from "react-router";
 import { connect } from "react-redux";
 import cx from "classnames";
 import _ from "underscore";
 import type { Location } from "history";
 
-import { useMount } from "react-use";
+import { useLocation, useMount } from "react-use";
 import TitleAndDescription from "metabase/components/TitleAndDescription";
 
 import { getSetting } from "metabase/selectors/settings";
@@ -86,6 +86,12 @@ function EmbedFrame({
   setParameterValue,
 }: Props) {
   const [hasInnerScroll, setInnerScroll] = useState(true);
+  const browserLocation = useLocation();
+
+  useEffect(() => {
+    const currentWindowUrl = window.location.href;
+    window.parent.postMessage({ url: currentWindowUrl }, "*");
+  }, [browserLocation])
 
   useMount(() => {
     initializeIframeResizer(() => setInnerScroll(false));
@@ -99,9 +105,8 @@ function EmbedFrame({
     hide_download_button,
   } = parseHashOptions(location.hash) as HashOptions;
 
-  // const showFooter =
-  //   hasEmbedBranding || (!hide_download_button && actionButtons);
-  const showFooter = false;
+  const showFooter =
+    hasEmbedBranding || (!hide_download_button && actionButtons);
 
   const finalName = titled ? name : null;
 
@@ -122,7 +127,7 @@ function EmbedFrame({
     >
       <ContentContainer hasScroll={hasInnerScroll}>
         {hasHeader && (
-          <Header className="EmbedFrame-header">
+          <Header className="EmbedFrame-header" isNotInIframe={isNotInIframe}>
             {finalName && isNotInIframe && (
               <TitleAndDescription
                 title={finalName}
@@ -150,13 +155,13 @@ function EmbedFrame({
         <Body isNightTheme={theme === "night"}>{children}</Body>
       </ContentContainer>
       {showFooter && (
-        <Footer className="EmbedFrame-footer" variant={footerVariant}>
-          {hasEmbedBranding && (
+        <Footer className="EmbedFrame-footer" variant={footerVariant} isNotInIframe={isNotInIframe}>
+          {/* {hasEmbedBranding && (
             <LogoBadge variant={footerVariant} dark={theme === "night"} />
           )}
           {actionButtons && (
             <ActionButtonsContainer>{actionButtons}</ActionButtonsContainer>
-          )}
+          )} */}
         </Footer>
       )}
     </Root>

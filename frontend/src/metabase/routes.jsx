@@ -88,6 +88,8 @@ import { getAdminPaths } from "metabase/admin/app/selectors";
 import ActionCreatorModal from "metabase/actions/containers/ActionCreatorModal";
 import ModelDetailPage from "metabase/models/containers/ModelDetailPage";
 
+const returnTo = encodeURIComponent(window.location.href);
+
 const MetabaseIsSetup = UserAuthWrapper({
   predicate: authData => authData.hasUserSetup,
   failureRedirectPath: "/setup",
@@ -189,7 +191,7 @@ export const getRoutes = store => (
       }}
     >
 
-    {/* AUTH to be uncommented from line 194 to 203 during local testing on analytics.dlooker.com*/}
+    {/* AUTH to be uncommented from line 195 to 204 during local testing on analytics.dlooker.com*/}
     {/* <Route path="/auth">
       <IndexRedirect to="/auth/login" />
       <Route component={IsNotAuthenticated}>
@@ -202,7 +204,7 @@ export const getRoutes = store => (
     </Route> */}
     {/* ==================================================================== */}
 
-    {/* AUTH comment from line 207 to 234 during local testing  */}
+    {/* AUTH comment from line 208 to 235 during local testing  */}
     <Route path="/auth">
       <IndexRedirect to="/auth/login" />
       <Route component={IsNotAuthenticated}>
@@ -210,7 +212,7 @@ export const getRoutes = store => (
           path="login"
           component={() => {
             window.location.href =
-              "https://dapplooker.com/user/login?source=dlooker";
+              `https://dapplooker.com/user/login?source=dlooker&returnTo=${returnTo}`;
             return null;
           }}
         />
@@ -219,14 +221,14 @@ export const getRoutes = store => (
       <Route
         path="forgot_password"
         component={() => {
-          window.location.href = "https://dapplooker.com/user/login?source=dlooker";
+          window.location.href = `https://dapplooker.com/user/login?source=dlooker&returnTo=${returnTo}`;
           return null;
         }}
       />
       <Route
         path="reset_password/:token"
         component={() => {
-          window.location.href = "https://dapplooker.com/user/login?source=dlooker";
+          window.location.href = `https://dapplooker.com/user/login?source=dlooker&returnTo=${returnTo}`;
           return null;
         }}
       />

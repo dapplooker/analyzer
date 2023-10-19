@@ -79,6 +79,8 @@
                   :style-src    ["'self'"
                                  "'unsafe-inline'"
                                  cloudfront-domain
+                                 (when config/is-dev?
+                                    "*:5500")
                                  "https://www.googletagmanager.com"
                                  "https://accounts.google.com"]
                   :font-src     ["*"]
