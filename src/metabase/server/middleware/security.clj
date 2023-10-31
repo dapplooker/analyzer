@@ -64,7 +64,7 @@
                                      "https://www.google-analytics.com")
                                    ;; for webpack hot reloading
                                    (when config/is-dev?
-                                     "*:8080")
+                                     "*:5500")
                                    ;; for react dev tools to work in Firefox until resolution of
                                    ;; https://github.com/facebook/react/issues/17997
                                    (when config/is-dev?
@@ -99,7 +99,7 @@
                                    (snowplow/snowplow-url))
                                  ;; Webpack dev server
                                  (when config/is-dev?
-                                   "*:8080 ws://*:8080")]
+                                   "*:5500 ws://*:5500")]
                   :manifest-src ["'self'"]}]
       (format "%s %s; " (name k) (str/join " " vs))))})
 

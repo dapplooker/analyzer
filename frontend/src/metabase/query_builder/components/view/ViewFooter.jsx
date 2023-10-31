@@ -17,8 +17,8 @@ import QuestionEmbedWidget, {
 import { getIconForVisualizationType } from "metabase/visualizations";
 import ViewButton from "./ViewButton";
 
-import QuestionAlertWidget from "./QuestionAlertWidget";
-import QuestionTimelineWidget from "./QuestionTimelineWidget";
+// import QuestionAlertWidget from "./QuestionAlertWidget";
+// import QuestionTimelineWidget from "./QuestionTimelineWidget";
 
 import QuestionRowCount from "./QuestionRowCount";
 import QuestionLastUpdated from "./QuestionLastUpdated";
@@ -176,15 +176,15 @@ const ViewFooter = ({
               }
             />
           ),
-          QuestionTimelineWidget.shouldRender({ isTimeseries }) && (
-            <QuestionTimelineWidget
-              key="timelines"
-              className="mx1 hide sm-show"
-              isShowingTimelineSidebar={isShowingTimelineSidebar}
-              onOpenTimelines={onOpenTimelines}
-              onCloseTimelines={onCloseTimelines}
-            />
-          ),
+          // QuestionTimelineWidget.shouldRender({ isTimeseries }) && (
+          //   <QuestionTimelineWidget
+          //     key="timelines"
+          //     className="mx1 hide sm-show"
+          //     isShowingTimelineSidebar={isShowingTimelineSidebar}
+          //     onOpenTimelines={onOpenTimelines}
+          //     onCloseTimelines={onCloseTimelines}
+          //   />
+          // ),
         ]}
       />
     </ViewFooterRoot>
