@@ -14,10 +14,14 @@ const LinkElement = styled.a`
   }
 `;
 
+const NewLinkElement = styled(LinkElement)`
+  margin-right: 10px;
+`;
+
 const NewBadgeImg = styled.img`
   position: absolute;
-  top: -11px;
-  right: -14px;
+  top: -9px;
+  right: -18px;
 
   @media screen and (max-width: 1024px) {
     width: 18px;
@@ -42,8 +46,8 @@ const DappLookerHeaderLinks = (): JSX.Element => {
 
   const newBadgeStyle = {
     position: "absolute",
-    top: "-11px",
-    right: "-14px",
+    top: "-9px",
+    right: "-18px",
   } as React.CSSProperties;
 
   const changeTextColorOnHover = (e: any) => {
@@ -74,7 +78,7 @@ const DappLookerHeaderLinks = (): JSX.Element => {
       >
         My Dashboard
       </LinkElement>
-      <LinkElement
+      <NewLinkElement
         href={DAPPLOOKER_MYPROJECT_LINK}
         onMouseEnter={changeTextColorOnHover}
         onMouseLeave={resetTextColor}
@@ -88,7 +92,7 @@ const DappLookerHeaderLinks = (): JSX.Element => {
             alt="new badge"
           />
         )}
-      </LinkElement>
+      </NewLinkElement>
       <LinkElement
         href={ANALYZER_BROWSE_DATA_LINK}
         onMouseEnter={changeTextColorOnHover}
