@@ -1,21 +1,22 @@
 import React from "react";
 import styled from "@emotion/styled";
 
-const LinkElement = styled.a`
+interface LinkElementProps {
+  isNew?: boolean;
+}
+
+const LinkElement = styled.a<LinkElementProps>`
   color: #4c5773;
   font-weight: 700;
   min-width: fit-content;
   position: relative;
+  margin-right: ${props => (props.isNew ? "10px" : "0px")};
 
   @media screen and (max-width: 1024px) {
     font-size: 12px;
     line-height: 14px;
     white-space: nowrap;
   }
-`;
-
-const NewLinkElement = styled(LinkElement)`
-  margin-right: 10px;
 `;
 
 const NewBadgeImg = styled.img`
@@ -63,6 +64,8 @@ const DappLookerHeaderLinks = (): JSX.Element => {
     return dateToCheck > currentDate;
   };
 
+  const isNewBadgeActive = isNewBadge(MYCREATION_NEW_BADGE_EXPIRY_DATE);
+
   return (
     <>
       {/* <a
@@ -78,21 +81,22 @@ const DappLookerHeaderLinks = (): JSX.Element => {
       >
         My Dashboard
       </LinkElement>
-      <NewLinkElement
+      <LinkElement
         href={DAPPLOOKER_MYPROJECT_LINK}
         onMouseEnter={changeTextColorOnHover}
         onMouseLeave={resetTextColor}
         style={anchorTagStyle}
+        isNew={isNewBadgeActive}
       >
         My Creation
-        {isNewBadge(MYCREATION_NEW_BADGE_EXPIRY_DATE) && (
+        {isNewBadgeActive && (
           <NewBadgeImg
             style={newBadgeStyle}
             src={`app/assets/img/new-badge-header.svg`}
             alt="new badge"
           />
         )}
-      </NewLinkElement>
+      </LinkElement>
       <LinkElement
         href={ANALYZER_BROWSE_DATA_LINK}
         onMouseEnter={changeTextColorOnHover}
