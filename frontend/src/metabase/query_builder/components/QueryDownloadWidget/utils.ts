@@ -74,9 +74,11 @@ export const getDownloadButtonParams = ({
   const isSavedQuery = card?.id != null;
   if (isSavedQuery) {
     return {
-      method: "POST",
-      url: `api/card/${card.id}/query/${type}`,
+      method: "GET",
+      // url: `api/card/${card.id}/query/${type}`,
+      url: `http://localhost:4001/web/download?source=analyzer&cardId=${card.id}&exportFormat=${type}`,
       params: { parameters: JSON.stringify(result?.json_query?.parameters) },
+      card: card,
     };
   }
 

@@ -47,6 +47,10 @@
 
 (def cloudfront-domain "https://d2yxqfr8upg55w.cloudfront.net")
 
+(def restful-api-endpoint-dev "http://localhost:4001")
+
+(def restful-api-endpoint-prod "https://dapplooker.com")
+
 (defn- content-security-policy-header
   "`Content-Security-Policy` header. See https://content-security-policy.com for more details."
   []
@@ -58,6 +62,7 @@
                                    "'unsafe-eval'" ; TODO - we keep working towards removing this entirely
                                    "https://maps.google.com"
                                    "https://accounts.google.com"
+                                   restful-api-endpoint-dev
                                    cloudfront-domain
                                    "https://www.googletagmanager.com"
                                    (when (public-settings/anon-tracking-enabled)
@@ -72,12 +77,14 @@
                                   (when-not config/is-dev?
                                     (map (partial format "'sha256-%s'") inline-js-hashes)))
                   :child-src    ["'self'"
+                                 restful-api-endpoint-dev
                                  cloudfront-domain
                                  "https://www.googletagmanager.com"
                                  ;; TODO - double check that we actually need this for Google Auth
                                  "https://accounts.google.com"]
                   :style-src    ["'self'"
                                  "'unsafe-inline'"
+                                 restful-api-endpoint-dev
                                  cloudfront-domain
                                  (when config/is-dev?
                                     "*:5500")
@@ -89,6 +96,7 @@
                   :connect-src  ["'self'"
                                  ;; Google Identity Services
                                  "https://accounts.google.com"
+                                 restful-api-endpoint-dev
                                  ;; MailChimp. So people can sign up for the Metabase mailing list in the sign up process
                                  "metabase.us10.list-manage.com"
                                  ;; Google analytics

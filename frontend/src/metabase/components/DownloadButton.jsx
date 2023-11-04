@@ -38,12 +38,27 @@ const retrieveFilename = ({ res, type }) => {
   return fileName;
 };
 
+const checkApiIsFromDappLooker = url => {
+  let isValidApi = false;
+  const validators = ["http://localhost:4001/", "https://dapplooker.com/"];
+
+  for (let index = 0; index < validators.length; index++) {
+    const element = validators[index];
+
+    if (url.includes(element)) {
+      isValidApi = true;
+    }
+  }
+  return isValidApi;
+};
+
 const handleSubmit = async (
   e,
   {
     method,
     url,
     type,
+    card,
     onDownloadStart,
     onDownloadResolved,
     onDownloadRejected,
@@ -55,20 +70,33 @@ const handleSubmit = async (
 
   const formData = new URLSearchParams(new FormData(e.target));
 
-  const options = { method };
+  let options = { method };
   if (method === `POST`) {
     options.body = formData;
   } else if (method === `GET`) {
     options.query = formData.toString();
   }
 
-  fetch(method === `POST` ? url : url + "?" + options.query, options)
+  const requestUrl =
+    method === `POST` || checkApiIsFromDappLooker(url)
+      ? url
+      : url + "?" + options.query;
+
+  if (checkApiIsFromDappLooker) {
+    options = { ...options, responseType: "blob" };
+  }
+
+  fetch(requestUrl, options)
     .then(async res => {
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
 
       // retrieves the filename from the response header and parses it into query_result[DATE TIME].extension
-      const fileName = retrieveFilename({ res, type });
+      let fileName = retrieveFilename({ res, type });
+
+      if (!fileName && checkApiIsFromDappLooker(url)) {
+        fileName = getFileName(card);
+      }
 
       // create a pseudo-link to trigger the download
       const link = document.createElement(`a`);
@@ -106,11 +134,12 @@ export const SaveAsPngButton = ({ card, onSave, hideWaterMark }) => {
     const name = getFileName(card);
     let isShowWatermark = true;
     if (card?.creator_details) {
-      isShowWatermark = card.creator_details.login_attributes.isPaidSubscription === false
+      isShowWatermark =
+        card.creator_details.login_attributes.isPaidSubscription === false;
     } else {
       isShowWatermark = hideWaterMark === false;
     }
-    await saveChartImage(cardNodeSelector, name, isShowWatermark);
+    await saveChartImage(cardNodeSelector, name, card.id, isShowWatermark);
     onSave?.();
   };
 
@@ -122,6 +151,7 @@ export const DownloadButton = ({
   method,
   url,
   params,
+  card,
   extensions,
   onDownloadStart,
   onDownloadResolved,
@@ -135,6 +165,7 @@ export const DownloadButton = ({
           method,
           url,
           type: children,
+          card: card,
           onDownloadStart,
           onDownloadResolved,
           onDownloadRejected,
