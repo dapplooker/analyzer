@@ -17,6 +17,7 @@ export const saveChartImage = async (
   fileName: string,
   cardId: number,
   isShowWatermark: boolean = true,
+  coreUserId: number,
 ) => {
   const node = document.querySelector(selector);
 
@@ -76,12 +77,16 @@ export const saveChartImage = async (
   link.remove();
 
   //Save Record in Download Stats
-  const requestUrl = `https://localhost:4001/web/download?source=analyzer&exportFormat=png&cardId=${cardId}`;
+  const requestUrl = `http://dlooker.com:8080/web/chart/download?source=analyzer&exportFormat=png&cardId=${cardId}&coreUserId=${coreUserId}`;
 
   fetch(requestUrl, { method: "GET" })
     .then(async res => {
-      if (!res) {
-        console.error("Falied to save record");
+      const downloadResponse = await res.json();
+      if (downloadResponse.success === false) {
+        const keys = Object.keys(downloadResponse.errorData);
+        const errorMsg = downloadResponse.errorData[keys[0]];
+        console.error(errorMsg);
+        return;
       }
     })
     .catch(error => console.error(error));

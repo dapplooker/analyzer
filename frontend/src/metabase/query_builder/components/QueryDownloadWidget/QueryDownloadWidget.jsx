@@ -10,8 +10,8 @@ import PopoverWithTrigger from "metabase/components/PopoverWithTrigger";
 import Icon from "metabase/components/Icon";
 import LoadingSpinner from "metabase/components/LoadingSpinner";
 import {
-  DownloadButton,
-  SaveAsPngButton,
+  DownloadButtonWrapper,
+  SaveAsPngButtonWrapper,
 } from "metabase/components/DownloadButton";
 import Tooltip from "metabase/core/components/Tooltip";
 import { PLUGIN_FEATURE_LEVEL_PERMISSIONS } from "metabase/plugins";
@@ -72,7 +72,7 @@ const QueryDownloadWidget = ({
             <>
               {EXPORT_FORMATS.map(type => (
                 <WidgetFormat key={type}>
-                  <DownloadButton
+                  <DownloadButtonWrapper
                     {...getDownloadButtonParams({
                       type,
                       params,
@@ -93,11 +93,15 @@ const QueryDownloadWidget = ({
                     onDownloadRejected={() => setStatus("rejected")}
                   >
                     {type}
-                  </DownloadButton>
+                  </DownloadButtonWrapper>
                 </WidgetFormat>
               ))}
               {canSavePng(card.display) ? (
-                <SaveAsPngButton card={card} onSave={closePopover} hideWaterMark={hideWaterMark} />
+                <SaveAsPngButtonWrapper
+                  card={card}
+                  onSave={closePopover}
+                  hideWaterMark={hideWaterMark}
+                />
               ) : null}
             </>
           </div>
