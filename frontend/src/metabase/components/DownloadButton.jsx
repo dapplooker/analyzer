@@ -103,12 +103,12 @@ const handleSubmit = async (
         ) {
           const keys = Object.keys(downloadResponse.errorData);
           const errorMsg = downloadResponse.errorData[keys[0]];
-          console.error(errorMsg);
+          console.log(errorMsg);
           onDownloadRejected();
           return;
         }
       } catch (error) {
-        console.error(error);
+        // console.error(error);
       }
 
       const url = URL.createObjectURL(blobData);
@@ -160,7 +160,6 @@ export const SaveAsPngButton = ({ card, onSave, hideWaterMark, ...props }) => {
     const name = getFileName(card, "png");
     let isShowWatermark = true;
     if (card?.creator_details) {
-      isShowWatermark = true;
       isShowWatermark =
         card.creator_details.login_attributes.isPaidSubscription === false;
     } else {

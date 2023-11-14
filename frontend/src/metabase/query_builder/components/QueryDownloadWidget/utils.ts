@@ -76,7 +76,7 @@ export const getDownloadButtonParams = ({
     return {
       method: "GET",
       // url: `api/card/${card.id}/query/${type}`,
-      url: `http://dlooker.com:8080/web/chart/download?source=analyzer&cardId=${card.id}&exportFormat=${type}`,
+      url: `https://dapplooker.com/web/chart/download?source=analyzer&cardId=${card.id}&exportFormat=${type}`,
       params: { parameters: JSON.stringify(result?.json_query?.parameters) },
       card: card,
     };
