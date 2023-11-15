@@ -988,7 +988,7 @@ saved later when it is ready."
   (qp.card/run-query-for-card-async
    card-id export-format
    :parameters  (json/parse-string parameters keyword)
-   :constraints nil
+  ;;  :constraints nil
    :context     (api.dataset/export-format->context export-format)
    :middleware  {:process-viz-settings?  true
                  :skip-results-metadata? true
