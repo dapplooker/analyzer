@@ -42,17 +42,20 @@ export const ContentContainer = styled.div<{ hasScroll: boolean }>`
   overflow-y: ${props => props.hasScroll && "auto"};
 `;
 
-export const Header = styled.header`
+export const Header = styled.header<{ isNotInIframe: boolean }>`
   display: flex;
   flex-direction: column;
-  padding: 0.5rem;
-
+  /* padding: 0.5rem */
+  padding: ${props => props.isNotInIframe ? "0.5rem" : "0px 0.5rem"};
+  
   ${breakpointMinSmall} {
-    padding: 1rem;
+    /* padding: 1rem; */
+    padding: ${props => props.isNotInIframe ? "1rem" : "0px 1rem"}
   }
 
   ${breakpointMinLarge} {
-    padding: 1.5rem;
+    /* padding: 1.5rem; */
+    padding: ${props => props.isNotInIframe ? "1.5rem" : "0px 1.5rem"}
   }
 `;
 
@@ -87,20 +90,23 @@ const footerVariantStyles = {
   `,
 };
 
-export const Footer = styled.footer<{ variant: FooterVariant }>`
+export const Footer = styled.footer<{ variant: FooterVariant, isNotInIframe: boolean }>`
   display: flex;
   flex-shrink: 0;
   align-items: center;
 
   ${props => footerVariantStyles[props.variant]}
 
-  padding: 0.5rem;
+  /* padding: 0.5rem; */
+  padding: ${props => props.isNotInIframe ? "0.5rem" : "1rem"};
 
   ${breakpointMinMedium} {
-    padding: 1rem;
+    /* padding: 1rem; */
+    padding: ${props => props.isNotInIframe ? "1rem" : "2rem"};
   }
 
   ${breakpointMinLarge} {
-    padding: 1.5rem;
+    /* padding: 1.5rem; */
+    padding: ${props => props.isNotInIframe ? "1.5rem" : "3rem"};
   }
 `;
