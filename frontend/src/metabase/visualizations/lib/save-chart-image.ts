@@ -77,15 +77,15 @@ export const saveChartImage = async (
   link.remove();
 
   //Save Record in Download Stats
-  const requestUrl = `https://dapplooker.com/web/chart/download?source=analyzer&exportFormat=png&cardId=${cardId}&coreUserId=${coreUserId}`;
+  const requestUrl = `http://localhost:4001/web/chart/download?source=analyzer&exportFormat=png&cardId=${cardId}&coreUserId=${coreUserId}`;
 
   fetch(requestUrl, { method: "GET" })
     .then(async res => {
       const downloadResponse = await res.json();
       if (downloadResponse.success === false) {
-        // const keys = Object.keys(downloadResponse.errorData);
-        // const errorMsg = downloadResponse.errorData[keys[0]];
-        // console.error(errorMsg);
+        const keys = Object.keys(downloadResponse.errorData);
+        const errorMsg = downloadResponse.errorData[keys[0]];
+        console.error(errorMsg);
         return;
       }
     })

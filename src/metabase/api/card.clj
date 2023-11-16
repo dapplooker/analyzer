@@ -988,7 +988,7 @@ saved later when it is ready."
   (qp.card/run-query-for-card-async
    card-id export-format
    :parameters  (json/parse-string parameters keyword)
-  ;;  :constraints nil
+  ;;  :constraints nil ;; this is commented to enable maximum 2000 rows while downloading file (xl, csv, and json)
    :context     (api.dataset/export-format->context export-format)
    :middleware  {:process-viz-settings?  true
                  :skip-results-metadata? true

@@ -34,14 +34,16 @@ const retrieveFilename = ({ res, type }) => {
   const contentDisposition = decodeURIComponent(contentDispositionHeader);
   const match = contentDisposition.match(/filename="(?<fileName>.+)"/);
   const fileName = match?.groups?.fileName;
-  // || `query_result_${new Date().toISOString()}.${type}`;
-
   return fileName;
 };
 
 const checkApiIsFromDappLooker = url => {
   let isValidApi = false;
-  const validators = ["http://dlooker.com:8080/", "https://dapplooker.com/"];
+  const validators = [
+    "http://dlooker.com:8080/",
+    "https://dapplooker.com/",
+    "http://localhost:4001",
+  ];
 
   for (let index = 0; index < validators.length; index++) {
     const element = validators[index];
@@ -72,7 +74,7 @@ const handleSubmit = async (
 
   const formData = new URLSearchParams(new FormData(e.target));
 
-  let options = { method };
+  const options = { method };
   if (method === `POST`) {
     options.body = formData;
   } else if (method === `GET`) {
@@ -86,7 +88,6 @@ const handleSubmit = async (
 
   if (checkApiIsFromDappLooker(url)) {
     requestUrl = requestUrl + `&coreUserId=${coreUserId}`;
-    options = { ...options };
   }
 
   fetch(requestUrl, options)
@@ -101,15 +102,13 @@ const handleSubmit = async (
           downloadResponse?.success === false &&
           checkApiIsFromDappLooker(requestUrl)
         ) {
-          // const keys = Object.keys(downloadResponse.errorData);
-          // const errorMsg = downloadResponse.errorData[keys[0]];
-          // console.log(errorMsg);
+          const keys = Object.keys(downloadResponse.errorData);
+          const errorMsg = downloadResponse.errorData[keys[0]];
+          console.error("Error", errorMsg);
           onDownloadRejected();
           return;
         }
-      } catch (error) {
-        // console.error(error);
-      }
+      } catch (error) {}
 
       const url = URL.createObjectURL(blobData);
 

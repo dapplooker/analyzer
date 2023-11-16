@@ -51,6 +51,8 @@
 
 (def restful-api-endpoint-prod "https://dapplooker.com")
 
+(def restful-api-endpoint-localhost "http://localhost:4001")
+
 (defn- content-security-policy-header
   "`Content-Security-Policy` header. See https://content-security-policy.com for more details."
   []
@@ -64,6 +66,7 @@
                                    "https://accounts.google.com"
                                    restful-api-endpoint-dev
                                    restful-api-endpoint-prod
+                                   restful-api-endpoint-localhost
                                    cloudfront-domain
                                    "https://www.googletagmanager.com"
                                    (when (public-settings/anon-tracking-enabled)
@@ -80,6 +83,7 @@
                   :child-src    ["'self'"
                                  restful-api-endpoint-dev
                                  restful-api-endpoint-prod
+                                 restful-api-endpoint-localhost
                                  cloudfront-domain
                                  "https://www.googletagmanager.com"
                                  ;; TODO - double check that we actually need this for Google Auth
@@ -88,6 +92,7 @@
                                  "'unsafe-inline'"
                                  restful-api-endpoint-dev
                                  restful-api-endpoint-prod
+                                 restful-api-endpoint-localhost
                                  cloudfront-domain
                                  (when config/is-dev?
                                     "*:5500")
@@ -101,6 +106,7 @@
                                  "https://accounts.google.com"
                                  restful-api-endpoint-dev
                                  restful-api-endpoint-prod
+                                 restful-api-endpoint-localhost
                                  ;; MailChimp. So people can sign up for the Metabase mailing list in the sign up process
                                  "metabase.us10.list-manage.com"
                                  ;; Google analytics
