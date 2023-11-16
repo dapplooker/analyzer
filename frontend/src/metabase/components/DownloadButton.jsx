@@ -101,9 +101,9 @@ const handleSubmit = async (
           downloadResponse?.success === false &&
           checkApiIsFromDappLooker(requestUrl)
         ) {
-          const keys = Object.keys(downloadResponse.errorData);
-          const errorMsg = downloadResponse.errorData[keys[0]];
-          console.log(errorMsg);
+          // const keys = Object.keys(downloadResponse.errorData);
+          // const errorMsg = downloadResponse.errorData[keys[0]];
+          // console.log(errorMsg);
           onDownloadRejected();
           return;
         }

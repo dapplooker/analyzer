@@ -83,11 +83,11 @@ export const saveChartImage = async (
     .then(async res => {
       const downloadResponse = await res.json();
       if (downloadResponse.success === false) {
-        const keys = Object.keys(downloadResponse.errorData);
-        const errorMsg = downloadResponse.errorData[keys[0]];
-        console.error(errorMsg);
+        // const keys = Object.keys(downloadResponse.errorData);
+        // const errorMsg = downloadResponse.errorData[keys[0]];
+        // console.error(errorMsg);
         return;
       }
     })
-    .catch(error => console.error(error));
+    .catch();
 };
