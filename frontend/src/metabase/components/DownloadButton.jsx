@@ -150,7 +150,7 @@ export const DownloadButtonBase = ({ format, onClick, ...rest }) => {
 };
 
 const getFileName = (card, type) =>
-  `${card.name ?? t`New question`}-${new Date().toLocaleString()}.${type}` ||
+  `${card?.name ?? t`New question`}-${new Date().toLocaleString()}.${type}` ||
   `query_result_${new Date().toISOString()}.${type}`;
 
 export const SaveAsPngButton = ({ card, onSave, hideWaterMark, ...props }) => {

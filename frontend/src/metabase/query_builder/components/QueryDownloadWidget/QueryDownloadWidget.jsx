@@ -118,6 +118,7 @@ const renderIcon = ({ icon, status, iconSize }) => {
     return (
       <Tooltip tooltip={t`Download full results`}>
         <Icon
+          className="px1 py1"
           data-testid="download-button"
           title={t`Download this data`}
           name={icon}
