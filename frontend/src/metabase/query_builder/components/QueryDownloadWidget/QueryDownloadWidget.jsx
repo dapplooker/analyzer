@@ -54,6 +54,7 @@ const QueryDownloadWidget = ({
       triggerClasses={cx(className, "text-brand-hover")}
       triggerClassesClose={classNameClose}
       disabled={status === `pending` ? true : null}
+      horizontalAttachments={["center", "right", "left"]}
     >
       {({ onClose: closePopover }) => (
         <WidgetRoot
