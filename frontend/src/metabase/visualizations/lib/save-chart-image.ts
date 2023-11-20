@@ -77,7 +77,7 @@ export const saveChartImage = async (
   link.remove();
 
   //Save Record in Download Stats
-  const requestUrl = `http://localhost:4001/web/chart/download?source=analyzer&exportFormat=png&cardId=${cardId}&coreUserId=${coreUserId}`;
+  const requestUrl = `https://dapplooker.com/web/chart/download?source=analyzer&exportFormat=png&cardId=${cardId}&coreUserId=${coreUserId}`;
 
   fetch(requestUrl, { method: "GET" })
     .then(async res => {
