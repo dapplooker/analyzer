@@ -42,6 +42,7 @@ export const getDownloadButtonParams = ({
     return {
       method: "GET",
       // url: `api/dashboard/${dashboardId}/dashcard/${dashcardId}/card/${card.id}/query/${type}`,
+      /* this url is replaced with DappLooker api url */
       url: `http://localhost:4001/web/chart/download?source=analyzer&cardId=${card.id}&exportFormat=${type}`,
       params: { parameters: JSON.stringify(result?.json_query?.parameters) },
       card: card,

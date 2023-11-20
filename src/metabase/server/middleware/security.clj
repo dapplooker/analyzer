@@ -47,10 +47,6 @@
 
 (def cloudfront-domain "https://d2yxqfr8upg55w.cloudfront.net")
 
-(def restful-api-endpoint-dev "http://dlooker.com:8080")
-
-(def restful-api-endpoint-prod "https://dapplooker.com")
-
 (def restful-api-endpoint-localhost "http://localhost:4001")
 
 (defn- content-security-policy-header
@@ -64,8 +60,6 @@
                                    "'unsafe-eval'" ; TODO - we keep working towards removing this entirely
                                    "https://maps.google.com"
                                    "https://accounts.google.com"
-                                   restful-api-endpoint-dev
-                                   restful-api-endpoint-prod
                                    restful-api-endpoint-localhost
                                    cloudfront-domain
                                    "https://www.googletagmanager.com"
@@ -81,8 +75,6 @@
                                   (when-not config/is-dev?
                                     (map (partial format "'sha256-%s'") inline-js-hashes)))
                   :child-src    ["'self'"
-                                 restful-api-endpoint-dev
-                                 restful-api-endpoint-prod
                                  restful-api-endpoint-localhost
                                  cloudfront-domain
                                  "https://www.googletagmanager.com"
@@ -90,8 +82,6 @@
                                  "https://accounts.google.com"]
                   :style-src    ["'self'"
                                  "'unsafe-inline'"
-                                 restful-api-endpoint-dev
-                                 restful-api-endpoint-prod
                                  restful-api-endpoint-localhost
                                  cloudfront-domain
                                  (when config/is-dev?
@@ -104,8 +94,6 @@
                   :connect-src  ["'self'"
                                  ;; Google Identity Services
                                  "https://accounts.google.com"
-                                 restful-api-endpoint-dev
-                                 restful-api-endpoint-prod
                                  restful-api-endpoint-localhost
                                  ;; MailChimp. So people can sign up for the Metabase mailing list in the sign up process
                                  "metabase.us10.list-manage.com"
