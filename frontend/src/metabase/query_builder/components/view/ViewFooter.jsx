@@ -10,7 +10,7 @@ import Icon from "metabase/components/Icon";
 
 import ButtonBar from "metabase/components/ButtonBar";
 
-import QueryDownloadWidget from "metabase/query_builder/components/QueryDownloadWidget";
+// import QueryDownloadWidget from "metabase/query_builder/components/QueryDownloadWidget";
 import QuestionEmbedWidget, {
   QuestionEmbedWidgetTrigger,
 } from "metabase/query_builder/containers/QuestionEmbedWidget";
@@ -140,15 +140,15 @@ const ViewFooter = ({
               result={result}
             />
           ),
-          QueryDownloadWidget.shouldRender({ result, isResultDirty }) && (
-            <QueryDownloadWidget
-              key="download"
-              className="mx1 hide sm-show"
-              card={question.card()}
-              result={result}
-              visualizationSettings={visualizationSettings}
-            />
-          ),
+          // QueryDownloadWidget.shouldRender({ result, isResultDirty }) && (
+          //   <QueryDownloadWidget
+          //     key="download"
+          //     className="mx1 hide sm-show"
+          //     card={question.card()}
+          //     result={result}
+          //     visualizationSettings={visualizationSettings}
+          //   />
+          // ),
           // QuestionAlertWidget.shouldRender({
           //   question,
           //   visualizationSettings,

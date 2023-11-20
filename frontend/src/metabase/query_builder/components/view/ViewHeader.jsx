@@ -16,9 +16,11 @@ import { useToggle } from "metabase/hooks/use-toggle";
 import { MODAL_TYPES } from "metabase/query_builder/constants";
 import SavedQuestionHeaderButton from "metabase/query_builder/components/SavedQuestionHeaderButton/SavedQuestionHeaderButton";
 
+import { QuestionAPIWidgetTrigger } from "metabase/query_builder/containers/QuestionEmbedWidget";
 import RunButtonWithTooltip from "../RunButtonWithTooltip";
 
 import QuestionActions from "../QuestionActions";
+import QueryDownloadWidget from "../QueryDownloadWidget";
 import { HeadBreadcrumbs } from "./HeaderBreadcrumbs";
 import QuestionDataSource from "./QuestionDataSource";
 import QuestionDescription from "./QuestionDescription";
@@ -30,7 +32,6 @@ import QuestionFilters, {
   QuestionFilterWidget,
 } from "./QuestionFilters";
 import { QuestionSummarizeWidget } from "./QuestionSummaries";
-import { QuestionAPIWidgetTrigger } from "metabase/query_builder/containers/QuestionEmbedWidget";
 import {
   AdHocViewHeading,
   SaveButton,
@@ -45,6 +46,7 @@ import {
   HeaderDivider,
   ViewHeaderActionPanel,
   ViewHeaderIconButtonContainer,
+  ViewHeaderIconHoverContainer,
 } from "./ViewHeader.styled";
 
 const viewTitleHeaderPropTypes = {
@@ -453,6 +455,18 @@ function ViewTitleHeaderRightSide(props) {
           }
         />
       )}
+
+      {isSaved && QueryDownloadWidget.shouldRender(props) && (
+        <ViewHeaderIconHoverContainer>
+          <QueryDownloadWidget
+            key="download"
+            className="mx1 hide sm-show"
+            card={question.card()}
+            result={result}
+          />
+        </ViewHeaderIconHoverContainer>
+      )}
+
       {QuestionNotebookButton.shouldRender(props) && (
         <ViewHeaderIconButtonContainer>
           <QuestionNotebookButton

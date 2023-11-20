@@ -212,3 +212,17 @@ export const ViewHeaderIconButtonContainer = styled.div`
     }
   }
 `;
+
+export const ViewHeaderIconHoverContainer = styled.div`
+  height: 2rem;
+  width: 2rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 6px;
+
+  &:hover {
+    color: ${color("brand")};
+    background-color: ${color("bg-medium")};
+  }
+`;

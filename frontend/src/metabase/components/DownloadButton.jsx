@@ -3,6 +3,7 @@ import React from "react";
 import PropTypes from "prop-types";
 import { t } from "ttag";
 
+import { connect } from "react-redux";
 import { color } from "metabase/lib/colors";
 import { extractQueryParams } from "metabase/lib/urls";
 
@@ -10,6 +11,7 @@ import Icon from "metabase/components/Icon";
 import Label from "metabase/components/type/Label";
 import { saveChartImage } from "metabase/visualizations/lib/save-chart-image";
 import { getCardKey } from "metabase/visualizations/lib/utils";
+import { getUser, getUserId } from "metabase/selectors/user";
 import { FormButton } from "./DownloadButton.styled";
 
 function colorForType(type) {
@@ -31,11 +33,26 @@ const retrieveFilename = ({ res, type }) => {
   const contentDispositionHeader = res.headers.get("Content-Disposition") || "";
   const contentDisposition = decodeURIComponent(contentDispositionHeader);
   const match = contentDisposition.match(/filename="(?<fileName>.+)"/);
-  const fileName =
-    match?.groups?.fileName ||
-    `query_result_${new Date().toISOString()}.${type}`;
-
+  const fileName = match?.groups?.fileName;
   return fileName;
+};
+
+const checkApiIsFromDappLooker = url => {
+  let isValidApi = false;
+  const validators = [
+    "http://dlooker.com:8080/",
+    "https://dapplooker.com/",
+    "http://localhost:4001",
+  ];
+
+  for (let index = 0; index < validators.length; index++) {
+    const element = validators[index];
+
+    if (url.includes(element)) {
+      isValidApi = true;
+    }
+  }
+  return isValidApi;
 };
 
 const handleSubmit = async (
@@ -44,6 +61,8 @@ const handleSubmit = async (
     method,
     url,
     type,
+    card,
+    coreUserId,
     onDownloadStart,
     onDownloadResolved,
     onDownloadRejected,
@@ -62,13 +81,43 @@ const handleSubmit = async (
     options.query = formData.toString();
   }
 
-  fetch(method === `POST` ? url : url + "?" + options.query, options)
+  let requestUrl =
+    method === `POST` || checkApiIsFromDappLooker(url)
+      ? url
+      : url + "?" + options.query;
+
+  if (checkApiIsFromDappLooker(url)) {
+    requestUrl = requestUrl + `&coreUserId=${coreUserId}`;
+  }
+
+  fetch(requestUrl, options)
     .then(async res => {
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
+      const blobData = await res.blob();
+
+      // This try-catch is used only to catch newResponse.json() error when getting response as Blob data
+      try {
+        const newResponse = new Response(blobData);
+        const downloadResponse = (await newResponse?.json()) || undefined;
+        if (
+          downloadResponse?.success === false &&
+          checkApiIsFromDappLooker(requestUrl)
+        ) {
+          const keys = Object.keys(downloadResponse.errorData);
+          const errorMsg = downloadResponse.errorData[keys[0]];
+          console.error("Error", errorMsg);
+          onDownloadRejected();
+          return;
+        }
+      } catch (error) {}
+
+      const url = URL.createObjectURL(blobData);
 
       // retrieves the filename from the response header and parses it into query_result[DATE TIME].extension
-      const fileName = retrieveFilename({ res, type });
+      let fileName = retrieveFilename({ res, type });
+
+      if (!fileName && checkApiIsFromDappLooker(requestUrl)) {
+        fileName = getFileName(card, type);
+      }
 
       // create a pseudo-link to trigger the download
       const link = document.createElement(`a`);
@@ -81,7 +130,10 @@ const handleSubmit = async (
 
       onDownloadResolved();
     })
-    .catch(() => onDownloadRejected());
+    .catch(error => {
+      console.error("error", error);
+      onDownloadRejected();
+    });
 };
 
 export const DownloadButtonBase = ({ format, onClick, ...rest }) => {
@@ -97,20 +149,29 @@ export const DownloadButtonBase = ({ format, onClick, ...rest }) => {
   );
 };
 
-const getFileName = card =>
-  `${card.name ?? t`New question`}-${new Date().toLocaleString()}.png`;
+const getFileName = (card, type) =>
+  `${card?.name ?? t`New question`}-${new Date().toLocaleString()}.${type}` ||
+  `query_result_${new Date().toISOString()}.${type}`;
 
-export const SaveAsPngButton = ({ card, onSave, hideWaterMark }) => {
+export const SaveAsPngButton = ({ card, onSave, hideWaterMark, ...props }) => {
   const handleSave = async () => {
     const cardNodeSelector = `[data-card-key='${getCardKey(card)}']`;
-    const name = getFileName(card);
+    const name = getFileName(card, "png");
     let isShowWatermark = true;
     if (card?.creator_details) {
-      isShowWatermark = card.creator_details.login_attributes.isPaidSubscription === false
+      isShowWatermark =
+        card.creator_details.login_attributes.isPaidSubscription === false;
     } else {
       isShowWatermark = hideWaterMark === false;
     }
-    await saveChartImage(cardNodeSelector, name, isShowWatermark);
+    const coreUserId = props.currentUserId;
+    await saveChartImage(
+      cardNodeSelector,
+      name,
+      card.id,
+      isShowWatermark,
+      coreUserId,
+    );
     onSave?.();
   };
 
@@ -122,6 +183,7 @@ export const DownloadButton = ({
   method,
   url,
   params,
+  card,
   extensions,
   onDownloadStart,
   onDownloadResolved,
@@ -135,6 +197,8 @@ export const DownloadButton = ({
           method,
           url,
           type: children,
+          card: card,
+          coreUserId: props.currentUserId,
           onDownloadStart,
           onDownloadResolved,
           onDownloadRejected,
@@ -157,6 +221,15 @@ export const DownloadButton = ({
     </form>
   </div>
 );
+
+const mapStateToProps = (state, props) => ({
+  currentUser: getUser(state),
+  currentUserId: getUserId(state),
+});
+
+export const DownloadButtonWrapper = connect(mapStateToProps)(DownloadButton);
+
+export const SaveAsPngButtonWrapper = connect(mapStateToProps)(SaveAsPngButton);
 
 const getInput = ([name, value]) => (
   <input key={name} type="hidden" name={name} value={value} />

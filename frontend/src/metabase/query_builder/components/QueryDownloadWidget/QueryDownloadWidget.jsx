@@ -10,8 +10,8 @@ import PopoverWithTrigger from "metabase/components/PopoverWithTrigger";
 import Icon from "metabase/components/Icon";
 import LoadingSpinner from "metabase/components/LoadingSpinner";
 import {
-  DownloadButton,
-  SaveAsPngButton,
+  DownloadButtonWrapper,
+  SaveAsPngButtonWrapper,
 } from "metabase/components/DownloadButton";
 import Tooltip from "metabase/core/components/Tooltip";
 import { PLUGIN_FEATURE_LEVEL_PERMISSIONS } from "metabase/plugins";
@@ -54,6 +54,7 @@ const QueryDownloadWidget = ({
       triggerClasses={cx(className, "text-brand-hover")}
       triggerClassesClose={classNameClose}
       disabled={status === `pending` ? true : null}
+      horizontalAttachments={["center", "right", "left"]}
     >
       {({ onClose: closePopover }) => (
         <WidgetRoot
@@ -72,7 +73,7 @@ const QueryDownloadWidget = ({
             <>
               {EXPORT_FORMATS.map(type => (
                 <WidgetFormat key={type}>
-                  <DownloadButton
+                  <DownloadButtonWrapper
                     {...getDownloadButtonParams({
                       type,
                       params,
@@ -93,11 +94,15 @@ const QueryDownloadWidget = ({
                     onDownloadRejected={() => setStatus("rejected")}
                   >
                     {type}
-                  </DownloadButton>
+                  </DownloadButtonWrapper>
                 </WidgetFormat>
               ))}
               {canSavePng(card.display) ? (
-                <SaveAsPngButton card={card} onSave={closePopover} hideWaterMark={hideWaterMark} />
+                <SaveAsPngButtonWrapper
+                  card={card}
+                  onSave={closePopover}
+                  hideWaterMark={hideWaterMark}
+                />
               ) : null}
             </>
           </div>
@@ -114,6 +119,7 @@ const renderIcon = ({ icon, status, iconSize }) => {
     return (
       <Tooltip tooltip={t`Download full results`}>
         <Icon
+          className="px1 py1"
           data-testid="download-button"
           title={t`Download this data`}
           name={icon}

@@ -40,9 +40,12 @@ export const getDownloadButtonParams = ({
   const isDashboard = dashboardId != null && dashcardId != null;
   if (isDashboard) {
     return {
-      method: "POST",
-      url: `api/dashboard/${dashboardId}/dashcard/${dashcardId}/card/${card.id}/query/${type}`,
+      method: "GET",
+      // url: `api/dashboard/${dashboardId}/dashcard/${dashcardId}/card/${card.id}/query/${type}`,
+      /* this url is replaced with DappLooker api url */
+      url: `https://dapplooker.com/web/chart/download?source=analyzer&cardId=${card.id}&exportFormat=${type}`,
       params: { parameters: JSON.stringify(result?.json_query?.parameters) },
+      card: card,
     };
   }
 
@@ -74,9 +77,12 @@ export const getDownloadButtonParams = ({
   const isSavedQuery = card?.id != null;
   if (isSavedQuery) {
     return {
-      method: "POST",
-      url: `api/card/${card.id}/query/${type}`,
+      method: "GET",
+      // url: `api/card/${card.id}/query/${type}`,
+      /* this url is replaced with DappLooker api url */
+      url: `https://dapplooker.com/web/chart/download?source=analyzer&cardId=${card.id}&exportFormat=${type}`,
       params: { parameters: JSON.stringify(result?.json_query?.parameters) },
+      card: card,
     };
   }
 
