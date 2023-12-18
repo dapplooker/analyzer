@@ -192,7 +192,9 @@
 (api/defendpoint-schema GET "/:id"
   "Get `Card` with ID."
   [id ignore_view]
-  (let [raw-card (db/select-one Card :id id)
+  (log/info (trs "API hit GET /api/card/{0}" id))
+  (let [start-time (System/currentTimeMillis)
+        raw-card (db/select-one Card :id id)
         card (-> raw-card
                  (hydrate :creator
                           :dashboard_count
@@ -205,7 +207,10 @@
                    (:dataset raw-card) (hydrate :persisted))
                  api/read-check
                  (last-edit/with-last-edit-info :card))
-        creator-details (get-creator-details (:creator_id card))]
+        creator-details (get-creator-details (:creator_id card))
+        end-time (System/currentTimeMillis)
+        elapsed-time (- end-time start-time)]
+    (log/info (trs "Total elapsed time of api is {0}ms" elapsed-time))
     (u/prog1 (assoc card :creator_details creator-details)
       (when-not (Boolean/parseBoolean ignore_view)
         (events/publish-event! :card-read (assoc <> :actor_id api/*current-user-id*))))))
