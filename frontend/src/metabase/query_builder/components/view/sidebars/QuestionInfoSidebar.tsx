@@ -1,6 +1,8 @@
 import React from "react";
 import { t } from "ttag";
 
+import styled from "@emotion/styled";
+import { useDispatch } from "react-redux";
 import EditableText from "metabase/core/components/EditableText";
 
 import { PLUGIN_MODERATION, PLUGIN_CACHING } from "metabase/plugins";
@@ -12,6 +14,8 @@ import QuestionActivityTimeline from "metabase/query_builder/components/Question
 
 import type { Card } from "metabase-types/types/Card";
 
+import Icon from "metabase/components/Icon";
+import { onCloseQuestionInfo } from "metabase/query_builder/actions";
 import Question from "metabase-lib/Question";
 
 import ModelCacheManagementSection from "./ModelCacheManagementSection";
@@ -27,6 +31,14 @@ interface QuestionInfoSidebarProps {
   onSave: (card: Card) => Promise<Question>;
 }
 
+const CustomRemoveButtonContainer = styled.div`
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  cursor: pointer;
+`;
+
 export const QuestionInfoSidebar = ({
   question,
   onSave,
@@ -39,6 +51,7 @@ export const QuestionInfoSidebar = ({
     !isDataset &&
     PLUGIN_CACHING.isEnabled() &&
     MetabaseSettings.get("enable-query-caching");
+  const dispatch = useDispatch();
 
   const handleSave = (description: string | null) => {
     if (question.description() !== description) {
@@ -55,6 +68,13 @@ export const QuestionInfoSidebar = ({
   return (
     <Root>
       <ContentSection>
+        <HeaderContainer>
+          <CustomRemoveButtonContainer
+            onClick={() => dispatch(onCloseQuestionInfo())}
+          >
+            <Icon name="close" color="text-light" />
+          </CustomRemoveButtonContainer>
+        </HeaderContainer>
         <HeaderContainer>
           <h3>{t`About`}</h3>
           {question.isDataset() && (

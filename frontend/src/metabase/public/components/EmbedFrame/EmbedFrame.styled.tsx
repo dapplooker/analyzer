@@ -10,9 +10,16 @@ import {
 export const Root = styled.div<{
   hasScroll: boolean;
   isBordered?: boolean;
+  fullPageView: boolean;
 }>`
   display: flex;
   flex-direction: column;
+
+  ${props =>
+    props.fullPageView &&
+    css`
+      height: 100vh;
+    `}
 
   ${props =>
     props.hasScroll &&
@@ -46,16 +53,16 @@ export const Header = styled.header<{ isNotInIframe: boolean }>`
   display: flex;
   flex-direction: column;
   /* padding: 0.5rem */
-  padding: ${props => props.isNotInIframe ? "0.5rem" : "0px 0.5rem"};
-  
+  padding: ${props => (props.isNotInIframe ? "0.5rem" : "0px 0.5rem")};
+
   ${breakpointMinSmall} {
     /* padding: 1rem; */
-    padding: ${props => props.isNotInIframe ? "1rem" : "0px 1rem"}
+    padding: ${props => (props.isNotInIframe ? "1rem" : "0px 1rem")};
   }
 
   ${breakpointMinLarge} {
     /* padding: 1.5rem; */
-    padding: ${props => props.isNotInIframe ? "1.5rem" : "0px 1.5rem"}
+    padding: ${props => (props.isNotInIframe ? "1.5rem" : "0px 1.5rem")};
   }
 `;
 
@@ -65,7 +72,10 @@ export const Body = styled.main<{ isNightTheme: boolean }>`
   flex: 1 0 auto;
   width: 100%;
   position: relative;
-  background-color: ${props => props.isNightTheme ? color("dapplooker-color-bg-dark") : color("dapplooker-color-bg-light")};
+  background-color: ${props =>
+    props.isNightTheme
+      ? color("dapplooker-color-bg-dark")
+      : color("dapplooker-color-bg-light")};
 `;
 
 export const ActionButtonsContainer = styled.div`
@@ -90,7 +100,10 @@ const footerVariantStyles = {
   `,
 };
 
-export const Footer = styled.footer<{ variant: FooterVariant, isNotInIframe: boolean }>`
+export const Footer = styled.footer<{
+  variant: FooterVariant;
+  isNotInIframe: boolean;
+}>`
   display: flex;
   flex-shrink: 0;
   align-items: center;
@@ -98,15 +111,15 @@ export const Footer = styled.footer<{ variant: FooterVariant, isNotInIframe: boo
   ${props => footerVariantStyles[props.variant]}
 
   /* padding: 0.5rem; */
-  padding: ${props => props.isNotInIframe ? "0.5rem" : "1rem"};
+  padding: ${props => (props.isNotInIframe ? "0.5rem" : "1rem")};
 
   ${breakpointMinMedium} {
     /* padding: 1rem; */
-    padding: ${props => props.isNotInIframe ? "1rem" : "2rem"};
+    padding: ${props => (props.isNotInIframe ? "1rem" : "2rem")};
   }
 
   ${breakpointMinLarge} {
     /* padding: 1.5rem; */
-    padding: ${props => props.isNotInIframe ? "1.5rem" : "3rem"};
+    padding: ${props => (props.isNotInIframe ? "1.5rem" : "3rem")};
   }
 `;

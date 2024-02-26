@@ -14,7 +14,7 @@
   display: block;
   text-align: center;
   line-height: 100%;
-  background-image: url("https://d2yxqfr8upg55w.cloudfront.net/assets/img/dl_watermark_withtext_lighttheme.png");
+  background-image: url("https://d2yxqfr8upg55w.cloudfront.net/assets/img/updated_dl_watermark_withtext_lighttheme.png");
   width: calc(100% - 40px);
   background-size: 30%;
   background-repeat: no-repeat;
@@ -36,7 +36,7 @@
   display: block;
   text-align: center;
   line-height: 100%;
-  background-image: url("https://d2yxqfr8upg55w.cloudfront.net/assets/img/dl_watermark_onlyLogo.png");
+  background-image: url("https://d2yxqfr8upg55w.cloudfront.net/assets/img/new_dl_watermark_onlyLogo.png");
   width: 100%;
   background-size: 25%;
   background-repeat: no-repeat;
@@ -58,7 +58,7 @@
   display: block;
   text-align: center;
   line-height: 100%;
-  background-image: url("https://d2yxqfr8upg55w.cloudfront.net/assets/img/dl_watermark_withtext_darktheme.png");
+  background-image: url("https://d2yxqfr8upg55w.cloudfront.net/assets/img/updated_dl_watermark_withtext_darktheme.png");
   width: calc(100% - 40px);
   background-size: 30%;
   background-repeat: no-repeat;
@@ -70,7 +70,6 @@
   -ms-user-select: none;
   user-select: none;
 }
-
 
 .Card--night {
   background: var(--dapplooker-color-bg-card-dark);

@@ -1,6 +1,7 @@
 /* eslint-disable react/prop-types */
 import React, { useState } from "react";
 import PropTypes from "prop-types";
+import styled from "@emotion/styled";
 
 import { t } from "ttag";
 
@@ -41,16 +42,17 @@ const QueryDownloadWidget = ({
   dashcardId,
   dashboardId,
   icon,
-  iconSize = 20,
+  iconSize = 23,
   params,
   visualizationSettings,
   hideWaterMark,
+  bordered,
 }) => {
   const [status, setStatus] = useState(`idle`);
 
   return (
     <PopoverWithTrigger
-      triggerElement={() => renderIcon({ icon, status, iconSize })}
+      triggerElement={() => renderIcon({ icon, status, iconSize, bordered })}
       triggerClasses={cx(className, "text-brand-hover")}
       triggerClassesClose={classNameClose}
       disabled={status === `pending` ? true : null}
@@ -114,29 +116,67 @@ const QueryDownloadWidget = ({
 
 const LOADER_SCALE_FACTOR = 0.9;
 
-const renderIcon = ({ icon, status, iconSize }) => {
+const renderIcon = ({ icon, status, iconSize, bordered }) => {
   if ([`idle`, `resolved`, `rejected`].includes(status)) {
     return (
       <Tooltip tooltip={t`Download full results`}>
-        <Icon
-          className="px1 py1"
-          data-testid="download-button"
-          title={t`Download this data`}
-          name={icon}
-          size={iconSize}
-        />
+        {bordered === true ? (
+          <BorderIcon
+            className="px1 py1"
+            data-testid="download-button"
+            title={t`Download this data`}
+            name={icon}
+            size={iconSize}
+          />
+        ) : (
+          <Icon
+            className="px1 py1"
+            data-testid="download-button"
+            title={t`Download this data`}
+            name={icon}
+            size={iconSize}
+          />
+        )}
       </Tooltip>
     );
   } else if (status === "pending") {
     return (
       <Tooltip tooltip={t`Downloading…`}>
-        <LoadingSpinner size={iconSize * LOADER_SCALE_FACTOR} />
+        {bordered === true ? (
+          <BorderLoadingSpinner size={iconSize * LOADER_SCALE_FACTOR} />
+        ) : (
+          <LoadingSpinner size={iconSize * LOADER_SCALE_FACTOR} />
+        )}
       </Tooltip>
     );
   } else {
     throw new Error(`Unknown download status: ${status}`);
   }
 };
+
+const BorderIcon = styled(Icon)`
+  padding: 0.6rem 1.25rem;
+  background: transparent;
+  border: 1px solid rgb(242, 236, 236);
+  border-radius: 6px;
+
+  &:hover {
+    background-color: #509ee357;
+    border-color: #c7dae3;
+  }
+`;
+
+const BorderLoadingSpinner = styled(LoadingSpinner)`
+  padding: 0.6rem 1.25rem;
+  background: transparent;
+  border: 1px solid rgb(242, 236, 236);
+  border-radius: 6px;
+
+  &:hover {
+    background-color: #509ee357;
+    border-color: #c7dae3;
+  }
+`;
 
 QueryDownloadWidget.propTypes = {
   card: PropTypes.object,

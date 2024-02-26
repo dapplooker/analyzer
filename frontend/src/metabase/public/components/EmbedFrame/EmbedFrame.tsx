@@ -21,7 +21,6 @@ import type { State } from "metabase-types/store";
 import Question from "metabase-lib/Question";
 import { getValuePopulatedParameters } from "metabase-lib/parameters/utils/parameter-values";
 
-import LogoBadge from "./LogoBadge";
 import type { FooterVariant } from "./EmbedFrame.styled";
 import {
   Root,
@@ -29,7 +28,6 @@ import {
   Header,
   Body,
   Footer,
-  ActionButtonsContainer,
 } from "./EmbedFrame.styled";
 import "./EmbedFrame.css";
 
@@ -91,7 +89,7 @@ function EmbedFrame({
   useEffect(() => {
     const currentWindowUrl = window.location.href;
     window.parent.postMessage({ url: currentWindowUrl }, "*");
-  }, [browserLocation])
+  }, [browserLocation]);
 
   useMount(() => {
     initializeIframeResizer(() => setInnerScroll(false));
@@ -124,6 +122,7 @@ function EmbedFrame({
         [`Theme--${theme}`]: !!theme,
       })}
       data-testid="embed-frame"
+      fullPageView={isNotInIframe === false}
     >
       <ContentContainer hasScroll={hasInnerScroll}>
         {hasHeader && (
@@ -155,7 +154,11 @@ function EmbedFrame({
         <Body isNightTheme={theme === "night"}>{children}</Body>
       </ContentContainer>
       {showFooter && (
-        <Footer className="EmbedFrame-footer" variant={footerVariant} isNotInIframe={isNotInIframe}>
+        <Footer
+          className="EmbedFrame-footer"
+          variant={footerVariant}
+          isNotInIframe={isNotInIframe}
+        >
           {/* {hasEmbedBranding && (
             <LogoBadge variant={footerVariant} dark={theme === "night"} />
           )}
