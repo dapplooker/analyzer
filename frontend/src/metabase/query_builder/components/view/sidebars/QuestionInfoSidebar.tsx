@@ -1,7 +1,6 @@
 import React from "react";
 import { t } from "ttag";
 
-import styled from "@emotion/styled";
 import { useDispatch } from "react-redux";
 import EditableText from "metabase/core/components/EditableText";
 
@@ -24,20 +23,13 @@ import {
   ContentSection,
   HeaderContainer,
   HeaderLink,
+  CrossIconContainer,
 } from "./QuestionInfoSidebar.styled";
 
 interface QuestionInfoSidebarProps {
   question: Question;
   onSave: (card: Card) => Promise<Question>;
 }
-
-const CustomRemoveButtonContainer = styled.div`
-  width: 100%;
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  cursor: pointer;
-`;
 
 export const QuestionInfoSidebar = ({
   question,
@@ -69,11 +61,9 @@ export const QuestionInfoSidebar = ({
     <Root>
       <ContentSection>
         <HeaderContainer>
-          <CustomRemoveButtonContainer
-            onClick={() => dispatch(onCloseQuestionInfo())}
-          >
+          <CrossIconContainer onClick={() => dispatch(onCloseQuestionInfo())}>
             <Icon name="close" color="text-light" />
-          </CustomRemoveButtonContainer>
+          </CrossIconContainer>
         </HeaderContainer>
         <HeaderContainer>
           <h3>{t`About`}</h3>

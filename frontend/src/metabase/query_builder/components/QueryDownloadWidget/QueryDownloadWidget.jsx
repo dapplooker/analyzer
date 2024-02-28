@@ -1,7 +1,6 @@
 /* eslint-disable react/prop-types */
 import React, { useState } from "react";
 import PropTypes from "prop-types";
-import styled from "@emotion/styled";
 
 import { t } from "ttag";
 
@@ -20,6 +19,8 @@ import * as Urls from "metabase/lib/urls";
 import { getDownloadButtonParams } from "./utils";
 
 import {
+  BorderedLoadingSpinner,
+  BorderedDownloadIcon,
   WidgetFormat,
   WidgetHeader,
   WidgetMessage,
@@ -121,7 +122,7 @@ const renderIcon = ({ icon, status, iconSize, bordered }) => {
     return (
       <Tooltip tooltip={t`Download full results`}>
         {bordered === true ? (
-          <BorderIcon
+          <BorderedDownloadIcon
             className="px1 py1"
             data-testid="download-button"
             title={t`Download this data`}
@@ -143,7 +144,7 @@ const renderIcon = ({ icon, status, iconSize, bordered }) => {
     return (
       <Tooltip tooltip={t`Downloading…`}>
         {bordered === true ? (
-          <BorderLoadingSpinner size={iconSize * LOADER_SCALE_FACTOR} />
+          <BorderedLoadingSpinner size={iconSize * LOADER_SCALE_FACTOR} />
         ) : (
           <LoadingSpinner size={iconSize * LOADER_SCALE_FACTOR} />
         )}
@@ -153,30 +154,6 @@ const renderIcon = ({ icon, status, iconSize, bordered }) => {
     throw new Error(`Unknown download status: ${status}`);
   }
 };
-
-const BorderIcon = styled(Icon)`
-  padding: 0.6rem 1.25rem;
-  background: transparent;
-  border: 1px solid rgb(242, 236, 236);
-  border-radius: 6px;
-
-  &:hover {
-    background-color: #509ee357;
-    border-color: #c7dae3;
-  }
-`;
-
-const BorderLoadingSpinner = styled(LoadingSpinner)`
-  padding: 0.6rem 1.25rem;
-  background: transparent;
-  border: 1px solid rgb(242, 236, 236);
-  border-radius: 6px;
-
-  &:hover {
-    background-color: #509ee357;
-    border-color: #c7dae3;
-  }
-`;
 
 QueryDownloadWidget.propTypes = {
   card: PropTypes.object,

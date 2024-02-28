@@ -65,7 +65,7 @@ const ViewFooter = ({
   const hasDataPermission = question.query().isEditable();
   const hideChartSettings = result.error && !hasDataPermission;
   const isNotSaved = !question.isSaved();
-  const isTable = question.display();
+  const isTable = question.display() === "table";
 
   return (
     <ViewFooterRoot

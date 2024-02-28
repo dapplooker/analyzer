@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo } from "react";
 import _ from "underscore";
 import { t } from "ttag";
-import { connect } from "react-redux";
+import { connect, useDispatch } from "react-redux";
 
 import { PLUGIN_CACHING } from "metabase/plugins";
 import MetabaseSettings from "metabase/lib/settings";
@@ -15,13 +15,15 @@ import Revision from "metabase/entities/revisions";
 import { getRevisionEventsForTimeline } from "metabase/lib/revisions";
 import { getUser } from "metabase/selectors/user";
 
-import { revertToRevision } from "metabase/dashboard/actions";
+import { closeSidebar, revertToRevision } from "metabase/dashboard/actions";
 
+import Icon from "metabase/components/Icon";
 import {
   DashboardInfoSidebarRoot,
   HistoryHeader,
   ContentSection,
   DescriptionHeader,
+  CrossIconContainer,
 } from "./DashboardInfoSidebar.styled";
 
 interface DashboardInfoSidebarProps {
@@ -42,6 +44,7 @@ const DashboardInfoSidebar = ({
   revertToRevision,
 }: DashboardInfoSidebarProps) => {
   const canWrite = dashboard.can_write;
+  const dispatch = useDispatch();
 
   const showCaching =
     PLUGIN_CACHING.isEnabled() && MetabaseSettings.get("enable-query-caching");
@@ -71,6 +74,9 @@ const DashboardInfoSidebar = ({
   return (
     <DashboardInfoSidebarRoot data-testid="sidebar-right">
       <ContentSection>
+        <CrossIconContainer onClick={() => dispatch(closeSidebar())}>
+          <Icon name="close" color="text-light" />
+        </CrossIconContainer>
         <DescriptionHeader>{t`About`}</DescriptionHeader>
         <EditableText
           initialValue={dashboard.description}
