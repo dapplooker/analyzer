@@ -216,6 +216,22 @@ class DashboardHeader extends Component {
     const buttons = [];
     const extraButtons = [];
 
+    const handleInfoClick = () => {
+      if (isShowingDashboardInfoSidebar) {
+        closeSidebar();
+      } else {
+        setSidebar({ name: SIDEBAR_NAME.info });
+      }
+    };
+
+    if (!isEditing) {
+      extraButtons.push({
+        title: t`More info`,
+        icon: "info",
+        action: () => handleInfoClick(),
+      });
+    }
+
     if (isFullscreen && parametersWidget) {
       buttons.push(parametersWidget);
     }
@@ -381,17 +397,17 @@ class DashboardHeader extends Component {
             onDeleteBookmark={deleteBookmark}
             isBookmarked={isBookmarked}
           />,
-          <Tooltip key="dashboard-info-button" tooltip={t`More info`}>
-            <DashboardHeaderButton
-              icon="info"
-              isActive={isShowingDashboardInfoSidebar}
-              onClick={() =>
-                isShowingDashboardInfoSidebar
-                  ? closeSidebar()
-                  : setSidebar({ name: SIDEBAR_NAME.info })
-              }
-            />
-          </Tooltip>,
+          // <Tooltip key="dashboard-info-button" tooltip={t`More info`}>
+          //   <DashboardHeaderButton
+          //     icon="info"
+          //     isActive={isShowingDashboardInfoSidebar}
+          //     onClick={() =>
+          //       isShowingDashboardInfoSidebar
+          //         ? closeSidebar()
+          //         : setSidebar({ name: SIDEBAR_NAME.info })
+          //     }
+          //   />
+          // </Tooltip>,
           <EntityMenu
             key="dashboard-action-menu-button"
             items={extraButtons}

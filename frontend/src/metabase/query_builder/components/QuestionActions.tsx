@@ -2,7 +2,7 @@ import React, { useCallback } from "react";
 import { t } from "ttag";
 import { connect } from "react-redux";
 
-import Button from "metabase/core/components/Button";
+// import Button from "metabase/core/components/Button";
 import Tooltip from "metabase/core/components/Tooltip";
 import EntityMenu from "metabase/components/EntityMenu";
 
@@ -14,7 +14,7 @@ import { softReloadCard } from "metabase/query_builder/actions";
 import { getUserIsAdmin } from "metabase/selectors/user";
 
 import { State } from "metabase-types/store";
-import { color } from "metabase/lib/colors";
+// import { color } from "metabase/lib/colors";
 
 import BookmarkToggle from "metabase/core/components/BookmarkToggle";
 import Question from "metabase-lib/Question";
@@ -27,9 +27,9 @@ import {
   QuestionActionsDivider,
   StrengthIndicator,
 } from "./QuestionActions.styled";
-import { ViewHeaderIconButtonContainer } from "./view/ViewHeader.styled";
+// import { ViewHeaderIconButtonContainer } from "./view/ViewHeader.styled";
 
-const HEADER_ICON_SIZE = 16;
+// const HEADER_ICON_SIZE = 16;
 
 const ADD_TO_DASH_TESTID = "add-to-dashboard-button";
 const MOVE_TESTID = "move-button";
@@ -78,9 +78,9 @@ const QuestionActions = ({
 }: Props) => {
   const bookmarkTooltip = isBookmarked ? t`Remove from bookmarks` : t`Bookmark`;
 
-  const infoButtonColor = isShowingQuestionInfoSidebar
-    ? color("brand")
-    : undefined;
+  // const infoButtonColor = isShowingQuestionInfoSidebar
+  //   ? color("brand")
+  //   : undefined;
 
   const isDataset = question.isDataset();
   const canWrite = question.canWrite();
@@ -113,6 +113,14 @@ const QuestionActions = ({
   }, [onOpenModal, question]);
 
   const extraButtons = [];
+
+  if (isSaved) {
+    extraButtons.push({
+      title: t`More info`,
+      icon: "info",
+      action: () => onInfoClick(),
+    });
+  }
 
   extraButtons.push(
     PLUGIN_MODERATION.getMenuItems(question, isModerator, softReloadCard),
@@ -208,7 +216,7 @@ const QuestionActions = ({
           isBookmarked={isBookmarked}
         />
       </Tooltip>
-      <Tooltip tooltip={t`More info`}>
+      {/* <Tooltip tooltip={t`More info`}>
         <ViewHeaderIconButtonContainer>
           <Button
             onlyIcon
@@ -219,7 +227,7 @@ const QuestionActions = ({
             data-testid="qb-header-info-button"
           />
         </ViewHeaderIconButtonContainer>
-      </Tooltip>
+      </Tooltip> */}
       <EntityMenu
         items={extraButtons}
         triggerIcon="ellipsis"

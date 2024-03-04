@@ -37,7 +37,7 @@ export const saveChartImage = async (
     const watermarkImage = new Image();
     watermarkImage.setAttribute("crossorigin", "anonymous");
     watermarkImage.src =
-      "https://d2yxqfr8upg55w.cloudfront.net/assets/img/dl_watermark_withtext_lighttheme.png";
+      "https://d2yxqfr8upg55w.cloudfront.net/assets/img/updated_dl_watermark_withtext_lighttheme.png";
 
     await new Promise(resolve => {
       watermarkImage.onload = resolve;

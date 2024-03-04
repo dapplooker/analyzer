@@ -19,6 +19,8 @@ import * as Urls from "metabase/lib/urls";
 import { getDownloadButtonParams } from "./utils";
 
 import {
+  BorderedLoadingSpinner,
+  BorderedDownloadIcon,
   WidgetFormat,
   WidgetHeader,
   WidgetMessage,
@@ -41,16 +43,17 @@ const QueryDownloadWidget = ({
   dashcardId,
   dashboardId,
   icon,
-  iconSize = 20,
+  iconSize = 23,
   params,
   visualizationSettings,
   hideWaterMark,
+  bordered,
 }) => {
   const [status, setStatus] = useState(`idle`);
 
   return (
     <PopoverWithTrigger
-      triggerElement={() => renderIcon({ icon, status, iconSize })}
+      triggerElement={() => renderIcon({ icon, status, iconSize, bordered })}
       triggerClasses={cx(className, "text-brand-hover")}
       triggerClassesClose={classNameClose}
       disabled={status === `pending` ? true : null}
@@ -114,23 +117,37 @@ const QueryDownloadWidget = ({
 
 const LOADER_SCALE_FACTOR = 0.9;
 
-const renderIcon = ({ icon, status, iconSize }) => {
+const renderIcon = ({ icon, status, iconSize, bordered }) => {
   if ([`idle`, `resolved`, `rejected`].includes(status)) {
     return (
       <Tooltip tooltip={t`Download full results`}>
-        <Icon
-          className="px1 py1"
-          data-testid="download-button"
-          title={t`Download this data`}
-          name={icon}
-          size={iconSize}
-        />
+        {bordered === true ? (
+          <BorderedDownloadIcon
+            className="px1 py1"
+            data-testid="download-button"
+            title={t`Download this data`}
+            name={icon}
+            size={iconSize}
+          />
+        ) : (
+          <Icon
+            className="px1 py1"
+            data-testid="download-button"
+            title={t`Download this data`}
+            name={icon}
+            size={iconSize}
+          />
+        )}
       </Tooltip>
     );
   } else if (status === "pending") {
     return (
       <Tooltip tooltip={t`Downloading…`}>
-        <LoadingSpinner size={iconSize * LOADER_SCALE_FACTOR} />
+        {bordered === true ? (
+          <BorderedLoadingSpinner size={iconSize * LOADER_SCALE_FACTOR} />
+        ) : (
+          <LoadingSpinner size={iconSize * LOADER_SCALE_FACTOR} />
+        )}
       </Tooltip>
     );
   } else {

@@ -1,6 +1,7 @@
 import React from "react";
 import { t } from "ttag";
 
+import { useDispatch } from "react-redux";
 import EditableText from "metabase/core/components/EditableText";
 
 import { PLUGIN_MODERATION, PLUGIN_CACHING } from "metabase/plugins";
@@ -12,6 +13,8 @@ import QuestionActivityTimeline from "metabase/query_builder/components/Question
 
 import type { Card } from "metabase-types/types/Card";
 
+import Icon from "metabase/components/Icon";
+import { onCloseQuestionInfo } from "metabase/query_builder/actions";
 import Question from "metabase-lib/Question";
 
 import ModelCacheManagementSection from "./ModelCacheManagementSection";
@@ -20,6 +23,7 @@ import {
   ContentSection,
   HeaderContainer,
   HeaderLink,
+  CrossIconContainer,
 } from "./QuestionInfoSidebar.styled";
 
 interface QuestionInfoSidebarProps {
@@ -39,6 +43,7 @@ export const QuestionInfoSidebar = ({
     !isDataset &&
     PLUGIN_CACHING.isEnabled() &&
     MetabaseSettings.get("enable-query-caching");
+  const dispatch = useDispatch();
 
   const handleSave = (description: string | null) => {
     if (question.description() !== description) {
@@ -55,6 +60,11 @@ export const QuestionInfoSidebar = ({
   return (
     <Root>
       <ContentSection>
+        <HeaderContainer>
+          <CrossIconContainer onClick={() => dispatch(onCloseQuestionInfo())}>
+            <Icon name="close" color="text-light" />
+          </CrossIconContainer>
+        </HeaderContainer>
         <HeaderContainer>
           <h3>{t`About`}</h3>
           {question.isDataset() && (

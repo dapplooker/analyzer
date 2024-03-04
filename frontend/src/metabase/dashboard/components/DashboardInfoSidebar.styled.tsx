@@ -10,7 +10,7 @@ export const DashboardInfoSidebarRoot = styled.aside`
   padding: 0 2rem 0.5rem;
   background: ${color("white")};
   border-left: 1px solid ${color("border")};
-  align-self: stretch
+  align-self: stretch;
   overflow-y: auto;
   box-sizing: border-box;
 
@@ -49,4 +49,12 @@ export const ContentSection = styled.div`
 
 export const DescriptionHeader = styled.h3`
   margin-bottom: 0.5rem;
+`;
+
+export const CrossIconContainer = styled.div`
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  cursor: pointer;
 `;

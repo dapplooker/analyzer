@@ -49,3 +49,11 @@ export const HeaderContainer = styled.div`
 export const HeaderLink = styled(Link)`
   color: ${color("brand")};
 `;
+
+export const CrossIconContainer = styled.div`
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  cursor: pointer;
+`;

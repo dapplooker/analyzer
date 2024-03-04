@@ -46,7 +46,6 @@ import {
   HeaderDivider,
   ViewHeaderActionPanel,
   ViewHeaderIconButtonContainer,
-  ViewHeaderIconHoverContainer,
 } from "./ViewHeader.styled";
 
 const viewTitleHeaderPropTypes = {
@@ -457,14 +456,13 @@ function ViewTitleHeaderRightSide(props) {
       )}
 
       {isSaved && QueryDownloadWidget.shouldRender(props) && (
-        <ViewHeaderIconHoverContainer>
-          <QueryDownloadWidget
-            key="download"
-            className="mx1 hide sm-show"
-            card={question.card()}
-            result={result}
-          />
-        </ViewHeaderIconHoverContainer>
+        <QueryDownloadWidget
+          key="download"
+          className="mx1 hide sm-show"
+          card={question.card()}
+          result={result}
+          bordered={true}
+        />
       )}
 
       {QuestionNotebookButton.shouldRender(props) && (
