@@ -42,6 +42,7 @@ RUN apk add -U bash ttf-dejavu fontconfig curl java-cacerts && \
 # add Metabase script and uberjar
 COPY target/uberjar/metabase.jar /app/
 COPY bin/docker/run_metabase.sh /app/
+COPY resources/clickhouse_driver/clickhouse.metabase-driver.jar /plugins/
 
 # expose our default runtime port
 EXPOSE 3000
