@@ -88,3 +88,4 @@ dev/src/dev/nocommit/
 
 # malli + clj-kondo: ignore malli-types
 .clj-kondo/metosin/malli-types
+!resources/clickhouse_driver/*
