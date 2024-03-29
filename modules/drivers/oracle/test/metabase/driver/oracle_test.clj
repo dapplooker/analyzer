@@ -4,8 +4,8 @@
    [clojure.java.jdbc :as jdbc]
    [clojure.string :as str]
    [clojure.test :refer :all]
+   [java-time.api :as t]
    [metabase.api.common :as api]
-   [metabase.db.query :as mdb.query]
    [metabase.driver :as driver]
    [metabase.driver.oracle :as oracle]
    [metabase.driver.sql-jdbc.connection :as sql-jdbc.conn]
@@ -17,8 +17,8 @@
    [metabase.models.table :refer [Table]]
    [metabase.public-settings.premium-features :as premium-features]
    [metabase.query-processor :as qp]
-   [metabase.query-processor-test :as qp.test]
-   [metabase.query-processor-test.order-by-test :as qp-test.order-by-test] [metabase.query-processor.store :as qp.store]
+   [metabase.query-processor-test.order-by-test :as qp-test.order-by-test]
+   [metabase.query-processor.store :as qp.store]
    [metabase.sync :as sync]
    [metabase.sync.util :as sync-util]
    [metabase.test :as mt]
@@ -27,14 +27,10 @@
    [metabase.test.data.oracle :as oracle.tx]
    [metabase.test.data.sql :as sql.tx]
    [metabase.test.data.sql.ddl :as ddl]
-   [metabase.test.util.random :as tu.random]
    [metabase.util :as u]
    [metabase.util.honey-sql-2 :as h2x]
-   #_{:clj-kondo/ignore [:discouraged-namespace]}
-   [metabase.util.honeysql-extensions :as hx]
    [metabase.util.log :as log]
-   [toucan.db :as db]
-   [toucan.util.test :as tt]
+   [toucan2.core :as t2]
    [toucan2.tools.with-temp :as t2.with-temp])
   (:import
    (java.util Base64)))
@@ -47,8 +43,7 @@
                       ;;
                       ;; 2. Make sure we're in Honey SQL 2 mode for all the little SQL snippets we're compiling in these
                       ;;    tests.
-                      (binding [sync-util/*log-exceptions-and-continue?* false
-                                hx/*honey-sql-version*                   2]
+                      (binding [sync-util/*log-exceptions-and-continue?* false]
                         (thunk))))
 
 (deftest ^:parallel connection-details->spec-test
@@ -196,8 +191,10 @@
 
 (deftest timezone-id-test
   (mt/test-driver :oracle
-    (is (= nil
-           (driver/db-default-timezone :oracle (mt/db))))))
+    (is (= (t/zone-id "Z")
+           (-> (driver/db-default-timezone :oracle (mt/db))
+               t/zone-id
+               .normalized)))))
 
 ;;; see also [[metabase.test.data.oracle/insert-all-test]]
 (deftest ^:parallel insert-rows-ddl-test
@@ -213,7 +210,7 @@
                                                                                                  {:col1 "B", :col2 2}]))))))
 
 (defn- do-with-temp-user [username f]
-  (let [username (or username (tu.random/random-name))]
+  (let [username (or username (mt/random-name))]
     (try
       (oracle.tx/create-user! username)
       (f username)
@@ -223,7 +220,7 @@
 (defmacro ^:private with-temp-user
   "Run `body` with a temporary user bound, binding their name to `username-binding`. Use this to create the equivalent
   of temporary one-off databases. A particular username can be passed in as the binding or else one is generated with
-  `tu.random/random-name`."
+  `mt/random-name`."
   [[username-binding & [username]] & body]
   `(do-with-temp-user ~username (fn [~username-binding] ~@body)))
 
@@ -241,10 +238,7 @@
                                           :display_name  "Field"
                                           :database_type "char"
                                           :base_type     :type/Text}]
-      (qp.store/with-store
-        (qp.store/store-database! db)
-        (qp.store/store-table! table)
-        (qp.store/store-field! field)
+      (qp.store/with-metadata-provider (u/the-id db)
         (let [hsql (sql.qp/mbql->honeysql :oracle
                                           {:query {:source-table (:id table)
                                                    :expressions  {"s" [:substring [:field (:id field) nil] 2]}
@@ -270,7 +264,7 @@
                      "  rownum <= 3"]]
                    (-> (sql.qp/format-honeysql :oracle hsql)
                        vec
-                       (update 0 mdb.query/format-sql :oracle)
+                       (update 0 (partial driver/prettify-native-form :oracle))
                        (update 0 str/split-lines))))))))))
 
 (deftest return-clobs-as-text-test
@@ -287,17 +281,17 @@
           (execute! "CREATE TABLE \"%s\".\"messages\" (\"id\" %s, \"message\" CLOB)"            username pk-type)
           (execute! "INSERT INTO \"%s\".\"messages\" (\"id\", \"message\") VALUES (1, 'Hello')" username)
           (execute! "INSERT INTO \"%s\".\"messages\" (\"id\", \"message\") VALUES (2, NULL)"    username)
-          (tt/with-temp* [Table [table    {:schema username, :name "messages", :db_id (mt/id)}]
-                          Field [id-field {:table_id (u/the-id table), :name "id", :base_type "type/Integer"}]
-                          Field [_        {:table_id (u/the-id table), :name "message", :base_type "type/Text"}]]
+          (t2.with-temp/with-temp [Table table    {:schema username, :name "messages", :db_id (mt/id)}
+                                   Field id-field {:table_id (u/the-id table), :name "id", :base_type "type/Integer"}
+                                   Field _        {:table_id (u/the-id table), :name "message", :base_type "type/Text"}]
             (is (= [[1M "Hello"]
                     [2M nil]]
-                   (qp.test/rows
-                     (qp/process-query
-                      {:database (mt/id)
-                       :type     :query
-                       :query    {:source-table (u/the-id table)
-                                  :order-by     [[:asc [:field (u/the-id id-field) nil]]]}}))))))))))
+                   (mt/rows
+                    (qp/process-query
+                     {:database (mt/id)
+                      :type     :query
+                      :query    {:source-table (u/the-id table)
+                                 :order-by     [[:asc [:field (u/the-id id-field) nil]]]}}))))))))))
 
 (deftest handle-slashes-test
   (mt/test-driver :oracle
@@ -306,7 +300,7 @@
           execute! (fn [format-string & args]
                      (jdbc/execute! spec (apply format format-string args)))
           pk-type  (sql.tx/pk-sql-type :oracle)
-          schema   (str (tu.random/random-name) "/")]
+          schema   (str (mt/random-name) "/")]
       (with-temp-user [username schema]
         (execute! "CREATE TABLE \"%s\".\"mess/ages/\" (\"id\" %s, \"column1\" varchar(200))" username pk-type)
         (testing "Sync can handle slashes in the schema and tablenames"
@@ -321,7 +315,7 @@
 (deftest honeysql-test
   (mt/test-driver :oracle
     (testing "Correct HoneySQL form should be generated"
-      (mt/with-everything-store
+      (mt/with-metadata-provider (mt/id)
         (is (= (letfn [(id
                          ([field-name database-type]
                           (id oracle.tx/session-schema "test_data_venues" field-name database-type))
@@ -387,7 +381,7 @@
           (testing "Oracle can-connect? with SSL connection"
             (is (driver/can-connect? :oracle ssl-details)))
           (testing "Sync works with SSL connection"
-            (binding [metabase.sync.util/*log-exceptions-and-continue?* false
+            (binding [sync-util/*log-exceptions-and-continue?* false
                       api/*current-user-id* (mt/user->id :crowberto)]
               (doseq [[details variant] [[ssl-details "SSL with Truststore Path"]
                                          ;; in the file upload scenario, the truststore bytes are base64 encoded
@@ -402,15 +396,15 @@
                                               (dissoc :ssl-truststore-path))
                                           "SSL with Truststore Upload"]]]
                 (testing (str " " variant)
-                  (mt/with-temp Database [database {:engine  :oracle,
-                                                    :name    (format (str variant " version of %d") (mt/id)),
-                                                    :details (->> details
-                                                                  (driver.u/db-details-client->server :oracle))}]
+                  (t2.with-temp/with-temp [Database database {:engine  :oracle,
+                                                              :name    (format (str variant " version of %d") (mt/id)),
+                                                              :details (->> details
+                                                                            (driver.u/db-details-client->server :oracle))}]
                     (mt/with-db database
                       (testing " can sync correctly"
                         (sync/sync-database! database {:scan :schema})
                         ;; should be four tables from test-data
-                        (is (= 4 (db/count Table :db_id (u/the-id database) :name [:like "test_data%"])))
+                        (is (= 8 (t2/count Table :db_id (u/the-id database) :name [:like "test_data%"])))
                         (binding [api/*current-user-id* orig-user-id ; restore original user-id to avoid perm errors
                                   ;; we also need to rebind this dynamic var so that we can pretend "test-data" is
                                   ;; actually the name of the database, and not some variation on the :name specified
@@ -431,7 +425,7 @@
                                 "oracle-connect-with-ssl-test"
                                 "MB_ORACLE_SSL_TEST_SSL")))))
 
-(deftest text-equals-empty-string-test
+(deftest ^:parallel text-equals-empty-string-test
   (mt/test-driver :oracle
     (testing ":= with empty string should work correctly (#13158)"
       (mt/dataset airports
@@ -439,7 +433,7 @@
                (mt/first-row
                 (mt/run-mbql-query airport {:aggregation [:count], :filter [:= $code ""]}))))))))
 
-(deftest custom-expression-between-test
+(deftest ^:parallel custom-expression-between-test
   (mt/test-driver :oracle
     (testing "Custom :between expression should work (#15538)"
       (let [query (mt/mbql-query nil
@@ -456,7 +450,7 @@
           (is (= [42M]
                  (mt/first-row (qp/process-query query)))))))))
 
-(deftest escape-alias-test
+(deftest ^:parallel escape-alias-test
   (testing "Oracle should strip double quotes and null characters from identifiers"
     (is (= "ABC_D_E__FG_H"
            (driver/escape-alias :oracle "ABC\"D\"E\"\u0000FG\u0000H")))))

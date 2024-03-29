@@ -52,7 +52,7 @@
 
 /* TODO: remove this and apply AdminHoverItem to content rows */
 .ContentTable tbody tr:hover {
-  background-color: color-mod(var(--color-brand) alpha(-96%));
+  background-color: var(--color-brand-alpha-04);
 }
 
 .ContentTable tr:hover .Table-actions {
@@ -65,6 +65,7 @@
   border: var(--border-size) var(--border-style) var(--color-border);
   border-radius: var(--default-border-radius);
   width: 266px;
+  min-height: 300px;
   box-shadow: inset -1px -1px 3px var(--color-shadow);
   padding-bottom: 0.75em;
 }
@@ -114,11 +115,6 @@
   padding-left: 1.5em;
   padding-right: 1.5em;
   box-shadow: 0 1px 2px var(--color-shadow);
-}
-
-.AdminList-item.disabled {
-  color: var(--color-text-medium);
-  pointer-events: none;
 }
 
 .AdminList-section {
@@ -226,14 +222,6 @@
 .TableEditor-field-target .ColumnarSelector-row:hover {
   background-color: var(--color-brand) !important;
   color: white !important;
-}
-
-.SaveStatus {
-  line-height: 1;
-}
-
-.SaveStatus:last-child {
-  border-right: none !important;
 }
 
 .SettingsInput {

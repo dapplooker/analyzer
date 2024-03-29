@@ -28,6 +28,10 @@ export function addWidgetStringFilter(value) {
   cy.button("Add filter").click();
 }
 
+export function clearWidgetValue() {
+  filterWidget().icon("close").click();
+}
+
 export function setWidgetStringFilter(value) {
   popover().find("input").first().type(`${value}{enter}`);
 }
@@ -202,4 +206,9 @@ export function clearDefaultFilterValue() {
     .parent()
     .find(".Icon-close")
     .click();
+}
+
+export function selectDefaultValueFromPopover(value) {
+  cy.findByText("Default value").next().click();
+  selectFilterValueFromList(value);
 }

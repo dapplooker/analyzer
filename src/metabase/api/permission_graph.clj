@@ -72,7 +72,7 @@
 
 (def ^:private Schemas
   [:or
-   [:enum :all :segmented :none :block :full :limited]
+   [:enum :all :segmented :none :block :full :limited :impersonated]
    SchemaGraph])
 
 (def ^:private DataPerms
@@ -87,7 +87,7 @@
    DataPerms
    [:fn {:error/fn (fn [_ _] (trs "Invalid DB permissions: If you have write access for native queries, you must have data access to all schemas."))}
     (fn [{:keys [native schemas]}]
-      (not (and (= native :write) schemas (not= schemas :all))))]])
+      (not (and (= native :write) schemas (not (#{:all :impersonated} schemas)))))]])
 
 (def ^:private DbGraph
   [:schema {:registry {"DataPerms" DataPerms}}
@@ -128,23 +128,6 @@
    [:groups [:map-of GroupId [:maybe StrictDbGraph]]]
    [:revision int?]])
 
-;;; --------------------------------------------- Collection Permissions ---------------------------------------------
-
-(s/def ::collections
-  (s/map-of (s/or :identity ::id
-                  :str->kw  #{"root"})
-            (s/or :str->kw #{"read" "write" "none"})))
-
-(s/def ::collection-graph
-  (s/map-of ::id ::collections))
-
-(s/def :metabase.api.permission-graph.collection/groups
-  (s/map-of ::id
-            ::collection-graph
-            :conform-keys true))
-
-(s/def ::collection-permissions-graph
-  (s/keys :req-un [:metabase.api.permission-graph.collection/groups]))
 
 ;;; --------------------------------------------- Execution Permissions ----------------------------------------------
 

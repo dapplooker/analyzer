@@ -1,14 +1,12 @@
-import React from "react";
-import fetchMock from "fetch-mock";
 import userEvent from "@testing-library/user-event";
+import fetchMock from "fetch-mock";
 
 import {
   renderWithProviders,
   screen,
   waitFor,
-  waitForElementToBeRemoved,
+  waitForLoaderToBeRemoved,
 } from "__support__/ui";
-
 import type { Collection } from "metabase-types/api";
 import { createMockCollection } from "metabase-types/api/mocks";
 
@@ -67,7 +65,7 @@ async function setup({ folder = {}, onClose = jest.fn() }: SetupOpts = {}) {
   );
 
   if (folder.id) {
-    await waitForElementToBeRemoved(() => screen.queryByText(/Loading/i));
+    await waitForLoaderToBeRemoved();
   }
 
   return { onClose };

@@ -1,10 +1,10 @@
 /* eslint-disable react/prop-types */
-import React from "react";
+import { t } from "ttag";
 
-import EntityName from "metabase/entities/containers/EntityName";
+import { EntityName } from "metabase/entities/containers/EntityName";
+
 import AuditContent from "../components/AuditContent";
 import AuditTable from "../containers/AuditTable";
-
 import * as TableDetailCards from "../lib/cards/table_detail";
 
 const AuditTableDetail = ({ params, ...props }) => {
@@ -30,7 +30,7 @@ const AuditTableAuditLogTab = ({ tableId }) => (
 );
 
 AuditTableDetail.tabs = [
-  { path: "log", title: "Audit log", component: AuditTableAuditLogTab },
+  { path: "log", title: t`Audit log`, component: AuditTableAuditLogTab },
 ];
 
 export default AuditTableDetail;

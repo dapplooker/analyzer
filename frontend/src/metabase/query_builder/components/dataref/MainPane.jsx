@@ -1,10 +1,10 @@
 /* eslint "react/prop-types": "warn" */
-import React from "react";
 import PropTypes from "prop-types";
 import { t } from "ttag";
 
 import Databases from "metabase/entities/databases";
 import SidebarContent from "metabase/query_builder/components/SidebarContent";
+
 import {
   NodeListItemLink,
   NodeListItemName,

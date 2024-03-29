@@ -1,5 +1,10 @@
-import { UserId } from "./user";
-import { CardDisplayType } from "./card";
+import type { ColorName } from "metabase/lib/colors/types";
+import type { IconName } from "metabase/ui";
+
+import type { CardDisplayType } from "./card";
+import type { DatabaseId } from "./database";
+import type { TableId } from "./table";
+import type { UserId } from "./user";
 
 export type RegularCollectionId = number;
 
@@ -9,10 +14,28 @@ export type CollectionContentModel = "card" | "dataset";
 
 export type CollectionAuthorityLevel = "official" | null;
 
+export type CollectionType = "instance-analytics" | null;
+
+export type LastEditInfo = {
+  email: string;
+  first_name: string;
+  last_name: string;
+  id: UserId;
+  timestamp: string;
+};
+
 export type CollectionAuthorityLevelConfig = {
   type: CollectionAuthorityLevel;
   name: string;
-  icon: string;
+  icon: IconName;
+  color?: ColorName;
+  tooltips?: Record<string, string>;
+};
+
+export type CollectionInstanceAnaltyicsConfig = {
+  type: CollectionType;
+  name: string;
+  icon: IconName;
   color?: string;
   tooltips?: Record<string, string>;
 };
@@ -20,15 +43,18 @@ export type CollectionAuthorityLevelConfig = {
 export interface Collection {
   id: CollectionId;
   name: string;
+  slug?: string;
+  entity_id?: string;
   description: string | null;
   can_write: boolean;
-  color?: string;
   archived: boolean;
   children?: Collection[];
   authority_level?: "official" | null;
+  type?: "instance-analytics" | null;
 
   parent_id?: CollectionId;
   personal_owner_id?: UserId;
+  is_personal?: boolean;
 
   location?: string;
   effective_ancestors?: Collection[];
@@ -41,29 +67,45 @@ export interface Collection {
   path?: CollectionId[];
 }
 
-type CollectionItemModel =
+export type CollectionItemModel =
   | "card"
   | "dataset"
   | "dashboard"
   | "pulse"
-  | "collection";
+  | "snippet"
+  | "collection"
+  | "indexed-entity";
 
-export interface CollectionItem<T = CollectionItemModel> {
-  id: number;
-  model: T;
+export type CollectionItemId = number;
+
+export interface CollectionItem {
+  id: CollectionItemId;
+  model: CollectionItemModel;
   name: string;
   description: string | null;
   copy?: boolean;
   collection_position?: number | null;
   collection_preview?: boolean | null;
-  fully_parametrized?: boolean | null;
-  collection?: Collection;
+  fully_parameterized?: boolean | null;
+  based_on_upload?: TableId | null; // only for models
+  collection?: Collection | null;
   display?: CardDisplayType;
   personal_owner_id?: UserId;
-  getIcon: () => { name: string };
+  database_id?: DatabaseId;
+  moderated_status?: string;
+  type?: string;
+  can_write?: boolean;
+  "last-edit-info"?: LastEditInfo;
+  getIcon: () => { name: IconName };
   getUrl: (opts?: Record<string, unknown>) => string;
   setArchived?: (isArchived: boolean) => void;
   setPinned?: (isPinned: boolean) => void;
   setCollection?: (collection: Collection) => void;
   setCollectionPreview?: (isEnabled: boolean) => void;
+}
+
+export interface CollectionListQuery {
+  archived?: boolean;
+  "exclude-other-user-collections"?: boolean;
+  namespace?: string;
 }

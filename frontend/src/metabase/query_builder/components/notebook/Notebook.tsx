@@ -1,20 +1,20 @@
-import React from "react";
-import { connect } from "react-redux";
 import { t } from "ttag";
 import _ from "underscore";
+
 import Button from "metabase/core/components/Button";
 import Questions from "metabase/entities/questions";
-import { getMetadata } from "metabase/selectors/metadata";
-import { Card } from "metabase-types/api";
-import { State } from "metabase-types/store";
-import Question from "metabase-lib/Question";
-import StructuredQuery from "metabase-lib/queries/StructuredQuery";
+import { useDispatch } from "metabase/lib/redux";
+import { setUIControls } from "metabase/query_builder/actions";
+import * as Lib from "metabase-lib";
+import type Question from "metabase-lib/Question";
 import {
   getQuestionIdFromVirtualTableId,
   isVirtualCardId,
 } from "metabase-lib/metadata/utils/saved-questions";
-import NotebookSteps from "./NotebookSteps";
+import type { State } from "metabase-types/store";
+
 import { NotebookRoot } from "./Notebook.styled";
+import NotebookSteps from "./NotebookSteps";
 
 interface NotebookOwnProps {
   className?: string;
@@ -22,38 +22,39 @@ interface NotebookOwnProps {
   isDirty: boolean;
   isRunnable: boolean;
   isResultDirty: boolean;
+  reportTimezone: string;
   hasVisualizeButton?: boolean;
-  updateQuestion: (question: Question) => void;
+  updateQuestion: (question: Question) => Promise<void>;
   runQuestionQuery: () => void;
   setQueryBuilderMode: (mode: string) => void;
+  readOnly?: boolean;
 }
 
-interface NotebookCardProps {
-  sourceCard?: Card;
-}
-
-interface NotebookStateProps {
+interface EntityLoaderProps {
   sourceQuestion?: Question;
 }
 
-type NotebookProps = NotebookOwnProps & NotebookCardProps & NotebookStateProps;
+type NotebookProps = NotebookOwnProps & EntityLoaderProps;
 
-const Notebook = ({ className, ...props }: NotebookProps) => {
+const Notebook = ({ className, updateQuestion, ...props }: NotebookProps) => {
   const {
     question,
     isDirty,
     isRunnable,
     isResultDirty,
     hasVisualizeButton = true,
-    updateQuestion,
     runQuestionQuery,
     setQueryBuilderMode,
   } = props;
 
-  // When switching out of the notebook editor, cleanupQuestion accounts for
-  // post aggregation filters and otherwise nested queries with duplicate column names.
+  const dispatch = useDispatch();
+
   async function cleanupQuestion() {
-    let cleanQuestion = question.setQuery(question.query().clean());
+    // Converting a query to MLv2 and back performs a clean-up
+    let cleanQuestion = question.setQuery(
+      Lib.dropEmptyStages(question.query()),
+    );
+
     if (cleanQuestion.display() === "table") {
       cleanQuestion = cleanQuestion.setDefaultDisplay();
     }
@@ -61,7 +62,7 @@ const Notebook = ({ className, ...props }: NotebookProps) => {
     await updateQuestion(cleanQuestion);
   }
 
-  // vizualize switches the view to the question's visualization.
+  // visualize switches the view to the question's visualization.
   async function visualize() {
     // Only cleanup the question if it's dirty, otherwise Metabase
     // will incorrectly display the Save button, even though there are no changes to save.
@@ -75,9 +76,14 @@ const Notebook = ({ className, ...props }: NotebookProps) => {
     }
   }
 
+  const handleUpdateQuestion = (question: Question): Promise<void> => {
+    dispatch(setUIControls({ isModifiedFromNotebook: true }));
+    return updateQuestion(question);
+  };
+
   return (
     <NotebookRoot className={className}>
-      <NotebookSteps {...props} />
+      <NotebookSteps updateQuestion={handleUpdateQuestion} {...props} />
       {hasVisualizeButton && isRunnable && (
         <Button medium primary style={{ minWidth: 220 }} onClick={visualize}>
           {t`Visualize`}
@@ -87,31 +93,27 @@ const Notebook = ({ className, ...props }: NotebookProps) => {
   );
 };
 
-function getSourceCardId(question: Question) {
+function getSourceQuestionId(question: Question) {
   const query = question.query();
-  if (query instanceof StructuredQuery) {
-    const sourceTableId = query.sourceTableId();
+  const { isNative } = Lib.queryDisplayInfo(query);
+
+  if (!isNative) {
+    const sourceTableId = Lib.sourceTableOrCardId(query);
+
     if (isVirtualCardId(sourceTableId)) {
       return getQuestionIdFromVirtualTableId(sourceTableId);
     }
   }
+
+  return undefined;
 }
 
-function mapStateToProps(
-  state: State,
-  { sourceCard }: NotebookCardProps,
-): NotebookStateProps {
-  return {
-    sourceQuestion: sourceCard && new Question(sourceCard, getMetadata(state)),
-  };
-}
-
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default _.compose(
   Questions.load({
     id: (state: State, { question }: NotebookOwnProps) =>
-      getSourceCardId(question),
-    entityAlias: "sourceCard",
+      getSourceQuestionId(question),
+    entityAlias: "sourceQuestion",
     loadingAndErrorWrapper: false,
   }),
-  connect(mapStateToProps),
 )(Notebook);

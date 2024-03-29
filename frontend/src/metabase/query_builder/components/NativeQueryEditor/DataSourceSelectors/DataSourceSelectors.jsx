@@ -1,17 +1,17 @@
-import React, { useMemo } from "react";
 import PropTypes from "prop-types";
+import { useMemo } from "react";
 import { t } from "ttag";
 
 import { getNativeQueryLanguage } from "metabase/lib/engine";
-
 import {
   DatabaseDataSelector,
   SchemaAndTableDataSelector,
 } from "metabase/query_builder/components/DataSelector";
 
 const DataSourceSelectorsPropTypes = {
-  isNativeEditorOpen: PropTypes.bool.isRequired,
+  isNativeEditorOpen: PropTypes.bool,
   query: PropTypes.object,
+  question: PropTypes.object,
   readOnly: PropTypes.bool,
   setDatabaseId: PropTypes.func,
   setTableId: PropTypes.func,
@@ -54,12 +54,13 @@ const PlaceholderPropTypes = {
 const DataSourceSelectors = ({
   isNativeEditorOpen,
   query,
+  question,
   readOnly,
   setDatabaseId,
   setTableId,
   editorContext,
 }) => {
-  const database = query.database();
+  const database = question.database();
 
   const databases = useMemo(() => {
     const allDatabases = query
@@ -83,6 +84,7 @@ const DataSourceSelectors = ({
 
   return (
     <PopulatedDataSourceSelectors
+      isNativeEditorOpen={isNativeEditorOpen}
       database={database}
       databases={databases}
       query={query}

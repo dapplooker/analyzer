@@ -1,18 +1,15 @@
-import React from "react";
 import { t } from "ttag";
 
-import Icon from "metabase/components/Icon";
+import type { SelectChangeEvent } from "metabase/core/components/Select";
+import Select, { Option } from "metabase/core/components/Select";
 import Tooltip from "metabase/core/components/Tooltip";
-import Select, {
-  Option,
-  SelectChangeEvent,
-} from "metabase/core/components/Select";
-import { GroupTableAccessPolicy, UserAttribute } from "metabase-types/api";
+import { Icon } from "metabase/ui";
+import type { GroupTableAccessPolicyDraft } from "metabase-enterprise/sandboxes/types";
 import { getRawDataQuestionForTable } from "metabase-enterprise/sandboxes/utils";
-import { GroupTableAccessPolicyDraft } from "metabase-enterprise/sandboxes/types";
-import QuestionParameterTargetWidget from "../../containers/QuestionParameterTargetWidget";
+import type { GroupTableAccessPolicy, UserAttribute } from "metabase-types/api";
 
-import MappingEditor from "../MappingEditor";
+import QuestionParameterTargetWidget from "../../containers/QuestionParameterTargetWidget";
+import { MappingEditor } from "../MappingEditor";
 
 interface AttributeMappingEditorProps {
   value: any;
@@ -59,8 +56,6 @@ const AttributeMappingEditor = ({
         {shouldUseSavedQuestion ? t`Parameter or variable` : t`Column`}
       </div>
     }
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
     renderValueInput={({ value, onChange }) =>
       !shouldUseSavedQuestion && policy.table_id != null ? (
         <div style={{ minWidth: 200 }}>
@@ -90,6 +85,7 @@ const AttributeMappingEditor = ({
   />
 );
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default AttributeMappingEditor;
 
 interface AttributePickerProps {

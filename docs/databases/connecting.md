@@ -3,6 +3,8 @@ title: Adding and managing databases
 redirect_from:
   - /docs/latest/administration-guide/01-managing-databases
   - /docs/latest/databases/connections/sql-server
+  - /docs/latest/administration-guide/databases/h2
+  - /docs/latest/databases/connections/h2
 ---
 
 # Adding and managing databases
@@ -24,9 +26,8 @@ The databases listed below have official drivers maintained by the Metabase team
 - [Amazon Athena](./connections/athena.md)
 - [BigQuery](./connections/bigquery.md) (Google Cloud Platform)
 - [Druid](./connections/druid.md)
-- [H2](./connections/h2.md)
-- [MongoDB (version 4.2 or higher)](./connections/mongodb.md)
-- [MySQL (version 5.7 or higher, as well as MariaDB version 10.2 or higher)](./connections/mysql.md)
+- [MongoDB (recommend version 4.2 or higher)](./connections/mongodb.md)
+- [MySQL (recommend version 8.0.33 or higher, as well as MariaDB version 10.4 or higher)](./connections/mysql.md)
 - [Oracle](./connections/oracle.md)
 - [PostgreSQL](./connections/postgresql.md)
 - [Presto](./connections/presto.md)
@@ -38,6 +39,8 @@ The databases listed below have official drivers maintained by the Metabase team
 - [Vertica](./connections/vertica.md)
 
 If you don't see your database listed here, see [partner and community drivers](../developers-guide/partner-and-community-drivers.md#partner-drivers).
+
+As of version 46.6.4, Metabase [no longer supports H2 connections](https://www.metabase.com/blog/security-incident-summary). But Metabase still ships with an H2 database to include an embedded application database, as well as to provide some sample data out of the box.
 
 ## Connecting to databases hosted by a cloud provider
 
@@ -52,14 +55,6 @@ For Metabase to connect, query, or write to your database, you must give Metabas
 ## Syncing and scanning databases
 
 See [Syncing and scanning](./sync-scan.md).
-
-### Syncing and scanning using the API
-
-Metabase syncs and scans regularly, but if the database administrator has just changed the database schema, or if a lot of data is added automatically at specific times, you may want to write a script that uses the [Metabase API](https://www.metabase.com/learn/administration/metabase-api) to force a sync or scan. [Our API](../api-documentation.md) provides two ways to initiate a sync or scan of a database:
-
-1. Using a a session token:  the `/api/database/:id/sync_schema` or `api/database/:id/rescan_values` endpoints. These endpoints do the same things as going to the database in the Admin Panel and choosing **Sync database schema now** or **Re-scan field values now** respectively. To use these endpoints, you have to authenticate with a user ID and pass a session token in the header of your request.
-
-2. Using an API key: `/api/notify/db/:id`. We created this endpoint so that people could notify their Metabase to sync after an [ETL operation](https://www.metabase.com/learn/analytics/etl-landscape) finishes. To use this endpoint, you must pass an API key by defining the `MB_API_KEY` environment variable.
 
 ## Deleting databases
 

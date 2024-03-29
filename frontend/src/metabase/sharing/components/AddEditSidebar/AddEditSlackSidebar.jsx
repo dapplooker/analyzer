@@ -1,22 +1,21 @@
-import React from "react";
 import PropTypes from "prop-types";
 import { t } from "ttag";
 import _ from "underscore";
 
-import Icon from "metabase/components/Icon";
-import SchedulePicker from "metabase/containers/SchedulePicker";
 import SendTestPulse from "metabase/components/SendTestPulse";
-import Sidebar from "metabase/dashboard/components/Sidebar";
+import SchedulePicker from "metabase/containers/SchedulePicker";
 import Toggle from "metabase/core/components/Toggle";
-
+import { Sidebar } from "metabase/dashboard/components/Sidebar";
 import { dashboardPulseIsValid } from "metabase/lib/pulse";
-
 import { PLUGIN_DASHBOARD_SUBSCRIPTION_PARAMETERS_SECTION_OVERRIDE } from "metabase/plugins";
+import { Icon } from "metabase/ui";
+
 import SlackChannelField from "../SlackChannelField";
-import CaveatMessage from "./CaveatMessage";
-import Heading from "./Heading";
-import DeleteSubscriptionAction from "./DeleteSubscriptionAction";
+
+import { CaveatMessage } from "./CaveatMessage";
 import DefaultParametersSection from "./DefaultParametersSection";
+import DeleteSubscriptionAction from "./DeleteSubscriptionAction";
+import Heading from "./Heading";
 import { CHANNEL_NOUN_PLURAL } from "./constants";
 
 function _AddEditSlackSidebar({
@@ -25,7 +24,6 @@ function _AddEditSlackSidebar({
   channel,
   channelSpec,
   parameters,
-  defaultParametersById,
   dashboard,
   // form callbacks
   handleSave,
@@ -94,13 +92,11 @@ function _AddEditSlackSidebar({
             dashboard={dashboard}
             pulse={pulse}
             setPulseParameters={setPulseParameters}
-            defaultParametersById={defaultParametersById}
           />
         ) : (
           <DefaultParametersSection
             className="py3 mt2 border-top"
             parameters={parameters}
-            defaultParametersById={defaultParametersById}
           />
         )}
         <div className="text-bold py2 flex justify-between align-center border-top">
@@ -131,7 +127,6 @@ _AddEditSlackSidebar.propTypes = {
   channelSpec: PropTypes.object.isRequired,
   users: PropTypes.array,
   parameters: PropTypes.array.isRequired,
-  defaultParametersById: PropTypes.object.isRequired,
   dashboard: PropTypes.object.isRequired,
   handleSave: PropTypes.func.isRequired,
   onCancel: PropTypes.func.isRequired,

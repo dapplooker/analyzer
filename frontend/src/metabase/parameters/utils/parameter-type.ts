@@ -1,4 +1,5 @@
 import { SINGLE_OR_MULTI_SELECTABLE_TYPES } from "metabase-lib/parameters/constants";
+import type { ParameterWithTemplateTagTarget } from "metabase-lib/parameters/types";
 import {
   getParameterSubType,
   getParameterType,

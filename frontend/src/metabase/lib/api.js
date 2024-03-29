@@ -1,10 +1,9 @@
+import EventEmitter from "events";
 import querystring from "querystring";
 
-import EventEmitter from "events";
-
-import { delay } from "metabase/lib/promise";
-import { isWithinIframe } from "metabase/lib/dom";
 import { isTest } from "metabase/env";
+import { isWithinIframe } from "metabase/lib/dom";
+import { delay } from "metabase/lib/promise";
 
 const ONE_SECOND = 1000;
 const MAX_RETRIES = 10;
@@ -24,9 +23,9 @@ const DEFAULT_OPTIONS = {
   retryCount: MAX_RETRIES,
   // Creates an array with exponential backoff in millis
   // i.e. [1000, 2000, 4000, 8000...]
-  retryDelayIntervals: Array.from(new Array(MAX_RETRIES).keys())
-    .map(x => ONE_SECOND * Math.pow(2, x))
-    .reverse(),
+  retryDelayIntervals: new Array(MAX_RETRIES)
+    .fill(1)
+    .map((_, i) => ONE_SECOND * Math.pow(2, i)),
 };
 
 export class Api extends EventEmitter {
@@ -57,10 +56,10 @@ export class Api extends EventEmitter {
         ...methodOptions,
       };
 
-      return async (data, invocationOptions = {}) => {
+      return async (rawData, invocationOptions = {}) => {
         const options = { ...defaultOptions, ...invocationOptions };
         let url = urlTemplate;
-        data = { ...data };
+        const data = { ...rawData };
         for (const tag of url.match(/:\w+/g) || []) {
           const paramName = tag.slice(1);
           let value = data[paramName];
@@ -85,6 +84,10 @@ export class Api extends EventEmitter {
           ? { Accept: "application/json", "Content-Type": "application/json" }
           : {};
 
+        if (options.formData && options.fetch) {
+          delete headers["Content-Type"];
+        }
+
         if (isWithinIframe()) {
           headers["X-Metabase-Embedded"] = "true";
         }
@@ -95,9 +98,13 @@ export class Api extends EventEmitter {
 
         let body;
         if (options.hasBody) {
-          body = JSON.stringify(
-            options.bodyParamName != null ? data[options.bodyParamName] : data,
-          );
+          body = options.formData
+            ? rawData.formData
+            : JSON.stringify(
+                options.bodyParamName != null
+                  ? data[options.bodyParamName]
+                  : data,
+              );
         } else {
           const qs = querystring.stringify(data);
           if (qs) {
@@ -124,8 +131,8 @@ export class Api extends EventEmitter {
   }
 
   async _makeRequestWithRetries(method, url, headers, body, data, options) {
-    // Get a copy of the delay intervals that we can remove items from as we retry
-    const retryDelays = options.retryDelayIntervals.slice();
+    // Get a copy of the delay intervals that we can pop items from as we retry
+    const retryDelays = options.retryDelayIntervals.slice().reverse();
     let retryCount = 0;
     // maxAttempts is the first attempt followed by the number of retries
     const maxAttempts = options.retryCount + 1;
@@ -154,9 +161,10 @@ export class Api extends EventEmitter {
   }
 
   _makeRequest(...args) {
+    const options = args[5];
     // this is temporary to not deal with failed cypress tests
     // we should switch to using fetch in all cases (metabase#28489)
-    if (isTest) {
+    if (isTest || options.fetch) {
       return this._makeRequestWithFetch(...args);
     } else {
       return this._makeRequestWithXhr(...args);

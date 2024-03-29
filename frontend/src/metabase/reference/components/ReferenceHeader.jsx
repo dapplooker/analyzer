@@ -1,13 +1,13 @@
-import React from "react";
-import PropTypes from "prop-types";
-import { Link } from "react-router";
 import cx from "classnames";
-
+import PropTypes from "prop-types";
+import { memo } from "react";
+import { Link } from "react-router";
 import { t } from "ttag";
-import L from "metabase/components/List.css";
 
-import Icon from "metabase/components/Icon";
-import Ellipsified from "metabase/core/components/Ellipsified";
+import L from "metabase/components/List/List.css";
+import { Ellipsified } from "metabase/core/components/Ellipsified";
+import { Icon } from "metabase/ui";
+
 import S from "./ReferenceHeader.css";
 
 const ReferenceHeader = ({
@@ -38,7 +38,6 @@ const ReferenceHeader = ({
             <Link
               to={headerLink}
               className={cx("Button", "Button--borderless", "ml3")}
-              data-metabase-event={`Data Reference;Entity -> QB click;${type}`}
             >
               <div className="flex align-center relative">
                 <span className="mr1 flex-no-shrink">{t`See this ${type}`}</span>
@@ -60,4 +59,4 @@ ReferenceHeader.propTypes = {
   headerLink: PropTypes.string,
 };
 
-export default React.memo(ReferenceHeader);
+export default memo(ReferenceHeader);

@@ -1,14 +1,13 @@
+import { SAMPLE_DATABASE } from "e2e/support/cypress_sample_database";
 import {
   restore,
   showDashboardCardActions,
   filterWidget,
   saveDashboard,
   editDashboard,
-  visualize,
   visitDashboard,
 } from "e2e/support/helpers";
 
-import { SAMPLE_DATABASE } from "e2e/support/cypress_sample_database";
 import { setAdHocFilter } from "../../native-filters/helpers/e2e-date-filter-helpers";
 
 const { ORDERS, ORDERS_ID, PRODUCTS, PRODUCTS_ID } = SAMPLE_DATABASE;
@@ -98,14 +97,18 @@ describe("issue 17514", () => {
       cy.location("search").should("eq", "?date_filter=past30years");
       cy.wait("@cardQuery");
 
+      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
       cy.findByText("Previous 30 Years");
 
+      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
       cy.findByText("17514").click();
       cy.wait("@dataset");
       cy.findByTextEnsureVisible("Subtotal");
 
       // Cypress cannot click elements that are blocked by an overlay so this will immediately fail if the issue is not fixed
-      cy.findByText("110.93").click();
+      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+      cy.findByText("79.37").click();
+      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
       cy.findByText("Filter by this value");
     });
   });
@@ -122,26 +125,32 @@ describe("issue 17514", () => {
 
       removeJoinedTable();
 
-      visualize();
+      cy.button("Visualize").click();
+      cy.wait("@dataset");
+
       cy.findByTextEnsureVisible("Subtotal");
 
+      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
       cy.findByText("Save").click();
 
-      cy.get(".Modal").within(() => {
-        cy.button("Save").click();
-      });
+      cy.get(".Modal").button("Save").click();
+      cy.get(".Modal").should("not.exist");
     });
 
     it("should not show the run overlay because of the references to the orphaned fields (metabase#17514-2)", () => {
       openNotebookMode();
 
+      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
       cy.findByText("Join data").click();
+      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
       cy.findByText("Products").click();
 
-      visualize();
+      cy.button("Visualize").click();
+      cy.wait("@dataset");
 
       // Cypress cannot click elements that are blocked by an overlay so this will immediately fail if the issue is not fixed
       cy.findByTextEnsureVisible("Subtotal").click();
+      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
       cy.findByText("Filter by this column");
     });
   });
@@ -172,7 +181,7 @@ function removeJoinedTable() {
   cy.findAllByText("Join data")
     .first()
     .parent()
-    .findByTestId("remove-step")
+    .findByLabelText("Remove step")
     .click({ force: true });
 }
 

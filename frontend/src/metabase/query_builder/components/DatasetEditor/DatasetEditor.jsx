@@ -1,44 +1,39 @@
-import React, { useEffect, useCallback, useMemo, useState } from "react";
+import { merge } from "icepick";
 import PropTypes from "prop-types";
+import { useEffect, useCallback, useMemo, useState } from "react";
 import { connect } from "react-redux";
+import { usePrevious } from "react-use";
 import { t } from "ttag";
 import _ from "underscore";
-import { merge } from "icepick";
-import { usePrevious } from "react-use";
 
 import ActionButton from "metabase/components/ActionButton";
-import Button from "metabase/core/components/Button";
 import DebouncedFrame from "metabase/components/DebouncedFrame";
-import Confirm from "metabase/components/Confirm";
-
-import QueryVisualization from "metabase/query_builder/components/QueryVisualization";
-import ViewSidebar from "metabase/query_builder/components/view/ViewSidebar";
-import DataReference from "metabase/query_builder/components/dataref/DataReference";
-import TagEditorSidebar from "metabase/query_builder/components/template_tags/TagEditorSidebar";
-import SnippetSidebar from "metabase/query_builder/components/template_tags/SnippetSidebar";
-import { calcInitialEditorHeight } from "metabase/query_builder/components/NativeQueryEditor/utils";
-
+import { LeaveConfirmationModalContent } from "metabase/components/LeaveConfirmationModal";
+import Modal from "metabase/components/Modal";
+import Button from "metabase/core/components/Button";
+import { modelIndexes } from "metabase/entities";
+import { useToggle } from "metabase/hooks/use-toggle";
+import { getSemanticTypeIcon } from "metabase/lib/schema_metadata";
 import { setDatasetEditorTab } from "metabase/query_builder/actions";
+import { calcInitialEditorHeight } from "metabase/query_builder/components/NativeQueryEditor/utils";
+import QueryVisualization from "metabase/query_builder/components/QueryVisualization";
+import DataReference from "metabase/query_builder/components/dataref/DataReference";
+import { SnippetSidebar } from "metabase/query_builder/components/template_tags/SnippetSidebar/SnippetSidebar";
+import { TagEditorSidebar } from "metabase/query_builder/components/template_tags/TagEditorSidebar";
+import ViewSidebar from "metabase/query_builder/components/view/ViewSidebar";
+import { MODAL_TYPES } from "metabase/query_builder/constants";
 import {
   getDatasetEditorTab,
   getResultsMetadata,
   isResultsMetadataDirty,
 } from "metabase/query_builder/selectors";
-
-import { getSemanticTypeIcon } from "metabase/lib/schema_metadata";
-import { useToggle } from "metabase/hooks/use-toggle";
-
-import { MODAL_TYPES } from "metabase/query_builder/constants";
-import { isSameField } from "metabase-lib/queries/utils/field-ref";
+import { getMetadata } from "metabase/selectors/metadata";
+import * as Lib from "metabase-lib";
 import {
   checkCanBeModel,
   getSortedModelFields,
 } from "metabase-lib/metadata/utils/models";
-import { EDITOR_TAB_INDEXES } from "./constants";
-import DatasetFieldMetadataSidebar from "./DatasetFieldMetadataSidebar";
-import DatasetQueryEditor from "./DatasetQueryEditor";
-import EditorTabs from "./EditorTabs";
-import { TabHintToast } from "./TabHintToast";
+import { isSameField } from "metabase-lib/queries/utils/field-ref";
 
 import {
   Root,
@@ -50,6 +45,11 @@ import {
   TableContainer,
   TabHintToastContainer,
 } from "./DatasetEditor.styled";
+import DatasetFieldMetadataSidebar from "./DatasetFieldMetadataSidebar";
+import DatasetQueryEditor from "./DatasetQueryEditor";
+import EditorTabs from "./EditorTabs";
+import { TabHintToast } from "./TabHintToast";
+import { EDITOR_TAB_INDEXES } from "./constants";
 
 const propTypes = {
   question: PropTypes.object.isRequired,
@@ -70,6 +70,7 @@ const propTypes = {
   handleResize: PropTypes.func.isRequired,
   runQuestionQuery: PropTypes.func.isRequired,
   onOpenModal: PropTypes.func.isRequired,
+  modelIndexes: PropTypes.array.isRequired,
 
   // Native editor sidebars
   isShowingTemplateTagsEditor: PropTypes.bool.isRequired,
@@ -85,6 +86,7 @@ const TABLE_HEADER_HEIGHT = 45;
 
 function mapStateToProps(state) {
   return {
+    metadata: getMetadata(state),
     datasetEditorTab: getDatasetEditorTab(state),
     isMetadataDirty: isResultsMetadataDirty(state),
     resultsMetadata: getResultsMetadata(state),
@@ -112,6 +114,7 @@ function getSidebar(
     toggleTemplateTagsEditor,
     toggleDataReference,
     toggleSnippetSidebar,
+    modelIndexes,
   } = props;
 
   if (datasetEditorTab === "metadata") {
@@ -132,16 +135,25 @@ function getSidebar(
         isLastField={isLastField}
         handleFirstFieldFocus={focusFirstField}
         onFieldMetadataChange={onFieldMetadataChange}
+        modelIndexes={modelIndexes}
       />
     );
   }
 
-  if (!dataset.isNative()) {
+  const { isNative } = Lib.queryDisplayInfo(dataset.query());
+
+  if (!isNative) {
     return null;
   }
 
   if (isShowingTemplateTagsEditor) {
-    return <TagEditorSidebar {...props} onClose={toggleTemplateTagsEditor} />;
+    return (
+      <TagEditorSidebar
+        {...props}
+        query={dataset.legacyQuery()}
+        onClose={toggleTemplateTagsEditor}
+      />
+    );
   }
   if (isShowingDataReference) {
     return <DataReference {...props} onClose={toggleDataReference} />;
@@ -190,8 +202,11 @@ function DatasetEditor(props) {
     onSave,
     handleResize,
     onOpenModal,
+    modelIndexes = [],
   } = props;
 
+  const isDirty = isModelQueryDirty || isMetadataDirty;
+  const [showCancelEditWarning, setShowCancelEditWarning] = useState(false);
   const fields = useMemo(
     () => getSortedModelFields(dataset, resultsMetadata?.columns),
     [dataset, resultsMetadata],
@@ -201,11 +216,13 @@ function DatasetEditor(props) {
   const isEditingMetadata = datasetEditorTab === "metadata";
 
   const initialEditorHeight = useMemo(() => {
-    if (dataset.isStructured()) {
+    const { isNative } = Lib.queryDisplayInfo(dataset.query());
+
+    if (!isNative) {
       return INITIAL_NOTEBOOK_EDITOR_HEIGHT;
     }
     return calcInitialEditorHeight({
-      query: dataset.query(),
+      query: dataset.legacyQuery(),
       viewHeight: height,
     });
   }, [dataset, height]);
@@ -230,7 +247,7 @@ function DatasetEditor(props) {
   const focusedField = useMemo(() => {
     const field = fields[focusedFieldIndex];
     if (field) {
-      const fieldMetadata = metadata.field(field.id, field.table_id);
+      const fieldMetadata = metadata?.field?.(field.id, field.table_id);
       return {
         ...fieldMetadata,
         ...field,
@@ -254,7 +271,7 @@ function DatasetEditor(props) {
 
   const inheritMappedFieldProperties = useCallback(
     changes => {
-      const mappedField = metadata.field(changes.id).getPlainObject();
+      const mappedField = metadata.field?.(changes.id)?.getPlainObject();
       const inheritedProperties = _.pick(mappedField, ...FIELDS);
       return mappedField ? merge(inheritedProperties, changes) : changes;
     },
@@ -291,14 +308,27 @@ function DatasetEditor(props) {
     [initialEditorHeight, setDatasetEditorTab],
   );
 
-  const handleCancelCreate = useCallback(() => {
-    onCancelCreateNewModel();
-  }, [onCancelCreateNewModel]);
-
-  const handleCancelEdit = useCallback(() => {
+  const handleCancelEdit = () => {
+    setShowCancelEditWarning(false);
     onCancelDatasetChanges();
     setQueryBuilderMode("view");
-  }, [setQueryBuilderMode, onCancelDatasetChanges]);
+  };
+
+  const handleCancelEditWarningClose = () => {
+    setShowCancelEditWarning(false);
+  };
+
+  const handleCancelClick = () => {
+    if (dataset.isSaved()) {
+      if (isDirty) {
+        setShowCancelEditWarning(true);
+      } else {
+        handleCancelEdit();
+      }
+    } else {
+      onCancelCreateNewModel();
+    }
+  };
 
   const handleSave = useCallback(async () => {
     const canBeDataset = checkCanBeModel(dataset);
@@ -307,7 +337,7 @@ function DatasetEditor(props) {
     if (canBeDataset && isBrandNewDataset) {
       onOpenModal(MODAL_TYPES.SAVE);
     } else if (canBeDataset) {
-      await onSave(dataset.card(), { rerunQuery: false });
+      await onSave(dataset, { rerunQuery: false });
       await setQueryBuilderMode("view");
       runQuestionQuery();
     } else {
@@ -381,27 +411,34 @@ function DatasetEditor(props) {
   );
 
   const canSaveChanges = useMemo(() => {
-    if (dataset.query().isEmpty()) {
+    const { isNative } = Lib.queryDisplayInfo(dataset.query());
+    const isEmpty = !isNative
+      ? Lib.databaseID(dataset.query()) == null
+      : dataset.legacyQuery().isEmpty();
+
+    if (isEmpty) {
       return false;
     }
-    const hasFieldWithoutDisplayName = fields.some(f => !f.display_name);
-    return (
-      !hasFieldWithoutDisplayName && (isModelQueryDirty || isMetadataDirty)
-    );
-  }, [dataset, fields, isModelQueryDirty, isMetadataDirty]);
+    const everyFieldHasDisplayName = fields.every(field => field.display_name);
+    return everyFieldHasDisplayName && isDirty;
+  }, [dataset, fields, isDirty]);
 
-  const sidebar = getSidebar(props, {
-    datasetEditorTab,
-    isQueryError: result?.error,
-    focusedField,
-    focusedFieldIndex,
-    focusFirstField,
-    onFieldMetadataChange,
-  });
+  const sidebar = getSidebar(
+    { ...props, modelIndexes },
+    {
+      datasetEditorTab,
+      isQueryError: result?.error,
+      focusedField,
+      focusedFieldIndex,
+      focusFirstField,
+      onFieldMetadataChange,
+    },
+  );
 
   return (
     <>
       <DatasetEditBar
+        data-testid="dataset-edit-bar"
         title={dataset.displayName()}
         center={
           <EditorTabs
@@ -419,23 +456,11 @@ function DatasetEditor(props) {
           />
         }
         buttons={[
-          dataset.isSaved() ? (
-            <Button
-              key="cancel"
-              small
-              onClick={handleCancelEdit}
-            >{t`Cancel`}</Button>
-          ) : (
-            <Confirm
-              key="cancel"
-              action={handleCancelCreate}
-              title={t`Discard changes?`}
-              message={t`Your model won't be created.`}
-              confirmButtonText={t`Discard`}
-            >
-              <Button small>{t`Cancel`}</Button>
-            </Confirm>
-          ),
+          <Button
+            key="cancel"
+            small
+            onClick={handleCancelClick}
+          >{t`Cancel`}</Button>,
           <ActionButton
             key="save"
             disabled={!canSaveChanges}
@@ -493,10 +518,23 @@ function DatasetEditor(props) {
           {sidebar}
         </ViewSidebar>
       </Root>
+
+      <Modal isOpen={showCancelEditWarning}>
+        <LeaveConfirmationModalContent
+          onAction={handleCancelEdit}
+          onClose={handleCancelEditWarningClose}
+        />
+      </Modal>
     </>
   );
 }
 
 DatasetEditor.propTypes = propTypes;
 
-export default connect(mapStateToProps, mapDispatchToProps)(DatasetEditor);
+export default _.compose(
+  modelIndexes.loadList({
+    query: (_state, props) => ({ model_id: props?.question?.id() }),
+    loadingAndErrorWrapper: false,
+  }),
+  connect(mapStateToProps, mapDispatchToProps),
+)(DatasetEditor);

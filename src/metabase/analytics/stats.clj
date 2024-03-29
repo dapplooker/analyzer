@@ -4,39 +4,28 @@
    [cheshire.core :as json]
    [clj-http.client :as http]
    [clojure.string :as str]
-   [java-time :as t]
+   [java-time.api :as t]
    [medley.core :as m]
    [metabase.analytics.snowplow :as snowplow]
    [metabase.config :as config]
    [metabase.db.query :as mdb.query]
+   [metabase.db.util :as mdb.u]
    [metabase.driver :as driver]
    [metabase.email :as email]
+   [metabase.embed.settings :as embed.settings]
    [metabase.integrations.google :as google]
    [metabase.integrations.slack :as slack]
    [metabase.models
-    :refer [Card
-            Collection
-            Dashboard
-            DashboardCard
-            Database
-            Field
-            Metric
-            PermissionsGroup
-            Pulse
-            PulseCard
-            PulseChannel
-            QueryCache
-            QueryExecution
-            Segment
-            Table
-            User]]
+    :refer [Card Collection Dashboard DashboardCard Database Field Metric
+            PermissionsGroup Pulse PulseCard PulseChannel QueryCache Segment
+            Table User]]
    [metabase.models.humanization :as humanization]
    [metabase.public-settings :as public-settings]
    [metabase.util :as u]
    [metabase.util.honey-sql-2 :as h2x]
    [metabase.util.i18n :refer [trs]]
    [metabase.util.log :as log]
-   [toucan.db :as db]))
+   [toucan2.core :as t2]))
 
 (set! *warn-on-reflection* true)
 
@@ -45,6 +34,7 @@
   considered to add a count of `1`, while non-truthy values do not affect the result count."
   [ms]
   (reduce (partial merge-with +)
+          {}
           (for [m ms]
             (m/map-vals #(cond
                            (number? %) %
@@ -122,40 +112,64 @@
     (config/config-str :database-url)        :heroku ;; Putting this last as 'database-url' seems least specific
     :else                                    :unknown))
 
+(def ^:private ui-colors #{:brand :filter :summarize})
+
+(defn appearance-ui-colors-changed?
+  "Returns true if the 'User Interface Colors' have been customized"
+  []
+  (boolean (seq (select-keys (public-settings/application-colors) ui-colors))))
+
+(defn appearance-chart-colors-changed?
+  "Returns true if the 'Chart Colors' have been customized"
+  []
+  (boolean (seq (apply dissoc (public-settings/application-colors) ui-colors))))
+
 (defn- instance-settings
   "Figure out global info about this instance"
   []
-  {:version              (config/mb-version-info :tag)
-   :running_on           (environment-type)
-   :startup_time_millis  (public-settings/startup-time-millis)
-   :application_database (config/config-str :mb-db-type)
-   :check_for_updates    (public-settings/check-for-updates)
-   :site_name            (not= (public-settings/site-name) "Metabase")
-   :report_timezone      (driver/report-timezone)
+  {:version                             (config/mb-version-info :tag)
+   :running_on                          (environment-type)
+   :startup_time_millis                 (public-settings/startup-time-millis)
+   :application_database                (config/config-str :mb-db-type)
+   :check_for_updates                   (public-settings/check-for-updates)
+   :report_timezone                     (driver/report-timezone)
    ; We deprecated advanced humanization but have this here anyways
-   :friendly_names       (= (humanization/humanization-strategy) "advanced")
-   :email_configured     (email/email-configured?)
-   :slack_configured     (slack/slack-configured?)
-   :sso_configured       (google/google-auth-enabled)
-   :instance_started     (snowplow/instance-creation)
-   :has_sample_data      (db/exists? Database, :is_sample true)})
+   :friendly_names                      (= (humanization/humanization-strategy) "advanced")
+   :email_configured                    (email/email-configured?)
+   :slack_configured                    (slack/slack-configured?)
+   :sso_configured                      (google/google-auth-enabled)
+   :instance_started                    (snowplow/instance-creation)
+   :has_sample_data                     (t2/exists? Database, :is_sample true)
+   :enable_embedding                    (embed.settings/enable-embedding)
+   :embedding_app_origin_set            (boolean (embed.settings/embedding-app-origin))
+   :appearance_site_name                (not= (public-settings/site-name) "Metabase")
+   :appearance_help_link                (public-settings/help-link)
+   :appearance_logo                     (not= (public-settings/application-logo-url) "app/assets/img/logo.svg")
+   :appareance_favicon                  (not= (public-settings/application-favicon-url) "app/assets/img/favicon.ico")
+   :apperance_loading_message           (not= (public-settings/loading-message) :doing-science)
+   :appearance_metabot_greeting         (not (public-settings/show-metabot))
+   :apparerance_lighthouse_illustration (not (public-settings/show-lighthouse-illustration))
+   :appearance_ui_colors                (appearance-ui-colors-changed?)
+   :appearance_chart_colors             (appearance-chart-colors-changed?)
+   :appearance_show_mb_links            (not (public-settings/show-metabase-links))})
 
 (defn- user-metrics
   "Get metrics based on user records.
   TODO: get activity in terms of created questions, pulses and dashboards"
   []
-  {:users (merge-count-maps (for [user (db/select [User :is_active :is_superuser :last_login :google_auth])]
+  {:users (merge-count-maps (for [user (t2/select [User :is_active :is_superuser :last_login :sso_source]
+                                                  :type :personal)]
                               {:total     1
                                :active    (:is_active    user)
                                :admin     (:is_superuser user)
                                :logged_in (:last_login   user)
-                               :sso       (:google_auth  user)}))})
+                               :sso       (= :google (:sso_source user))}))})
 
 (defn- group-metrics
   "Get metrics based on groups:
   TODO characterize by # w/ sql access, # of users, no self-serve data access"
   []
-  {:groups (db/count PermissionsGroup)})
+  {:groups (t2/count PermissionsGroup)})
 
 (defn- card-has-params? [card]
   (boolean (get-in card [:dataset_query :native :template-tags])))
@@ -164,7 +178,7 @@
   "Get metrics based on questions
   TODO characterize by # executions and avg latency"
   []
-  (let [cards (db/select [Card :query_type :public_uuid :enable_embedding :embedding_params :dataset_query])]
+  (let [cards (t2/select [Card :query_type :public_uuid :enable_embedding :embedding_params :dataset_query])]
     {:questions (merge-count-maps (for [card cards]
                                     (let [native? (= (keyword (:query_type card)) :native)]
                                       {:total       1
@@ -188,8 +202,8 @@
   "Get metrics based on dashboards
   TODO characterize by # of revisions, and created by an admin"
   []
-  (let [dashboards (db/select [Dashboard :creator_id :public_uuid :parameters :enable_embedding :embedding_params])
-        dashcards  (db/select [DashboardCard :card_id :dashboard_id])]
+  (let [dashboards (t2/select [Dashboard :creator_id :public_uuid :parameters :enable_embedding :embedding_params])
+        dashcards  (t2/select [DashboardCard :card_id :dashboard_id])]
     {:dashboards         (count dashboards)
      :with_params        (count (filter (comp seq :parameters) dashboards))
      :num_dashs_per_user (medium-histogram dashboards :creator_id)
@@ -225,13 +239,13 @@
 
     ;; Include `WHERE` clause that includes conditions for a Table related by an FK relationship:
     ;; (Number of Tables per DB engine)
-    (db-frequencies Table (db/qualify Database :engine)
-      {:left-join [Database [:= (db/qualify Database :id)
-                                (db/qualify Table :db_id)]]})
+    (db-frequencies Table (mdb.u/qualify Database :engine)
+      {:left-join [Database [:= (mdb.u/qualify Database :id)
+                                (mdb.u/qualify Table :db_id)]]})
     ;; -> {\"googleanalytics\" 4, \"postgres\" 48, \"h2\" 9}"
   {:style/indent 2}
   [model column & [additonal-honeysql]]
-  (into {} (for [{:keys [k count]} (db/select [model [column :k] [:%count.* :count]]
+  (into {} (for [{:keys [k count]} (t2/select [model [column :k] [:%count.* :count]]
                                      (merge {:group-by [column]}
                                             additonal-honeysql))]
              [k count])))
@@ -260,7 +274,7 @@
   TODO: characterize by non-user account emails, # emails"
   []
   (let [pulse-conditions {:left-join [:pulse [:= :pulse.id :pulse_id]], :where [:= :pulse.alert_condition nil]}]
-    {:pulses               (db/count Pulse :alert_condition nil)
+    {:pulses               (t2/count Pulse :alert_condition nil)
      ;; "Table Cards" are Cards that include a Table you can download
      :with_table_cards     (num-notifications-with-xls-or-csv-cards [:= :alert_condition nil])
      :pulse_types          (db-frequencies PulseChannel :channel_type  pulse-conditions)
@@ -270,11 +284,11 @@
      :num_cards_per_pulses (medium-histogram (vals (db-frequencies PulseCard :pulse_id   pulse-conditions)))}))
 
 (defn- alert-metrics []
-  (let [alert-conditions {:left-join [:pulse [:= :pulse.id :pulse_id]], :where [:not= (db/qualify Pulse :alert_condition) nil]}]
-    {:alerts               (db/count Pulse :alert_condition [:not= nil])
+  (let [alert-conditions {:left-join [:pulse [:= :pulse.id :pulse_id]], :where [:not= (mdb.u/qualify Pulse :alert_condition) nil]}]
+    {:alerts               (t2/count Pulse :alert_condition [:not= nil])
      :with_table_cards     (num-notifications-with-xls-or-csv-cards [:not= :alert_condition nil])
-     :first_time_only      (db/count Pulse :alert_condition [:not= nil], :alert_first_only true)
-     :above_goal           (db/count Pulse :alert_condition [:not= nil], :alert_above_goal true)
+     :first_time_only      (t2/count Pulse :alert_condition [:not= nil], :alert_first_only true)
+     :above_goal           (t2/count Pulse :alert_condition [:not= nil], :alert_above_goal true)
      :alert_types          (db-frequencies PulseChannel :channel_type alert-conditions)
      :num_alerts_per_user  (medium-histogram (vals (db-frequencies Pulse     :creator_id (dissoc alert-conditions :left-join))))
      :num_alerts_per_card  (medium-histogram (vals (db-frequencies PulseCard :card_id    alert-conditions)))
@@ -283,8 +297,8 @@
 (defn- collection-metrics
   "Get metrics on Collection usage."
   []
-  (let [collections (db/select Collection)
-        cards       (db/select [Card :collection_id])]
+  (let [collections (t2/select Collection)
+        cards       (t2/select [Card :collection_id])]
     {:collections              (count collections)
      :cards_in_collections     (count (filter :collection_id cards))
      :cards_not_in_collections (count (remove :collection_id cards))
@@ -294,7 +308,7 @@
 (defn- database-metrics
   "Get metrics based on Databases."
   []
-  (let [databases (db/select [Database :is_full_sync :engine :dbms_version])]
+  (let [databases (t2/select [Database :is_full_sync :engine :dbms_version])]
     {:databases (merge-count-maps (for [{is-full-sync? :is_full_sync} databases]
                                     {:total    1
                                      :analyzed is-full-sync?}))
@@ -308,7 +322,7 @@
 (defn- table-metrics
   "Get metrics based on Tables."
   []
-  (let [tables (db/select [Table :db_id :schema])]
+  (let [tables (t2/select [Table :db_id :schema])]
     {:tables           (count tables)
      :num_per_database (medium-histogram tables :db_id)
      :num_per_schema   (medium-histogram tables :schema)}))
@@ -316,19 +330,19 @@
 (defn- field-metrics
   "Get metrics based on Fields."
   []
-  (let [fields (db/select [Field :table_id])]
+  (let [fields (t2/select [Field :table_id])]
     {:fields        (count fields)
      :num_per_table (medium-histogram fields :table_id)}))
 
 (defn- segment-metrics
   "Get metrics based on Segments."
   []
-  {:segments (db/count Segment)})
+  {:segments (t2/count Segment)})
 
 (defn- metric-metrics
   "Get metrics based on Metrics."
   []
-  {:metrics (db/count Metric)})
+  {:metrics (t2/count Metric)})
 
 
 ;;; Execution Metrics
@@ -336,7 +350,7 @@
 (defn summarize-executions
   "Summarize `executions`, by incrementing approriate counts in a summary map."
   ([]
-   (summarize-executions (db/select-reducible [QueryExecution :executor_id :running_time :error])))
+   (summarize-executions (t2/reducible-select [:model/QueryExecution :executor_id :running_time :error])))
   ([executions]
    (reduce summarize-executions {:executions 0, :by_status {}, :num_per_user {}, :num_by_latency {}} executions))
   ([summary execution]
@@ -365,7 +379,7 @@
 (defn- cache-metrics
   "Metrics based on use of the QueryCache."
   []
-  (let [{:keys [length count]} (db/select-one [QueryCache [[:avg [:length :results]] :length] [:%count.* :count]])]
+  (let [{:keys [length count]} (t2/select-one [QueryCache [[:avg [:length :results]] :length] [:%count.* :count]])]
     {:average_entry_size (int (or length 0))
      :num_queries_cached (bin-small-number count)}))
 

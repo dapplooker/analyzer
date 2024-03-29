@@ -1,30 +1,76 @@
 import _ from "underscore";
-import { getParameterType } from "./parameter-type";
+
 import {
   getQueryType,
   getSourceConfig,
   getSourceType,
 } from "./parameter-source";
+import { getParameterType } from "./parameter-type";
 
-export function getValuePopulatedParameters(parameters, parameterValues) {
-  return parameterValues
-    ? parameters.map(parameter => {
-        return parameter.id in parameterValues
-          ? {
-              ...parameter,
-              value: parameterValues[parameter.id],
-            }
-          : parameter;
-      })
-    : parameters;
+export const PULSE_PARAM_EMPTY = null;
+export const PULSE_PARAM_USE_DEFAULT = undefined;
+
+/**
+ * In some cases, we need to use default parameter value in place of an absent one.
+ * Please use this function when dealing with the required parameters.
+ */
+export function getParameterValue({
+  parameter,
+  values = {},
+  defaultRequired = false,
+}) {
+  const value = values?.[parameter.id];
+  const useDefault = defaultRequired && parameter.required;
+  return value ?? (useDefault ? parameter.default : null);
 }
 
-export function hasDefaultParameterValue(parameter) {
-  return parameter.default != null;
+/**
+ * In some cases, we need to use default parameter value in place of an absent one.
+ * Please use this function when dealing with the required parameters.
+ */
+export function getValuePopulatedParameters({
+  parameters,
+  values = {},
+  defaultRequired = false,
+  collectionPreview = false,
+}) {
+  // pinned native question can have default values on parameters, usually we
+  // get them from URL, which is not the case for collection preview. to force
+  // BE to apply default values to those filters, empty array is provided
+  if (collectionPreview) {
+    return [];
+  }
+
+  return parameters.map(parameter => ({
+    ...parameter,
+    value: getParameterValue({
+      parameter,
+      values,
+      defaultRequired,
+    }),
+  }));
 }
 
-export function hasParameterValue(value) {
-  return value != null;
+export function getDefaultValuePopulatedParameters(
+  parameters,
+  parameterValues,
+) {
+  return parameters.map(parameter => {
+    const value = parameterValues?.[parameter.id];
+    return {
+      ...parameter,
+      value: value === PULSE_PARAM_USE_DEFAULT ? parameter.default : value,
+    };
+  });
+}
+
+// Needed because parameter values might be arrays
+// in which case order of elements isn't guaranteed
+export function areParameterValuesIdentical(a, b) {
+  return _.isEqual(
+    Array.isArray(a) ? a.slice().sort() : a,
+    Array.isArray(b) ? b.slice().sort() : b,
+  );
 }
 
 export function normalizeParameter(parameter) {
@@ -34,6 +80,7 @@ export function normalizeParameter(parameter) {
     slug: parameter.slug,
     type: parameter.type,
     target: parameter.target,
+    options: parameter.options,
     values_query_type: getQueryType(parameter),
     values_source_type: getSourceType(parameter),
     values_source_config: getSourceConfig(parameter),
@@ -43,60 +90,43 @@ export function normalizeParameter(parameter) {
 export function normalizeParameters(parameters) {
   return parameters
     .filter(parameter => _.has(parameter, "value"))
-    .map(({ type, value, target, id }) => ({
+    .map(({ id, type, value, target, options }) => ({
       id,
       type,
       value: normalizeParameterValue(type, value),
       target,
+      options,
     }));
+}
+
+export function isParameterValueEmpty(value) {
+  return (
+    value === PULSE_PARAM_EMPTY ||
+    (Array.isArray(value) && value.length === 0) ||
+    value === ""
+  );
 }
 
 export function normalizeParameterValue(type, value) {
   const fieldType = getParameterType(type);
-
-  if (["string", "number"].includes(fieldType)) {
-    return value == null ? [] : [].concat(value);
+  if (value === PULSE_PARAM_USE_DEFAULT) {
+    return PULSE_PARAM_USE_DEFAULT;
+  } else if (isParameterValueEmpty(value)) {
+    return PULSE_PARAM_EMPTY;
+  } else if (["string", "number"].includes(fieldType)) {
+    return [].concat(value);
   } else {
     return value;
   }
 }
 
-function removeNilValuedPairs(pairs) {
-  return pairs.filter(([, value]) => hasParameterValue(value));
-}
-
-function removeUndefaultedNilValuedPairs(pairs) {
-  return pairs.filter(
-    ([parameter, value]) =>
-      hasDefaultParameterValue(parameter) || hasParameterValue(value),
+export function getParameterValuesBySlug(parameters, parameterValuesById) {
+  parameters = parameters ?? [];
+  parameterValuesById = parameterValuesById ?? {};
+  return Object.fromEntries(
+    parameters.map(parameter => [
+      parameter.slug,
+      parameter.value ?? parameterValuesById[parameter.id] ?? null,
+    ]),
   );
-}
-
-// when `preserveDefaultedParameters` is true, we don't remove defaulted parameters with nil values
-// so that they can be set in the URL query without a value. Used alongside `getParameterValuesByIdFromQueryParams`
-// with `forcefullyUnsetDefaultedParametersWithEmptyStringValue` set to true.
-export function getParameterValuesBySlug(
-  parameters,
-  parameterValuesById,
-  { preserveDefaultedParameters } = {},
-) {
-  parameters = parameters || [];
-  parameterValuesById = parameterValuesById || {};
-  const parameterValuePairs = parameters.map(parameter => [
-    parameter,
-    hasParameterValue(parameter.value)
-      ? parameter.value
-      : parameterValuesById[parameter.id],
-  ]);
-
-  const transformedPairs = preserveDefaultedParameters
-    ? removeUndefaultedNilValuedPairs(parameterValuePairs)
-    : removeNilValuedPairs(parameterValuePairs);
-
-  const slugValuePairs = transformedPairs.map(([parameter, value]) => [
-    parameter.slug,
-    value,
-  ]);
-
-  return Object.fromEntries(slugValuePairs);
 }

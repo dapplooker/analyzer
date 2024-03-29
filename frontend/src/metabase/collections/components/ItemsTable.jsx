@@ -1,7 +1,5 @@
-import React from "react";
 import PropTypes from "prop-types";
 
-import { ANALYTICS_CONTEXT } from "metabase/collections/constants";
 import PinDropZone from "metabase/collections/components/PinDropZone";
 
 import BaseItemsTable from "./BaseItemsTable";
@@ -12,15 +10,11 @@ Item.propTypes = {
 };
 
 function Item({ item, ...props }) {
-  const metabaseEvent = `${ANALYTICS_CONTEXT};Item Click;${item.model}`;
   return (
     <BaseItemsTable.Item
       key={`${item.model}-${item.id}`}
       {...props}
       item={item}
-      linkProps={{
-        "data-metabase-event": metabaseEvent,
-      }}
     />
   );
 }

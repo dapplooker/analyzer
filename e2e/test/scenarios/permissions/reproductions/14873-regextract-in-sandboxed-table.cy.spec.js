@@ -1,10 +1,11 @@
+import { USER_GROUPS } from "e2e/support/cypress_data";
 import {
   restore,
   withDatabase,
   describeEE,
   visitQuestion,
+  setTokenFeatures,
 } from "e2e/support/helpers";
-import { USER_GROUPS } from "e2e/support/cypress_data";
 
 const PG_DB_ID = 2;
 
@@ -14,6 +15,7 @@ describeEE("postgres > user > query", { tags: "@external" }, () => {
   beforeEach(() => {
     restore("postgres-12");
     cy.signInAsAdmin();
+    setTokenFeatures("all");
 
     // Update basic permissions (the same starting "state" as we have for the "Sample Database")
     cy.updatePermissionsGraph({

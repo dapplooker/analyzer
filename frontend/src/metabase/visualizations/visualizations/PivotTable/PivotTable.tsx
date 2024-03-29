@@ -1,59 +1,39 @@
-import React, {
-  useEffect,
-  useMemo,
-  useCallback,
-  useRef,
-  useState,
-} from "react";
-import { t } from "ttag";
-import _ from "underscore";
-import { Grid, Collection, ScrollSync, AutoSizer } from "react-virtualized";
-import type { OnScrollParams } from "react-virtualized";
+import type * as React from "react";
+import { useEffect, useMemo, useCallback, useRef, useState } from "react";
 import { findDOMNode } from "react-dom";
 import { connect } from "react-redux";
-
 import { usePrevious, useMount } from "react-use";
-import { getScrollBarSize } from "metabase/lib/dom";
-import { getSetting } from "metabase/selectors/settings";
+import type { OnScrollParams } from "react-virtualized";
+import { Grid, Collection, ScrollSync, AutoSizer } from "react-virtualized";
+import { t } from "ttag";
+import _ from "underscore";
 
-import { sumArray } from "metabase/core/utils/arrays";
-
+import { sumArray } from "metabase/lib/arrays";
 import {
   COLUMN_SHOW_TOTALS,
   isPivotGroupColumn,
   multiLevelPivot,
 } from "metabase/lib/data_grid";
-
-import type { DatasetData } from "metabase-types/types/Dataset";
-import type { VisualizationSettings } from "metabase-types/api";
+import { getScrollBarSize } from "metabase/lib/dom";
+import { getSetting } from "metabase/selectors/settings";
+import {
+  getDefaultSize,
+  getMinSize,
+} from "metabase/visualizations/shared/utils/sizes";
+import type { DatasetData, VisualizationSettings } from "metabase-types/api";
 import type { State } from "metabase-types/store";
 
-import type { PivotTableClicked, HeaderWidthType } from "./types";
-
-import { RowToggleIcon } from "./RowToggleIcon";
-
+import {
+  PivotTableRoot,
+  PivotTableTopLeftCellsContainer,
+} from "./PivotTable.styled";
 import {
   Cell,
   TopHeaderCell,
   LeftHeaderCell,
   BodyCell,
 } from "./PivotTableCell";
-
-import {
-  PivotTableRoot,
-  PivotTableTopLeftCellsContainer,
-} from "./PivotTable.styled";
-
-import {
-  getLeftHeaderWidths,
-  databaseSupportsPivotTables,
-  isSensible,
-  checkRenderable,
-  leftHeaderCellSizeAndPositionGetter,
-  topHeaderCellSizeAndPositionGetter,
-  getCellWidthsForSection,
-} from "./utils";
-
+import { RowToggleIcon } from "./RowToggleIcon";
 import {
   DEFAULT_CELL_WIDTH,
   CELL_HEIGHT,
@@ -65,6 +45,15 @@ import {
   _columnSettings as columnSettings,
   getTitleForColumn,
 } from "./settings";
+import type { PivotTableClicked, HeaderWidthType } from "./types";
+import {
+  getLeftHeaderWidths,
+  isSensible,
+  checkRenderable,
+  leftHeaderCellSizeAndPositionGetter,
+  topHeaderCellSizeAndPositionGetter,
+  getCellWidthsForSection,
+} from "./utils";
 
 const mapStateToProps = (state: State) => ({
   fontFamily: getSetting(state, "application-font"),
@@ -210,23 +199,37 @@ function PivotTable({
       setHeaderWidths({
         leftHeaderWidths: null,
         totalLeftHeaderWidths: null,
-        valueHeaderWidths: {},
+        valueHeaderWidths,
       });
       return;
     }
 
     if (columnsChanged) {
-      setHeaderWidths({
-        ...getLeftHeaderWidths({
-          rowIndexes: pivoted?.rowIndexes,
-          getColumnTitle: idx => getColumnTitle(idx),
-          leftHeaderItems: pivoted?.leftHeaderItems,
-          fontFamily: fontFamily,
-        }),
-        valueHeaderWidths: {},
+      const newLeftHeaderWidths = getLeftHeaderWidths({
+        rowIndexes: pivoted?.rowIndexes,
+        getColumnTitle: idx => getColumnTitle(idx),
+        leftHeaderItems: pivoted?.leftHeaderItems,
+        fontFamily: fontFamily,
+      });
+
+      setHeaderWidths({ ...newLeftHeaderWidths, valueHeaderWidths });
+
+      onUpdateVisualizationSettings({
+        "pivot_table.column_widths": {
+          ...newLeftHeaderWidths,
+          valueHeaderWidths,
+        },
       });
     }
-  }, [pivoted, fontFamily, getColumnTitle, columnsChanged, setHeaderWidths]);
+  }, [
+    onUpdateVisualizationSettings,
+    valueHeaderWidths,
+    pivoted,
+    fontFamily,
+    getColumnTitle,
+    columnsChanged,
+    setHeaderWidths,
+  ]);
 
   const handleColumnResize = (
     columnType: "value" | "leftHeader",
@@ -454,10 +457,17 @@ function PivotTable({
                         return sumArray(subColumnWidths);
                       }}
                       estimatedColumnSize={DEFAULT_CELL_WIDTH}
-                      cellRenderer={({ rowIndex, columnIndex, key, style }) => (
+                      cellRenderer={({
+                        rowIndex,
+                        columnIndex,
+                        key,
+                        style,
+                        isScrolling,
+                      }) => (
                         <BodyCell
                           key={key}
                           style={style}
+                          showTooltip={!isScrolling}
                           rowSection={getRowSection(columnIndex, rowIndex)}
                           isNightMode={isNightMode}
                           getCellClickHandler={getCellClickHandler}
@@ -486,12 +496,14 @@ function PivotTable({
   );
 }
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default Object.assign(connect(mapStateToProps)(PivotTable), {
   uiName: t`Pivot Table`,
   identifier: "pivot",
   iconName: "pivot_table",
+  minSize: getMinSize("pivot"),
+  defaultSize: getDefaultSize("pivot"),
   canSavePng: false,
-  databaseSupportsPivotTables,
   isSensible,
   checkRenderable,
   settings,

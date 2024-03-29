@@ -1,9 +1,7 @@
-import { Parameter } from "metabase-types/api";
-import type { ParameterTarget } from "metabase-types/types/Parameter";
 import type Field from "metabase-lib/metadata/Field";
+import type { Parameter, ParameterTarget } from "metabase-types/api";
 
-export interface ValuePopulatedParameter
-  extends ParameterWithTemplateTagTarget {
+interface ValuePopulatedParameter extends ParameterWithTemplateTagTarget {
   value?: any;
 }
 

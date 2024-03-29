@@ -1,12 +1,14 @@
-import React, { useCallback, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { t } from "ttag";
-import Link from "metabase/core/components/Link";
+
+import { ActionExecuteModal } from "metabase/actions/containers/ActionExecuteModal";
 import EntityMenu from "metabase/components/EntityMenu";
 import ModalWithTrigger from "metabase/components/ModalWithTrigger";
-import Icon from "metabase/components/Icon";
+import Link from "metabase/core/components/Link";
 import { useConfirmation } from "metabase/hooks/use-confirmation";
-import ActionExecuteModal from "metabase/actions/containers/ActionExecuteModal";
-import { WritebackAction, WritebackQueryAction } from "metabase-types/api";
+import { Icon } from "metabase/ui";
+import type { WritebackAction, WritebackQueryAction } from "metabase-types/api";
+
 import {
   ActionCardContainer,
   ActionHeader,
@@ -94,6 +96,9 @@ function ModelActionListItem({
         <div>
           <ActionTitle to={actionUrl}>{action.name}</ActionTitle>
           <ActionSubtitle>
+            {action.type === "implicit" && (
+              <ActionSubtitlePart>{t`Basic action`}</ActionSubtitlePart>
+            )}
             {action.public_uuid && (
               <ActionSubtitlePart>{t`Public action form`}</ActionSubtitlePart>
             )}
@@ -104,10 +109,7 @@ function ModelActionListItem({
             )}
           </ActionSubtitle>
         </div>
-        <EntityMenu
-          items={menuItems}
-          trigger={<MenuIcon name="ellipsis" size={14} />}
-        />
+        <EntityMenu items={menuItems} trigger={<MenuIcon name="ellipsis" />} />
       </ActionHeader>
       <ActionCardContainer>
         {action.type === "query" ? (
@@ -140,4 +142,5 @@ function ModelActionListItem({
   );
 }
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default ModelActionListItem;

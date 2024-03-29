@@ -1,11 +1,20 @@
 /* eslint-disable react/prop-types */
-import React, { Component } from "react";
-import { Link } from "react-router";
-
-import _ from "underscore";
 import cx from "classnames";
+import { Component } from "react";
+import { useAsync } from "react-use";
+import { jt, t } from "ttag";
+import _ from "underscore";
 
-import { t } from "ttag";
+import AdminContentTable from "metabase/components/AdminContentTable";
+import AdminPaneLayout from "metabase/components/AdminPaneLayout";
+import Alert from "metabase/components/Alert";
+import LoadingAndErrorWrapper from "metabase/components/LoadingAndErrorWrapper";
+import ModalContent from "metabase/components/ModalContent";
+import ModalWithTrigger from "metabase/components/ModalWithTrigger";
+import PopoverWithTrigger from "metabase/components/PopoverWithTrigger";
+import UserAvatar from "metabase/components/UserAvatar";
+import Input from "metabase/core/components/Input";
+import Link from "metabase/core/components/Link";
 import * as MetabaseAnalytics from "metabase/lib/analytics";
 import { color } from "metabase/lib/colors";
 import {
@@ -14,17 +23,8 @@ import {
   getGroupNameLocalized,
 } from "metabase/lib/groups";
 import { KEYCODE_ENTER } from "metabase/lib/keyboard";
-
-import Icon from "metabase/components/Icon";
-import Input from "metabase/core/components/Input";
-import ModalContent from "metabase/components/ModalContent";
-import Alert from "metabase/components/Alert";
-import ModalWithTrigger from "metabase/components/ModalWithTrigger";
-import PopoverWithTrigger from "metabase/components/PopoverWithTrigger";
-import UserAvatar from "metabase/components/UserAvatar";
-
-import AdminContentTable from "metabase/components/AdminContentTable";
-import AdminPaneLayout from "metabase/components/AdminPaneLayout";
+import { ApiKeysApi } from "metabase/services";
+import { Stack, Text, Group, Button, Icon } from "metabase/ui";
 
 import { AddRow } from "./AddRow";
 import { DeleteModalTrigger, EditGroupButton } from "./GroupsListing.styled";
@@ -56,32 +56,67 @@ function AddGroupRow({ text, onCancelClicked, onCreateClicked, onTextChange }) {
 
 // ------------------------------------------------------------ Groups Table: editing ------------------------------------------------------------
 
-function DeleteGroupModal({ group, onConfirm = () => {}, onClose = () => {} }) {
+function DeleteGroupModal({
+  group,
+  apiKeys,
+  onConfirm = () => {},
+  onClose = () => {},
+}) {
+  const apiKeysCount = apiKeys.length;
+  const hasApiKeys = apiKeys.length > 0;
+
+  const modalTitle =
+    apiKeysCount === 0
+      ? t`Remove this group?`
+      : apiKeysCount === 1
+      ? t`Are you sure you want remove this group and its API key?`
+      : t`Are you sure you want remove this group and its API keys?`;
+
+  const confirmButtonText =
+    apiKeysCount === 0
+      ? t`Remove group`
+      : apiKeysCount === 1
+      ? t`Remove group and API key`
+      : t`Remove group and API keys`;
+
   return (
-    <ModalContent title={t`Remove this group?`} onClose={onClose}>
-      <p className="px4 pb4">
-        {t`Are you sure? All members of this group will lose any permissions settings they have based on this group.
+    <ModalContent title={modalTitle} onClose={onClose}>
+      <Stack spacing="xl">
+        <Text>
+          {hasApiKeys
+            ? jt`All members of this group will lose any permissions settings they have based on this group, and its related API keys will be deleted. You can ${(
+                <Link
+                  to="/admin/settings/authentication/api-keys"
+                  variant="brand"
+                >{t`move the API keys to another group`}</Link>
+              )}.`
+            : t`Are you sure? All members of this group will lose any permissions settings they have based on this group.
                 This can't be undone.`}
-      </p>
-      <div className="Form-actions">
-        <button
-          className="Button Button--danger"
-          onClick={() => {
-            onClose();
-            onConfirm(group);
-          }}
-        >
-          {t`Yes`}
-        </button>
-        <button className="Button ml1" onClick={onClose}>
-          {t`No`}
-        </button>
-      </div>
+        </Text>
+        <Group spacing="md" position="right">
+          <Button onClick={onClose}>{t`Cancel`}</Button>
+          <Button
+            variant="filled"
+            color="error"
+            onClick={() => {
+              onClose();
+              onConfirm(group);
+            }}
+          >
+            {confirmButtonText}
+          </Button>
+        </Group>
+      </Stack>
     </ModalContent>
   );
 }
 
-function ActionsPopover({ group, onEditGroupClicked, onDeleteGroupClicked }) {
+function ActionsPopover({
+  group,
+  apiKeys,
+  onEditGroupClicked,
+  onDeleteGroupClicked,
+}) {
   return (
     <PopoverWithTrigger
       className="block"
@@ -95,7 +130,11 @@ function ActionsPopover({ group, onEditGroupClicked, onDeleteGroupClicked }) {
           as={DeleteModalTrigger}
           triggerElement={t`Remove Group`}
         >
-          <DeleteGroupModal group={group} onConfirm={onDeleteGroupClicked} />
+          <DeleteGroupModal
+            group={group}
+            apiKeys={apiKeys}
+            onConfirm={onDeleteGroupClicked}
+          />
         </ModalWithTrigger>
       </ul>
     </PopoverWithTrigger>
@@ -126,9 +165,7 @@ function EditingGroupRow({
         <span
           className="link no-decoration cursor-pointer"
           onClick={onCancelClicked}
-        >
-          Cancel
-        </span>
+        >{t`Cancel`}</span>
         <button
           className={cx("Button ml2", {
             "Button--primary": textIsValid && textHasChanged,
@@ -149,6 +186,7 @@ function GroupRow({
   group,
   groupBeingEdited,
   index,
+  apiKeys,
   onEditGroupClicked,
   onDeleteGroupClicked,
   onEditGroupTextChange,
@@ -184,11 +222,15 @@ function GroupRow({
           <span className="ml2 text-bold">{getGroupNameLocalized(group)}</span>
         </Link>
       </td>
-      <td>{group.member_count || 0}</td>
+      <td>
+        {group.member_count || 0}
+        <ApiKeyCount apiKeys={apiKeys} />
+      </td>
       <td className="text-right">
         {showActionsButton ? (
           <ActionsPopover
             group={group}
+            apiKeys={apiKeys}
             onEditGroupClicked={onEditGroupClicked}
             onDeleteGroupClicked={onDeleteGroupClicked}
           />
@@ -197,6 +239,19 @@ function GroupRow({
     </tr>
   );
 }
+
+const ApiKeyCount = ({ apiKeys }) => {
+  if (!apiKeys?.length) {
+    return null;
+  }
+  return (
+    <span className="text-light">
+      {apiKeys.length === 1
+        ? t` (includes 1 API key)`
+        : t` (includes ${apiKeys.length} API keys)`}
+    </span>
+  );
+};
 
 const getGroupRowColors = () => [
   color("error"),
@@ -220,6 +275,12 @@ function GroupsTable({
   onEditGroupCancelClicked,
   onEditGroupDoneClicked,
 }) {
+  const { loading, value: apiKeys } = useAsync(() => ApiKeysApi.list(), []);
+
+  if (loading) {
+    return <LoadingAndErrorWrapper loading={loading} />;
+  }
+
   return (
     <AdminContentTable columnTitles={[t`Group name`, t`Members`]}>
       {showAddGroupRow ? (
@@ -236,6 +297,11 @@ function GroupsTable({
             key={group.id}
             group={group}
             index={index}
+            apiKeys={
+              isDefaultGroup(group)
+                ? apiKeys ?? []
+                : apiKeys?.filter(apiKey => apiKey.group.id === group.id) ?? []
+            }
             groupBeingEdited={groupBeingEdited}
             onEditGroupClicked={onEditGroupClicked}
             onDeleteGroupClicked={onDeleteGroupClicked}

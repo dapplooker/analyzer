@@ -1,13 +1,12 @@
-import React, { useCallback, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 
-import Icon from "metabase/components/Icon";
 import AccordionList from "metabase/core/components/AccordionList";
+import { Icon } from "metabase/ui";
+import type Database from "metabase-lib/metadata/Database";
+import type Schema from "metabase-lib/metadata/Schema";
 
-import type { Database } from "metabase-types/api/database";
-
-import type { Schema } from "../types";
-import DataSelectorLoading from "../DataSelectorLoading";
 import { RawDataBackButton } from "../DataSelector.styled";
+import DataSelectorLoading from "../DataSelectorLoading";
 
 type DataSelectorDatabasePickerProps = {
   databases: Database[];
@@ -95,4 +94,5 @@ const DataSelectorDatabasePicker = ({
   );
 };
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default DataSelectorDatabasePicker;

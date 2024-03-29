@@ -1,11 +1,13 @@
+import { SAMPLE_DATABASE } from "e2e/support/cypress_sample_database";
 import {
+  addOrUpdateDashboardCard,
   editDashboard,
   popover,
   restore,
   visitDashboard,
   setModelMetadata,
+  getDashboardCard,
 } from "e2e/support/helpers";
-import { SAMPLE_DATABASE } from "e2e/support/cypress_sample_database";
 
 const { PRODUCTS } = SAMPLE_DATABASE;
 
@@ -20,9 +22,10 @@ describe("issue 23024", () => {
     cy.createNativeQuestion(
       {
         native: {
-          query: `select * from products limit 5`,
+          query: `select *
+                  from products limit 5`,
         },
-        dataset: true,
+        type: "model",
       },
       { wrapId: true, idAlias: "modelId" },
     );
@@ -50,14 +53,15 @@ describe("issue 23024", () => {
 
     cy.icon("filter").click();
 
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Text or Category").click();
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Is").click();
 
-    cy.findByText("Column to filter on")
-      .parent()
-      .within(() => {
-        cy.findByText("Select…").click();
-      });
+    getDashboardCard().within(() => {
+      cy.findByText("Column to filter on");
+      cy.findByText("Select…").click();
+    });
 
     popover().contains("Category");
   });
@@ -66,12 +70,9 @@ describe("issue 23024", () => {
 function addModelToDashboardAndVisit() {
   cy.createDashboard().then(({ body: { id } }) => {
     cy.get("@modelId").then(cardId => {
-      cy.request("POST", `/api/dashboard/${id}/cards`, {
-        cardId,
-        row: 0,
-        col: 0,
-        size_x: 16,
-        size_y: 10,
+      addOrUpdateDashboardCard({
+        dashboard_id: id,
+        card_id: cardId,
       });
     });
 

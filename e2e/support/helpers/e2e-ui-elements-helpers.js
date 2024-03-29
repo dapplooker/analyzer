@@ -1,21 +1,40 @@
 // various Metabase-specific "scoping" functions like inside popover/modal/navbar/main/sidebar content area
-export const POPOVER_ELEMENT = ".popover[data-state~='visible']";
+export const POPOVER_ELEMENT =
+  ".popover[data-state~='visible'],[data-position]";
 
 export function popover() {
   cy.get(POPOVER_ELEMENT).should("be.visible");
   return cy.get(POPOVER_ELEMENT);
 }
 
+export function mantinePopover() {
+  const MANTINE_POPOVER = "[data-popover=mantine-popover]";
+  return cy.get(MANTINE_POPOVER).should("be.visible");
+}
+
+const HOVERCARD_ELEMENT = ".emotion-HoverCard-dropdown[role='dialog']";
+
+export function hovercard() {
+  cy.get(HOVERCARD_ELEMENT, { timeout: 6000 }).should("be.visible");
+  return cy.get(HOVERCARD_ELEMENT);
+}
+
+export function main() {
+  return cy.get("main");
+}
+
+export function menu() {
+  return cy.findByRole("menu");
+}
+
 export function modal() {
-  return cy.get(".ModalContainer .ModalContent");
+  const LEGACY_MODAL_SELECTOR = ".Modal";
+  const MODAL_SELECTOR = ".emotion-Modal-content[role='dialog']";
+  return cy.get([MODAL_SELECTOR, LEGACY_MODAL_SELECTOR].join(","));
 }
 
 export function sidebar() {
   return cy.get("main aside");
-}
-
-export function appbar() {
-  return cy.findByTestId("app-bar");
 }
 
 export function rightSidebar() {
@@ -27,11 +46,11 @@ export function leftSidebar() {
 }
 
 export function navigationSidebar() {
-  return cy.get("#root aside").first();
+  return cy.findByTestId("main-navbar-root");
 }
 
 export function appBar() {
-  return cy.get("#root header").first();
+  return cy.findByLabelText("Navigation bar");
 }
 
 export function openNavigationSidebar() {
@@ -70,12 +89,48 @@ export function filterWidget() {
   return cy.get("fieldset");
 }
 
+export function clearFilterWidget(index = 0) {
+  return filterWidget().eq(index).icon("close").click();
+}
+
+export function resetFilterWidgetToDefault(index = 0) {
+  return filterWidget().eq(index).icon("time_history").click();
+}
+
+export function setFilterWidgetValue(value, targetPlaceholder, index = 0) {
+  filterWidget().eq(index).click();
+  popover().within(() => {
+    cy.icon("close").click();
+    if (value) {
+      cy.findByPlaceholderText(targetPlaceholder).type(value).blur();
+    }
+    cy.button("Update filter").click();
+  });
+}
+
+export function toggleFilterWidgetValues(values = [], index = 0) {
+  filterWidget().eq(index).click();
+
+  popover().within(() => {
+    values.forEach(value => cy.findByText(value).click());
+    cy.button("Update filter").click();
+  });
+}
+
 export const openQuestionActions = () => {
   cy.findByTestId("qb-header-action-panel").icon("ellipsis").click();
 };
 
+export const collectionTable = () => {
+  return cy.findByTestId("collection-table");
+};
+
+export const queryBuilderHeader = () => {
+  return cy.findByTestId("qb-header");
+};
+
 export const closeQuestionActions = () => {
-  cy.findByTestId("qb-header").click();
+  queryBuilderHeader().click();
 };
 
 export const questionInfoButton = () => {
@@ -98,6 +153,50 @@ export const moveColumnDown = (column, distance) => {
     .trigger("mouseup", 0, distance * 50, { force: true });
 };
 
+export const moveDnDKitColumnVertical = (column, distance) => {
+  column
+    .trigger("pointerdown", 0, 0, {
+      force: true,
+      isPrimary: true,
+      button: 0,
+    })
+    .wait(200)
+    .trigger("pointermove", 5, 5, {
+      force: true,
+      isPrimary: true,
+      button: 0,
+    })
+    .wait(200)
+    .trigger("pointermove", 0, distance, {
+      force: true,
+      isPrimary: true,
+      button: 0,
+    })
+    .wait(200)
+    .trigger("pointerup", 0, distance, {
+      force: true,
+      isPrimary: true,
+      button: 0,
+    })
+    .wait(200);
+};
+
 export const queryBuilderMain = () => {
   return cy.findByTestId("query-builder-main");
 };
+
+export const dashboardParametersContainer = () => {
+  return cy.findByTestId("dashboard-parameters-widget-container");
+};
+
+export const undoToast = () => {
+  return cy.findByTestId("toast-undo");
+};
+
+export const undoToastList = () => {
+  return cy.findAllByTestId("toast-undo");
+};
+
+export function dashboardCards() {
+  return cy.get("#Dashboard-Cards-Container");
+}

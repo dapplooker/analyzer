@@ -1,53 +1,45 @@
 /* eslint-disable react/prop-types */
-import React, { Component } from "react";
+/* eslint-disable  react/jsx-key */
+import { Component } from "react";
 import { connect } from "react-redux";
 import { t, jt, ngettext, msgid } from "ttag";
 import _ from "underscore";
 
-// components
-import Button from "metabase/core/components/Button";
-import SchedulePicker from "metabase/containers/SchedulePicker";
-import ModalContent from "metabase/components/ModalContent";
-import DeleteModalWithConfirm from "metabase/components/DeleteModalWithConfirm";
-import ModalWithTrigger from "metabase/components/ModalWithTrigger";
-import Radio from "metabase/core/components/Radio";
-import Icon from "metabase/components/Icon";
-import ChannelSetupModal from "metabase/components/ChannelSetupModal";
-import ButtonWithStatus from "metabase/components/ButtonWithStatus";
-import PulseEditChannels from "metabase/pulse/components/PulseEditChannels";
-
-import User from "metabase/entities/users";
-
-// actions
 import { createAlert, deleteAlert, updateAlert } from "metabase/alert/alert";
-import { apiUpdateQuestion, updateUrl } from "metabase/query_builder/actions";
+import ButtonWithStatus from "metabase/components/ButtonWithStatus";
+import ChannelSetupModal from "metabase/components/ChannelSetupModal";
+import DeleteModalWithConfirm from "metabase/components/DeleteModalWithConfirm";
+import ModalContent from "metabase/components/ModalContent";
+import ModalWithTrigger from "metabase/components/ModalWithTrigger";
+import SchedulePicker from "metabase/containers/SchedulePicker";
+import Button from "metabase/core/components/Button";
+import Radio from "metabase/core/components/Radio";
+import User from "metabase/entities/users";
+import { alertIsValid } from "metabase/lib/alert";
+import * as MetabaseAnalytics from "metabase/lib/analytics";
+import MetabaseCookies from "metabase/lib/cookies";
 import { fetchPulseFormInput } from "metabase/pulse/actions";
-
-// selectors
-import { getUser, getUserIsAdmin } from "metabase/selectors/user";
-import {
-  getQuestion,
-  getVisualizationSettings,
-} from "metabase/query_builder/selectors";
+import PulseEditChannels from "metabase/pulse/components/PulseEditChannels";
 import {
   getPulseFormInput,
   hasConfiguredAnyChannelSelector,
   hasConfiguredEmailChannelSelector,
   hasLoadedChannelInfoSelector,
 } from "metabase/pulse/selectors";
-
-// lib
-import MetabaseCookies from "metabase/lib/cookies";
-import * as MetabaseAnalytics from "metabase/lib/analytics";
-
-// types
-import { alertIsValid } from "metabase/lib/alert";
+import { apiUpdateQuestion, updateUrl } from "metabase/query_builder/actions";
+import {
+  getQuestion,
+  getVisualizationSettings,
+} from "metabase/query_builder/selectors";
+import { getUser, getUserIsAdmin } from "metabase/selectors/user";
+import { Icon } from "metabase/ui";
 import {
   ALERT_TYPE_PROGRESS_BAR_GOAL,
   ALERT_TYPE_ROWS,
   ALERT_TYPE_TIMESERIES_GOAL,
   getDefaultAlert,
 } from "metabase-lib/Alert";
+
 import { AlertModalFooter, DangerZone } from "./AlertModals.styled";
 
 const getScheduleFromChannel = channel =>
@@ -83,7 +75,7 @@ class CreateAlertModalContentInner extends Component {
       this.setState({
         alert: {
           ...this.state.alert,
-          card: { id: newProps.question.id() },
+          card: { ...this.state.alert.card, id: newProps.question.id() },
         },
       });
     }
@@ -101,7 +93,7 @@ class CreateAlertModalContentInner extends Component {
     const { alert } = this.state;
 
     await createAlert(alert);
-    await updateUrl(question.card(), { dirty: false });
+    await updateUrl(question, { dirty: false });
 
     onAlertCreated();
     MetabaseAnalytics.trackStructEvent(
@@ -147,7 +139,7 @@ class CreateAlertModalContentInner extends Component {
     }
     if (!hasSeenEducationalScreen) {
       return (
-        <ModalContent onClose={onCancel}>
+        <ModalContent onClose={onCancel} data-testid="alert-education-screen">
           <AlertEducationalScreen
             onProceed={this.proceedFromEducationalScreen}
           />
@@ -285,18 +277,11 @@ class UpdateAlertModalContentInner extends Component {
   onAlertChange = modifiedAlert => this.setState({ modifiedAlert });
 
   onUpdateAlert = async () => {
-    const {
-      question,
-      apiUpdateQuestion,
-      updateAlert,
-      updateUrl,
-      onAlertUpdated,
-    } = this.props;
+    const { question, updateAlert, updateUrl, onAlertUpdated } = this.props;
     const { modifiedAlert } = this.state;
 
-    await apiUpdateQuestion();
     await updateAlert(modifiedAlert);
-    await updateUrl(question.card(), { dirty: false });
+    await updateUrl(question, { dirty: false });
     onAlertUpdated();
 
     MetabaseAnalytics.trackStructEvent(
@@ -323,7 +308,7 @@ class UpdateAlertModalContentInner extends Component {
 
     // TODO: Remove PulseEdit css hack
     return (
-      <ModalContent onClose={onCancel}>
+      <ModalContent onClose={onCancel} data-testid="alert-edit">
         <div
           className="PulseEdit ml-auto mr-auto mb4"
           style={{ maxWidth: "550px" }}
@@ -362,7 +347,7 @@ export const UpdateAlertModalContent = connect(
     question: getQuestion(state),
     visualizationSettings: getVisualizationSettings(state),
   }),
-  { apiUpdateQuestion, updateAlert, deleteAlert, updateUrl },
+  { updateAlert, deleteAlert, updateUrl },
 )(UpdateAlertModalContentInner);
 
 export class DeleteAlertSection extends Component {
@@ -547,30 +532,26 @@ export const AlertSettingToggle = ({
   </div>
 );
 
-export class AlertEditSchedule extends Component {
-  render() {
-    const { alertType, schedule } = this.props;
+export function AlertEditSchedule({ alertType, schedule, onScheduleChange }) {
+  return (
+    <div>
+      <h3 className="mt4 mb3 text-dark">
+        How often should we check for results?
+      </h3>
 
-    return (
-      <div>
-        <h3 className="mt4 mb3 text-dark">
-          How often should we check for results?
-        </h3>
-
-        <div className="bordered rounded mb2">
-          {alertType === ALERT_TYPE_ROWS && <RawDataAlertTip />}
-          <div className="p3 bg-light">
-            <SchedulePicker
-              schedule={schedule}
-              scheduleOptions={["hourly", "daily", "weekly"]}
-              onScheduleChange={this.props.onScheduleChange}
-              textBeforeInterval="Check"
-            />
-          </div>
+      <div className="bordered rounded mb2">
+        {alertType === ALERT_TYPE_ROWS && <RawDataAlertTip />}
+        <div className="p3 bg-light">
+          <SchedulePicker
+            schedule={schedule}
+            scheduleOptions={["hourly", "daily", "weekly"]}
+            onScheduleChange={onScheduleChange}
+            textBeforeInterval="Check"
+          />
         </div>
       </div>
-    );
-  }
+    </div>
+  );
 }
 
 class AlertEditChannelsInner extends Component {
@@ -631,33 +612,26 @@ export const AlertEditChannels = _.compose(
   ),
 )(AlertEditChannelsInner);
 
-// TODO: Not sure how to translate text with formatting properly
-class RawDataAlertTipInner extends Component {
-  render() {
-    const display = this.props.question.display();
-    const vizSettings = this.props.visualizationSettings;
-    const goalEnabled = vizSettings["graph.show_goal"];
-    const isLineAreaBar =
-      display === "line" || display === "area" || display === "bar";
-    const isMultiSeries =
-      isLineAreaBar &&
-      vizSettings["graph.metrics"] &&
-      vizSettings["graph.metrics"].length > 1;
-    const showMultiSeriesGoalAlert = goalEnabled && isMultiSeries;
+function RawDataAlertTipInner(props) {
+  const display = props.question.display();
+  const vizSettings = props.visualizationSettings;
+  const goalEnabled = vizSettings["graph.show_goal"];
+  const isLineAreaBar =
+    display === "line" || display === "area" || display === "bar";
+  const isMultiSeries =
+    isLineAreaBar &&
+    vizSettings["graph.metrics"] &&
+    vizSettings["graph.metrics"].length > 1;
+  const showMultiSeriesGoalAlert = goalEnabled && isMultiSeries;
 
-    return (
-      <div className="border-row-divider p3 flex align-center">
-        <div className="circle flex align-center justify-center bg-light p2 mr2 text-medium">
-          <Icon name="lightbulb" size="20" />
-        </div>
-        {showMultiSeriesGoalAlert ? (
-          <MultiSeriesAlertTip />
-        ) : (
-          <NormalAlertTip />
-        )}
+  return (
+    <div className="border-row-divider p3 flex align-center">
+      <div className="circle flex align-center justify-center bg-light p2 mr2 text-medium">
+        <Icon name="lightbulb" size="20" />
       </div>
-    );
-  }
+      {showMultiSeriesGoalAlert ? <MultiSeriesAlertTip /> : <NormalAlertTip />}
+    </div>
+  );
 }
 
 export const RawDataAlertTip = connect(state => ({
@@ -674,8 +648,8 @@ export const MultiSeriesAlertTip = () => (
 );
 export const NormalAlertTip = () => (
   <div>{jt`${(
-    <strong>{t`Tip`}:</strong>
+    <strong key="alert-tip">{t`Tip`}:</strong>
   )} This kind of alert is most useful when your saved chart doesn’t ${(
-    <em>{t`usually`}</em>
+    <em key="alert-tip-em">{t`usually`}</em>
   )} return any results, but you want to know when it does.`}</div>
 );

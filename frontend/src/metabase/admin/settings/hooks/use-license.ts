@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { t } from "ttag";
+
 import { SettingsApi, StoreApi } from "metabase/services";
 
 export const LICENSE_ACCEPTED_URL_HASH = "#activated";
@@ -12,6 +13,7 @@ export type TokenStatus = {
   isValid: boolean;
   isTrial: boolean;
   features: string[];
+  status: string;
 };
 
 export const useLicense = (onActivated?: () => void) => {
@@ -58,6 +60,7 @@ export const useLicense = (onActivated?: () => void) => {
           isValid: response.valid,
           isTrial: response.trial,
           features: response.features,
+          status: response.status,
         });
       } catch (e) {
         if ((e as any).status !== 404) {

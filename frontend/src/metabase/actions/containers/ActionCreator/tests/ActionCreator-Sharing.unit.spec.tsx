@@ -1,13 +1,13 @@
 import userEvent from "@testing-library/user-event";
 
 import { screen, waitFor } from "__support__/ui";
-
 import {
   createMockImplicitQueryAction,
   createMockQueryAction,
 } from "metabase-types/api/mocks";
 
-import { setup as baseSetup, SITE_URL, SetupOpts } from "./common";
+import type { SetupOpts } from "./common";
+import { setup as baseSetup, SITE_URL } from "./common";
 
 async function setup({
   action = createMockImplicitQueryAction(),

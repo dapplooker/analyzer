@@ -4,7 +4,7 @@
    [clojure.java.jdbc :as jdbc]
    [clojure.string :as str]
    [metabase.server.middleware.security :as mw.security]
-   [metabase.util.i18n :refer [trs]]
+   [metabase.util.i18n :refer [deferred-tru trs]]
    [metabase.util.log :as log])
   (:import
    (java.sql SQLException)
@@ -12,14 +12,18 @@
 
 (set! *warn-on-reflection* true)
 
-(defn genericize-exceptions
-  "Catch any exceptions thrown in the request handler body and rethrow a generic 400 exception instead. This minimizes
-  information available to bad actors when exceptions occur on public endpoints."
+(declare api-exception-response)
+
+(defn public-exceptions
+  "Catch any exceptions other than 404 thrown in the request handler body and rethrow a generic 400 exception instead.
+  This minimizes information available to bad actors when exceptions occur on public endpoints."
   [handler]
   (fn [request respond _]
     (let [raise (fn [e]
                   (log/warn e (trs "Exception in API call"))
-                  (respond {:status 400, :body "An error occurred."}))]
+                  (if (= 404 (:status-code (ex-data e)))
+                    (respond {:status 404, :body (deferred-tru "Not found.")})
+                    (respond {:status 400, :body (deferred-tru "An error occurred.")})))]
       (try
         (handler request respond raise)
         (catch Throwable e
@@ -36,6 +40,7 @@
       (try
         (handler request respond raise)
         (catch Throwable e
+          (log/error e (trs "Exception in API call"))
           (raise e))))))
 
 (defmulti api-exception-response
@@ -84,7 +89,7 @@
   {:status-code 204, :body nil, :headers (mw.security/security-headers)})
 
 (defn catch-api-exceptions
-  "Middleware that catches API Exceptions and returns them in our normal-style format rather than the Jetty 500
+  "Middleware (with `[request respond raise]`) that catches API Exceptions and returns them in our normal-style format rather than the Jetty 500
   Stacktrace page, which is not so useful for our frontend."
   [handler]
   (fn [request respond _raise]
@@ -95,15 +100,15 @@
 
 
 (defn catch-uncaught-exceptions
-  "Middleware that catches any unexpected Exceptions that reroutes them thru `raise` where they can be handled
-  appropriately."
+  "Middleware (with `[request respond raise]`) that catches any unexpected Exceptions and reroutes them through `raise`
+  where they can be handled appropriately."
   [handler]
   (fn [request respond raise]
     (try
       (handler
        request
        ;; for people that accidentally pass along an Exception, e.g. from qp.async, do the nice thing and route it to
-       ;; the write place for them
+       ;; the right place for them
        (fn [response]
          ((if (instance? Throwable response)
             raise

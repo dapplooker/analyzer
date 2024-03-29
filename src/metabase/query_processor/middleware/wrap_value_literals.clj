@@ -2,12 +2,13 @@
   "Middleware that wraps value literals in `value`/`absolute-datetime`/etc. clauses containing relevant type
   information; parses datetime string literals when appropriate."
   (:require
+   [metabase.lib.metadata :as lib.metadata]
    [metabase.mbql.schema :as mbql.s]
    [metabase.mbql.util :as mbql.u]
-   [metabase.models.field :refer [Field]]
    [metabase.query-processor.store :as qp.store]
    [metabase.query-processor.timezone :as qp.timezone]
    [metabase.types :as types]
+   [metabase.util :as u]
    [metabase.util.date-2 :as u.date])
   (:import
    (java.time LocalDate LocalDateTime LocalTime OffsetDateTime OffsetTime ZonedDateTime)))
@@ -23,9 +24,11 @@
 
 (defmethod type-info :default [_] nil)
 
-(defmethod type-info Field
+(defmethod type-info :metadata/column
   [field]
-  (let [field-info (select-keys field [:base_type :effective_type :coercion_strategy :semantic_type :database_type :name])]
+  ;; Opts should probably override all of these
+  (let [field-info (-> (select-keys field [:base-type :effective-type :coercion-strategy :semantic-type :database-type :name])
+                       (update-keys u/->snake_case_en))]
     (merge
      field-info
      ;; add in a default unit for this Field so we know to wrap datetime strings in `absolute-datetime` below based on
@@ -36,13 +39,23 @@
 
 (defmethod type-info :field [[_ id-or-name opts]]
   (merge
-   (when (integer? id-or-name)
-     (type-info (qp.store/field id-or-name)))
-   (when (:temporal-unit opts)
-     {:unit (:temporal-unit opts)})
-   (when (:base-type opts)
-     {:base_type (:base-type opts)})))
+    ;; With Mlv2 queries, this could be combined with `:expression` below and use the column from the
+    ;; query rather than metadata/field
+    (when (integer? id-or-name)
+      (type-info (lib.metadata/field (qp.store/metadata-provider) id-or-name)))
+    (when (:temporal-unit opts)
+      {:unit (:temporal-unit opts)})
+    (when (:base-type opts)
+      {:base_type (:base-type opts)})))
 
+(defmethod type-info :expression [[_ _name opts]]
+  (merge
+    (when (isa? (:base-type opts) :type/Temporal)
+      {:unit :default})
+    (when (:temporal-unit opts)
+      {:unit (:temporal-unit opts)})
+    (when (:base-type opts)
+      {:base_type (:base-type opts)})))
 
 ;;; ------------------------------------------------- add-type-info --------------------------------------------------
 

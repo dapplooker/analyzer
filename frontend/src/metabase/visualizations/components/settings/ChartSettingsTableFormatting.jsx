@@ -1,60 +1,62 @@
 /* eslint-disable react/prop-types */
-import React from "react";
-
-import { t, jt } from "ttag";
-
-import _ from "underscore";
+import { PointerSensor, useSensor } from "@dnd-kit/core";
+import { arrayMove } from "@dnd-kit/sortable";
 import cx from "classnames";
+import { useState, useMemo } from "react";
+import { t, jt, msgid, ngettext } from "ttag";
+import _ from "underscore";
+
+import NumericInput from "metabase/components/NumericInput";
+import Button from "metabase/core/components/Button";
+import ColorRange from "metabase/core/components/ColorRange";
+import ColorRangeSelector from "metabase/core/components/ColorRangeSelector";
+import ColorSelector from "metabase/core/components/ColorSelector";
+import Input from "metabase/core/components/Input";
+import Radio from "metabase/core/components/Radio";
+import Select, { Option } from "metabase/core/components/Select";
+import { Sortable, SortableList } from "metabase/core/components/Sortable";
+import Toggle from "metabase/core/components/Toggle";
+import * as MetabaseAnalytics from "metabase/lib/analytics";
 import {
   getAccentColors,
   getStatusColorRanges,
 } from "metabase/lib/colors/groups";
+import { Icon } from "metabase/ui";
+import { isNumeric, isString, isBoolean } from "metabase-lib/types/utils/isa";
 
-import Button from "metabase/core/components/Button";
-import Icon from "metabase/components/Icon";
-import Select, { Option } from "metabase/core/components/Select";
-import Radio from "metabase/core/components/Radio";
-import Toggle from "metabase/core/components/Toggle";
-import ColorRange from "metabase/core/components/ColorRange";
-import ColorSelector from "metabase/core/components/ColorSelector";
-import ColorRangeSelector from "metabase/core/components/ColorRangeSelector";
-import Input from "metabase/core/components/Input";
-
-import NumericInput from "metabase/components/NumericInput";
-
-import {
-  SortableContainer,
-  SortableElement,
-} from "metabase/components/sortable";
-
-import * as MetabaseAnalytics from "metabase/lib/analytics";
-import { isNumeric, isString } from "metabase-lib/types/utils/isa";
+const COMMON_OPERATOR_NAMES = {
+  "is-null": t`is null`,
+  "not-null": t`is not null`,
+};
 
 const NUMBER_OPERATOR_NAMES = {
+  "=": t`is equal to`,
+  "!=": t`is not equal to`,
   "<": t`is less than`,
   ">": t`is greater than`,
   "<=": t`is less than or equal to`,
   ">=": t`is greater than or equal to`,
-  "=": t`is equal to`,
-  "!=": t`is not equal to`,
-  "is-null": t`is null`,
-  "not-null": t`is not null`,
 };
 
 const STRING_OPERATOR_NAMES = {
   "=": t`is equal to`,
   "!=": t`is not equal to`,
-  "is-null": t`is null`,
-  "not-null": t`is not null`,
   contains: t`contains`,
   "does-not-contain": t`does not contain`,
   "starts-with": t`starts with`,
   "ends-with": t`ends with`,
 };
 
+const BOOLEAN_OPERATIOR_NAMES = {
+  "is-true": t`is true`,
+  "is-false": t`is false`,
+};
+
 export const ALL_OPERATOR_NAMES = {
   ...NUMBER_OPERATOR_NAMES,
   ...STRING_OPERATOR_NAMES,
+  ...BOOLEAN_OPERATIOR_NAMES,
+  ...COMMON_OPERATOR_NAMES,
 };
 
 // TODO
@@ -89,105 +91,132 @@ const INPUT_CLASSNAME = "mt1 full";
 const getValueForDescription = rule =>
   ["is-null", "not-null"].includes(rule.operator) ? "" : ` ${rule.value}`;
 
-export default class ChartSettingsTableFormatting extends React.Component {
-  state = {
-    editingRule: null,
-    editingRuleIsNew: null,
-  };
-  render() {
-    const { value, onChange, cols, canHighlightRow } = this.props;
-    const { editingRule, editingRuleIsNew } = this.state;
-    if (editingRule !== null && value[editingRule]) {
-      return (
-        <RuleEditor
-          canHighlightRow={canHighlightRow}
-          rule={value[editingRule]}
-          cols={cols}
-          isNew={editingRuleIsNew}
-          onChange={rule =>
-            onChange([
-              ...value.slice(0, editingRule),
-              rule,
-              ...value.slice(editingRule + 1),
-            ])
-          }
-          onRemove={() => {
-            onChange([
-              ...value.slice(0, editingRule),
-              ...value.slice(editingRule + 1),
-            ]);
-            this.setState({ editingRule: null, editingRuleIsNew: null });
-          }}
-          onDone={() => {
-            this.setState({ editingRule: null, editingRuleIsNew: null });
-          }}
-        />
-      );
-    } else {
-      return (
-        <RuleListing
-          rules={value}
-          cols={cols}
-          onEdit={index => {
-            this.setState({ editingRule: index, editingRuleIsNew: false });
-          }}
-          onAdd={() => {
-            onChange([
-              {
-                ...DEFAULTS_BY_TYPE["single"],
-                // if there's a single column use that by default
-                columns: cols.length === 1 ? [cols[0].name] : [],
-              },
-              ...value,
-            ]);
-            this.setState({ editingRule: 0, editingRuleIsNew: true });
-          }}
-          onRemove={index => {
-            onChange([...value.slice(0, index), ...value.slice(index + 1)]);
-            MetabaseAnalytics.trackStructEvent(
-              "Chart Settings",
-              "Table Formatting",
-              "Remove Rule",
-            );
-          }}
-          onMove={(from, to) => {
-            const newValue = [...value];
-            newValue.splice(to, 0, newValue.splice(from, 1)[0]);
-            onChange(newValue);
-            MetabaseAnalytics.trackStructEvent(
-              "Chart Settings",
-              "Table Formatting",
-              "Move Rule",
-            );
-          }}
-        />
-      );
-    }
-  }
-}
+export const ChartSettingsTableFormatting = props => {
+  const [editingRule, setEditingRule] = useState();
+  const [editingRuleIsNew, setEditingRuleIsNew] = useState();
 
-const SortableRuleItem = SortableElement(({ rule, cols, onEdit, onRemove }) => (
-  <RulePreview rule={rule} cols={cols} onClick={onEdit} onRemove={onRemove} />
-));
+  const { value, onChange, cols, canHighlightRow } = props;
 
-const SortableRuleList = SortableContainer(
-  ({ rules, cols, onEdit, onRemove }) => {
+  if (editingRule !== null && value[editingRule]) {
     return (
-      <div>
-        {rules.map((rule, index) => (
-          <SortableRuleItem
-            key={`item-${index}`}
-            index={index}
-            rule={rule}
-            cols={cols}
-            onEdit={() => onEdit(index)}
-            onRemove={() => onRemove(index)}
-          />
-        ))}
-      </div>
+      <RuleEditor
+        canHighlightRow={canHighlightRow}
+        rule={value[editingRule]}
+        cols={cols}
+        isNew={editingRuleIsNew}
+        onChange={rule => {
+          onChange([
+            ...value.slice(0, editingRule),
+            rule,
+            ...value.slice(editingRule + 1),
+          ]);
+        }}
+        onRemove={() => {
+          onChange([
+            ...value.slice(0, editingRule),
+            ...value.slice(editingRule + 1),
+          ]);
+          setEditingRule(null);
+          setEditingRuleIsNew(null);
+        }}
+        onDone={() => {
+          setEditingRule(null);
+          setEditingRuleIsNew(null);
+        }}
+      />
     );
-  },
-);
+  } else {
+    return (
+      <RuleListing
+        rules={value}
+        cols={cols}
+        onEdit={index => {
+          setEditingRule(index);
+          setEditingRuleIsNew(false);
+        }}
+        // This needs to be an async function so that onChange will complete (and value will be updated)
+        // Before we set the state values for the next render
+        onAdd={async () => {
+          await onChange([
+            {
+              ...DEFAULTS_BY_TYPE["single"],
+              // if there's a single column use that by default
+              columns: cols.length === 1 ? [cols[0].name] : [],
+              id: value.length,
+            },
+            ...value,
+          ]);
+          setEditingRuleIsNew(true);
+          setEditingRule(0);
+        }}
+        onRemove={index => {
+          onChange([...value.slice(0, index), ...value.slice(index + 1)]);
+          MetabaseAnalytics.trackStructEvent(
+            "Chart Settings",
+            "Table Formatting",
+            "Remove Rule",
+          );
+        }}
+        onMove={(from, to) => {
+          onChange(arrayMove(value, from, to));
+          MetabaseAnalytics.trackStructEvent(
+            "Chart Settings",
+            "Table Formatting",
+            "Move Rule",
+          );
+        }}
+      />
+    );
+  }
+};
+
+const SortableRuleList = ({ rules, cols, onEdit, onRemove, onMove }) => {
+  const rulesWithIDs = useMemo(
+    () => rules.map((rule, index) => ({ ...rule, id: index.toString() })),
+    [rules],
+  );
+
+  const getId = rule => rule.id.toString();
+
+  const pointerSensor = useSensor(PointerSensor, {
+    activationConstraint: { distance: 0 },
+  });
+
+  const handleSortEnd = ({ id, newIndex }) => {
+    const oldIndex = rulesWithIDs.findIndex(rule => getId(rule) === id);
+
+    onMove(oldIndex, newIndex);
+  };
+
+  const handleRemove = id =>
+    onRemove(rulesWithIDs.findIndex(rule => getId(rule) === id));
+
+  const handleEdit = id =>
+    onEdit(rulesWithIDs.findIndex(rule => getId(rule) === id));
+
+  const renderItem = ({ item, id }) => (
+    <Sortable id={id} draggingStyle={{ opacity: 0.5 }}>
+      <RulePreview
+        rule={item}
+        cols={cols}
+        onClick={() => handleEdit(id)}
+        onRemove={() => handleRemove(id)}
+      />
+    </Sortable>
+  );
+
+  return (
+    <div>
+      <SortableList
+        items={rulesWithIDs}
+        getId={getId}
+        renderItem={renderItem}
+        sensors={[pointerSensor]}
+        onSortEnd={handleSortEnd}
+      />
+    </div>
+  );
+};
 
 const RuleListing = ({ rules, cols, onEdit, onAdd, onRemove, onMove }) => (
   <div>
@@ -197,12 +226,7 @@ const RuleListing = ({ rules, cols, onEdit, onAdd, onRemove, onMove }) => (
     they meet certain conditions.`}
     </div>
     <div className="mt2">
-      <Button
-        borderless
-        icon="add"
-        onClick={onAdd}
-        data-metabase-event="Chart Settings;Table Formatting;Add Rule"
-      >
+      <Button borderless icon="add" onClick={onAdd}>
         {t`Add a rule`}
       </Button>
     </div>
@@ -215,7 +239,7 @@ const RuleListing = ({ rules, cols, onEdit, onAdd, onRemove, onMove }) => (
           cols={cols}
           onEdit={onEdit}
           onRemove={onRemove}
-          onSortEnd={({ oldIndex, newIndex }) => onMove(oldIndex, newIndex)}
+          onMove={onMove}
           distance={10}
         />
       </div>
@@ -227,6 +251,7 @@ const RulePreview = ({ rule, cols, onClick, onRemove }) => (
   <div
     className="my2 bordered rounded shadowed cursor-pointer bg-white"
     onClick={onClick}
+    data-testid="formatting-rule-preview"
   >
     <div className="p1 border-bottom relative bg-light">
       <div className="px1 flex align-center relative">
@@ -309,22 +334,44 @@ const RuleEditor = ({
   canHighlightRow = true,
 }) => {
   const selectedColumns = rule.columns.map(name => _.findWhere(cols, { name }));
+  const hasBooleanRule =
+    selectedColumns.length > 0 && selectedColumns.some(isBoolean);
+  const isBooleanRule =
+    selectedColumns.length > 0 && selectedColumns.every(isBoolean);
   const isStringRule =
-    selectedColumns.length > 0 && _.all(selectedColumns, isString);
+    !hasBooleanRule &&
+    selectedColumns.length > 0 &&
+    selectedColumns.every(isString);
   const isNumericRule =
-    selectedColumns.length > 0 && _.all(selectedColumns, isNumeric);
+    !hasBooleanRule &&
+    selectedColumns.length > 0 &&
+    selectedColumns.every(isNumeric);
 
   const hasOperand =
-    rule.operator !== "is-null" && rule.operator !== "not-null";
+    rule.operator !== "is-null" &&
+    rule.operator !== "not-null" &&
+    rule.operator !== "is-true" &&
+    rule.operator !== "is-false";
+
+  const handleColumnChange = columns => {
+    const _cols = columns.map(name => _.findWhere(cols, { name }));
+    const operatorUpdate =
+      columns.length === 1 && columns[0] === columns.changedItem
+        ? {
+            operator: _cols.every(isBoolean) ? "is-true" : "=",
+          }
+        : {};
+    onChange({ ...rule, columns, ...operatorUpdate });
+  };
 
   return (
     <div>
       <h3 className="mb1">{t`Which columns should be affected?`}</h3>
       <Select
         value={rule.columns}
-        onChange={e => onChange({ ...rule, columns: e.target.value })}
+        onChange={e => handleColumnChange(e.target.value)}
         isInitiallyOpen={rule.columns.length === 0}
-        placeholder="Choose a column"
+        placeholder={t`Choose a column`}
         multiple
       >
         {cols.map(col => (
@@ -332,8 +379,9 @@ const RuleEditor = ({
             key={col.name}
             value={col.name}
             disabled={
-              (isStringRule && !isString(col)) ||
-              (isNumericRule && !isNumeric(col))
+              (isStringRule && (!isString(col) || isBoolean(col))) ||
+              (isNumericRule && !isNumeric(col)) ||
+              (isBooleanRule && !isBoolean(col))
             }
           >
             {col.display_name}
@@ -358,14 +406,30 @@ const RuleEditor = ({
       )}
       {rule.type === "single" ? (
         <div>
-          <h3 className="mt3 mb1">{t`When a cell in this column…`}</h3>
+          <h3 className="mt3 mb1">
+            {ngettext(
+              msgid`When a cell in this column…`,
+              `When any cell in these columns…`,
+              selectedColumns.length,
+            )}
+          </h3>
           <Select
             value={rule.operator}
             onChange={e => onChange({ ...rule, operator: e.target.value })}
+            buttonProps={{
+              "data-testid": "conditional-formatting-value-operator-button",
+            }}
           >
-            {Object.entries(
-              isNumericRule ? NUMBER_OPERATOR_NAMES : STRING_OPERATOR_NAMES,
-            ).map(([operator, operatorName]) => (
+            {Object.entries({
+              ...COMMON_OPERATOR_NAMES,
+              ...(isBooleanRule
+                ? BOOLEAN_OPERATIOR_NAMES
+                : isNumericRule
+                ? NUMBER_OPERATOR_NAMES
+                : isStringRule
+                ? STRING_OPERATOR_NAMES
+                : {}),
+            }).map(([operator, operatorName]) => (
               <Option key={operatorName} value={operator}>
                 {operatorName}
               </Option>
@@ -391,6 +455,7 @@ const RuleEditor = ({
           ) : null}
           <h3 className="mt3 mb1">{t`…turn its background this color:`}</h3>
           <ColorSelector
+            data-testid="conditional-formatting-color-selector"
             value={rule.color}
             colors={COLORS}
             onChange={color => onChange({ ...rule, color })}
@@ -475,21 +540,11 @@ const RuleEditor = ({
       ) : null}
       <div className="mt4">
         {rule.columns.length === 0 ? (
-          <Button
-            primary
-            onClick={onRemove}
-            data-metabase-event="Chart Settings;Table Formatting;"
-          >
+          <Button primary onClick={onRemove}>
             {isNew ? t`Cancel` : t`Delete`}
           </Button>
         ) : (
-          <Button
-            primary
-            onClick={onDone}
-            data-metabase-event={`Chart Setttings;Table Formatting;${
-              isNew ? "Add Rule" : "Update Rule"
-            };Rule Type ${rule.type} Color`}
-          >
+          <Button primary onClick={onDone}>
             {isNew ? t`Add rule` : t`Update rule`}
           </Button>
         )}

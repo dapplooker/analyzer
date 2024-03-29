@@ -3,7 +3,7 @@
    [buddy.core.codecs :as codecs]
    [clojure.string :as str]
    [honey.sql :as sql]
-   [java-time :as t]
+   [java-time.api :as t]
    [metabase.driver :as driver]
    [metabase.driver.sql-jdbc.connection :as sql-jdbc.conn]
    [metabase.driver.sql-jdbc.execute :as sql-jdbc.execute]
@@ -12,6 +12,7 @@
    [metabase.driver.sql.query-processor :as sql.qp]
    [metabase.driver.sql.util :as sql.u]
    [metabase.driver.sql.util.unprepare :as unprepare]
+   [metabase.util :as u]
    [metabase.util.date-2 :as u.date]
    [metabase.util.honey-sql-2 :as h2x])
   (:import
@@ -24,8 +25,9 @@
                   :parent #{:sql-jdbc ::sql-jdbc.legacy/use-legacy-classes-for-read-and-set}
                   :abstract? true)
 
-(defmethod driver/database-supports? [:hive-like :now] [_driver _feat _db] true)
-(defmethod driver/database-supports? [:hive-like :datetime-diff] [_driver _feat _db] true)
+(doseq [[feature supported?] {:now           true
+                              :datetime-diff true}]
+  (defmethod driver/database-supports? [:hive-like feature] [_driver _feature _db] supported?))
 
 (defmethod driver/escape-alias :hive-like
   [driver s]
@@ -51,7 +53,7 @@
 
 (defmethod sql-jdbc.sync/database-type->base-type :hive-like
   [_ database-type]
-  (condp re-matches (name database-type)
+  (condp re-matches (u/lower-case-en (name database-type))
     #"boolean"          :type/Boolean
     #"tinyint"          :type/Integer
     #"smallint"         :type/Integer
@@ -72,10 +74,6 @@
     #"array.*"          :type/Array
     #"map"              :type/Dictionary
     #".*"               :type/*))
-
-(defmethod sql.qp/honey-sql-version :hive-like
-  [_driver]
-  2)
 
 (defmethod sql.qp/current-datetime-honeysql-form :hive-like
   [_]

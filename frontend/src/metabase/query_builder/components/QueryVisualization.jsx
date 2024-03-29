@@ -1,113 +1,78 @@
 /* eslint-disable react/prop-types */
-import React, { Component } from "react";
+import cx from "classnames";
+import { useState } from "react";
+import { useTimeout } from "react-use";
 import { t } from "ttag";
 
-import cx from "classnames";
 import LoadingSpinner from "metabase/components/LoadingSpinner";
-
-import Utils from "metabase/lib/utils";
+import { useSelector } from "metabase/lib/redux";
+import { getWhiteLabeledLoadingMessage } from "metabase/selectors/whitelabel";
 import { HARD_ROW_LIMIT } from "metabase-lib/queries/utils";
-import VisualizationError from "./VisualizationError";
+
+import RunButtonWithTooltip from "./RunButtonWithTooltip";
+import { VisualizationError } from "./VisualizationError";
 import VisualizationResult from "./VisualizationResult";
 import Warnings from "./Warnings";
-import RunButtonWithTooltip from "./RunButtonWithTooltip";
 
-export default class QueryVisualization extends Component {
-  constructor(props, context) {
-    super(props, context);
-    this.state = this._getStateFromProps(props);
-  }
+const SLOW_MESSAGE_TIMEOUT = 4000;
 
-  static defaultProps = {
-    // NOTE: this should be more dynamic from the backend, it's set based on the query lang
-    maxTableRows: HARD_ROW_LIMIT,
-  };
+export default function QueryVisualization(props) {
+  const {
+    className,
+    question,
+    isRunning,
+    isObjectDetail,
+    isResultDirty,
+    isNativeEditorOpen,
+    result,
+    maxTableRows = HARD_ROW_LIMIT,
+    hideWaterMark
+  } = props;
 
-  _getStateFromProps(props) {
-    return {
-      lastRunDatasetQuery: Utils.copy(props.question.query().datasetQuery()),
-      lastRunParameterValues: Utils.copy(props.parameterValues),
-    };
-  }
+  const [warnings, setWarnings] = useState([]);
 
-  UNSAFE_componentWillReceiveProps(nextProps) {
-    // whenever we are told that we are running a query lets update our understanding of the "current" query
-    if (nextProps.isRunning) {
-      this.setState(this._getStateFromProps(nextProps));
-    }
-  }
-
-  runQuery = () => {
-    const { isResultDirty } = this.props;
-    // ignore the cache if we're hitting "Refresh" (which we only show if isResultDirty = false)
-    this.props.runQuestionQuery({ ignoreCache: !isResultDirty });
-  };
-
-  handleUpdateWarnings = warnings => {
-    this.setState({ warnings });
-  };
-
-  render() {
-    const {
-      className,
-      question,
-      isRunning,
-      isObjectDetail,
-      isResultDirty,
-      isNativeEditorOpen,
-      result,
-      loadingMessage,
-      hideWaterMark,
-    } = this.props;
-
-    return (
-      <div className={cx(className, "relative stacking-context full-height")}>
-        {isRunning ? (
-          <VisualizationRunningState
-            className="spread z2"
-            loadingMessage={loadingMessage}
-          />
-        ) : null}
-        <VisualizationDirtyState
-          {...this.props}
-          hidden={!isResultDirty || isRunning || isNativeEditorOpen}
-          className="spread z2"
+  return (
+    <div className={cx(className, "relative stacking-context full-height")}>
+      {isRunning ? <VisualizationRunningState className="spread z2" /> : null}
+      <VisualizationDirtyState
+        {...props}
+        hidden={!isResultDirty || isRunning || isNativeEditorOpen}
+        className="spread z2"
+      />
+      {!isObjectDetail && (
+        <Warnings
+          warnings={warnings}
+          className="absolute top right mt2 mr2 z2"
+          size={18}
         />
-        {!isObjectDetail && (
-          <Warnings
-            warnings={this.state.warnings}
-            className="absolute top right mt2 mr2 z2"
-            size={18}
+      )}
+      <div
+        className={cx("spread Visualization z1", {
+          "Visualization--loading": isRunning,
+        })}
+      >
+        {result?.error ? (
+          <VisualizationError
+            className="spread"
+            error={result.error}
+            via={result.via}
+            question={question}
+            duration={result.duration}
           />
-        )}
-        <div
-          className={cx("spread Visualization z1", {
-            "Visualization--loading": isRunning,
-          })}
-        >
-          {result?.error ? (
-            <VisualizationError
-              className="spread"
-              error={result.error}
-              via={result.via}
-              card={question.card()}
-              duration={result.duration}
-            />
-          ) : result?.data ? (
-            <VisualizationResult
-              {...this.props}
-              className="spread"
-              lastRunDatasetQuery={this.state.lastRunDatasetQuery}
-              onUpdateWarnings={this.handleUpdateWarnings}
-              hideWaterMark={hideWaterMark}
-            />
-          ) : !isRunning ? (
-            <VisualizationEmptyState className="spread" />
-          ) : null}
-        </div>
+        ) : result?.data ? (
+          <VisualizationResult
+            {...props}
+            maxTableRows={maxTableRows}
+            className="spread"
+            onUpdateWarnings={setWarnings}
+            hideWaterMark={hideWaterMark}
+          />
+        ) : !isRunning ? (
+          <VisualizationEmptyState className="spread" />
+        ) : null}
       </div>
-    );
-  }
+    </div>
+  );
 }
 
 export const VisualizationEmptyState = ({ className }) => (
@@ -116,19 +81,29 @@ export const VisualizationEmptyState = ({ className }) => (
   </div>
 );
 
-export const VisualizationRunningState = ({ className, loadingMessage }) => (
-  <div
-    className={cx(
-      className,
-      "Loading flex flex-column layout-centered text-brand",
-    )}
-  >
-    <LoadingSpinner />
-    <h2 className="Loading-message text-brand text-uppercase my3">
-      {loadingMessage}
-    </h2>
-  </div>
-);
+export function VisualizationRunningState({ className = "" }) {
+  const [isSlow] = useTimeout(SLOW_MESSAGE_TIMEOUT);
+
+  const loadingMessage = useSelector(getWhiteLabeledLoadingMessage);
+
+  // show the slower loading message only when the loadingMessage is
+  // not customised
+  const message = loadingMessage(isSlow());
+
+  return (
+    <div
+      className={cx(
+        className,
+        "Loading flex flex-column layout-centered text-brand",
+      )}
+    >
+      <LoadingSpinner />
+      <h2 className="Loading-message text-brand text-uppercase my3">
+        {message}
+      </h2>
+    </div>
+  );
+}
 
 export const VisualizationDirtyState = ({
   className,
@@ -146,11 +121,9 @@ export const VisualizationDirtyState = ({
     })}
   >
     <RunButtonWithTooltip
-      className="shadowed"
+      className="py2 px3 shadowed"
       circular
       compact
-      py={2}
-      px={3}
       result={result}
       hidden={!isRunnable || hidden}
       isRunning={isRunning}

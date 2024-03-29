@@ -1,34 +1,33 @@
+import type { LocationDescriptorObject } from "history";
 import querystring from "querystring";
-import { LocationDescriptorObject } from "history";
+import _ from "underscore";
 
+import { fetchAlertsForQuestion } from "metabase/alert/alert";
+import Questions from "metabase/entities/questions";
+import Snippets from "metabase/entities/snippets";
 import * as MetabaseAnalytics from "metabase/lib/analytics";
 import { deserializeCardFromUrl, loadCard } from "metabase/lib/card";
+import { isNotNull } from "metabase/lib/types";
 import * as Urls from "metabase/lib/urls";
-
+import { getIsEditingInDashboard } from "metabase/query_builder/selectors";
+import { loadMetadataForCard } from "metabase/questions/actions";
 import { setErrorPage } from "metabase/redux/app";
 import { getMetadata } from "metabase/selectors/metadata";
 import { getUser } from "metabase/selectors/user";
-
-import Snippets from "metabase/entities/snippets";
-import Questions from "metabase/entities/questions";
-import { loadMetadataForCard } from "metabase/questions/actions";
-import { fetchAlertsForQuestion } from "metabase/alert/alert";
-
-import {
+import * as Lib from "metabase-lib";
+import Question from "metabase-lib/Question";
+import type Metadata from "metabase-lib/metadata/Metadata";
+import type NativeQuery from "metabase-lib/queries/NativeQuery";
+import { updateCardTemplateTagNames } from "metabase-lib/queries/NativeQuery";
+import { cardIsEquivalent } from "metabase-lib/queries/utils/card";
+import { normalize } from "metabase-lib/queries/utils/normalize";
+import type { Card, MetricId, SegmentId } from "metabase-types/api";
+import { isSavedCard } from "metabase-types/guards";
+import type {
   Dispatch,
   GetState,
   QueryBuilderUIControls,
 } from "metabase-types/store";
-import type { Card } from "metabase-types/types/Card";
-import { isSavedCard } from "metabase-types/guards";
-import { isNotNull } from "metabase/core/utils/types";
-import { cardIsEquivalent } from "metabase-lib/queries/utils/card";
-import { normalize } from "metabase-lib/queries/utils/normalize";
-import Question from "metabase-lib/Question";
-import NativeQuery, {
-  updateCardTemplateTagNames,
-} from "metabase-lib/queries/NativeQuery";
-import StructuredQuery from "metabase-lib/queries/StructuredQuery";
 
 import { getQueryBuilderModeFromLocation } from "../../typed-utils";
 import { updateUrl } from "../navigation";
@@ -68,31 +67,54 @@ const NOT_FOUND_ERROR = {
   context: "query-builder",
 };
 
-function getCardForBlankQuestion({
-  db,
-  table,
-  segment,
-  metric,
-}: BlankQueryOptions) {
-  const databaseId = db ? parseInt(db) : undefined;
-  const tableId = table ? parseInt(table) : undefined;
+function getCardForBlankQuestion(
+  metadata: Metadata,
+  options: BlankQueryOptions,
+) {
+  const databaseId = options.db ? parseInt(options.db) : undefined;
+  const tableId = options.table ? parseInt(options.table) : undefined;
+  const segmentId = options.segment ? parseInt(options.segment) : undefined;
+  const metricId = options.metric ? parseInt(options.metric) : undefined;
 
-  let question = Question.create({ databaseId, tableId });
+  let question = Question.create({ databaseId, tableId, metadata });
 
   if (databaseId && tableId) {
-    if (segment) {
-      question = (question.query() as StructuredQuery)
-        .filter(["segment", parseInt(segment)])
-        .question();
+    if (typeof segmentId === "number") {
+      question = filterBySegmentId(question, segmentId);
     }
-    if (metric) {
-      question = (question.query() as StructuredQuery)
-        .aggregate(["metric", parseInt(metric)])
-        .question();
+
+    if (typeof metricId === "number") {
+      question = aggregateByMetricId(question, metricId);
     }
   }
 
   return question.card();
+}
+
+function filterBySegmentId(question: Question, segmentId: SegmentId) {
+  const stageIndex = -1;
+  const query = question.query();
+  const segmentMetadata = Lib.segmentMetadata(query, segmentId);
+
+  if (!segmentMetadata) {
+    return question;
+  }
+
+  const newQuery = Lib.filter(query, stageIndex, segmentMetadata);
+  return question.setQuery(newQuery);
+}
+
+function aggregateByMetricId(question: Question, metricId: MetricId) {
+  const stageIndex = -1;
+  const query = question.query();
+  const metricMetadata = Lib.metricMetadata(query, metricId);
+
+  if (!metricMetadata) {
+    return question;
+  }
+
+  const newQuery = Lib.aggregate(query, stageIndex, metricMetadata);
+  return question.setQuery(newQuery);
 }
 
 function deserializeCard(serializedCard: string) {
@@ -114,9 +136,7 @@ async function fetchAndPrepareSavedQuestionCards(
 
   // for showing the "started from" lineage correctly when adding filters/breakouts and when going back and forth
   // in browser history, the original_card_id has to be set for the current card (simply the id of card itself for now)
-  card.original_card_id = card.id;
-
-  return { card, originalCard };
+  return { card: { ...card, original_card_id: card.id }, originalCard };
 }
 
 async function fetchAndPrepareAdHocQuestionCards(
@@ -168,8 +188,10 @@ async function resolveCards({
   getState: GetState;
 }): Promise<ResolveCardsResult> {
   if (!cardId && !deserializedCard) {
+    const metadata = getMetadata(getState());
+
     return {
-      card: getCardForBlankQuestion(options),
+      card: getCardForBlankQuestion(metadata, options),
     };
   }
   return cardId
@@ -224,6 +246,7 @@ export async function updateTemplateTagNames(
       }),
     )
   ).filter(isNotNull);
+
   query = updateCardTemplateTagNames(query, referencedCards);
   if (query.hasSnippets()) {
     await dispatch(Snippets.actions.fetchList());
@@ -303,9 +326,13 @@ async function handleQBInit(
   const metadata = getMetadata(getState());
 
   let question = new Question(card, metadata);
+  const query = question.query();
+  const { isNative, isEditable } = Lib.queryDisplayInfo(query);
+
   if (question.isSaved()) {
-    // Don't set viz automatically for saved questions
-    question = question.lockDisplay();
+    if (!question.isDataset()) {
+      question = question.lockDisplay();
+    }
 
     const currentUser = getUser(getState());
     if (currentUser?.is_qbnewb) {
@@ -314,10 +341,15 @@ async function handleQBInit(
     }
   }
 
-  if (question.isNative() && !question.query().readOnly()) {
-    const query = question.query() as NativeQuery;
+  if (isNative) {
+    const isEditing = getIsEditingInDashboard(getState());
+    uiControls.isNativeEditorOpen = isEditing || !question.isSaved();
+  }
+
+  if (isNative && isEditable) {
+    const query = question.legacyQuery() as NativeQuery;
     const newQuery = await updateTemplateTagNames(query, getState, dispatch);
-    question = question.setQuery(newQuery);
+    question = question.setLegacyQuery(newQuery);
   }
 
   const finalCard = question.card();
@@ -342,7 +374,8 @@ async function handleQBInit(
   });
 
   if (uiControls.queryBuilderMode !== "notebook") {
-    if (question.canRun() && (question.isSaved() || question.isStructured())) {
+    const { isNative } = Lib.queryDisplayInfo(question.query());
+    if (question.canRun() && (question.isSaved() || !isNative)) {
       // Timeout to allow Parameters widget to set parameterValues
       setTimeout(
         () => dispatch(runQuestionQuery({ shouldUpdateUrl: false })),
@@ -350,7 +383,7 @@ async function handleQBInit(
       );
     }
     dispatch(
-      updateUrl(finalCard, {
+      updateUrl(question, {
         replaceState: true,
         preserveParameters: hasCard,
         objectId,

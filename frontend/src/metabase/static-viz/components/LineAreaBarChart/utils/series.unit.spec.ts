@@ -1,10 +1,14 @@
 import { merge } from "icepick";
+
 import { colors } from "metabase/lib/colors";
+import { createMockColumn } from "metabase-types/api/mocks";
+
 import type {
   ChartSettings,
   SeriesWithOneOrLessDimensions,
   SeriesWithTwoDimensions,
 } from "../../XYChart/types";
+
 import {
   getSeriesWithColors,
   getSeriesWithLegends,
@@ -45,11 +49,11 @@ describe("getSeriesWithColors", () => {
             ["Gizmo", 4784],
             ["Widget", 5061],
           ],
-          column: {
+          column: createMockColumn({
             name: "count",
             source: "aggregation",
             display_name: "Count",
-          },
+          }),
         },
       ],
     ];
@@ -66,11 +70,11 @@ describe("getSeriesWithColors", () => {
             ["Gizmo", 4784],
             ["Widget", 5061],
           ],
-          column: {
+          column: createMockColumn({
             name: "count",
             source: "aggregation",
             display_name: "Count",
-          },
+          }),
         },
       ],
       [
@@ -84,11 +88,11 @@ describe("getSeriesWithColors", () => {
             ["Gizmo", 4784],
             ["Widget", 5061],
           ],
-          column: {
+          column: createMockColumn({
             name: "count",
             source: "aggregation",
             display_name: "Count",
-          },
+          }),
         },
       ],
     ];
@@ -212,11 +216,11 @@ describe("getSeriesWithColors", () => {
           yAxisPosition: "left",
           type: "bar",
           data: [["2016-04-24T00:00:00Z", 52.75594257942132]],
-          column: {
+          column: createMockColumn({
             name: "sum",
             source: "aggregation",
             display_name: "Sum of Total",
-          },
+          }),
         },
       ],
     ];
@@ -315,13 +319,13 @@ describe("getSeriesWithColors", () => {
             ["Widget", 210],
           ],
           yAxisPosition: "left",
-          column: {
+          column: createMockColumn({
             semantic_type: "type/CreationTimestamp",
             unit: "year",
             name: "CREATED_AT",
             source: "breakout",
             display_name: "Created At",
-          },
+          }),
           breakoutValue: "2016-01-01T00:00:00Z",
         },
         {
@@ -334,13 +338,13 @@ describe("getSeriesWithColors", () => {
             ["Widget", 1531],
           ],
           yAxisPosition: "left",
-          column: {
+          column: createMockColumn({
             semantic_type: "type/CreationTimestamp",
             unit: "year",
             name: "CREATED_AT",
             source: "breakout",
             display_name: "Created At",
-          },
+          }),
           breakoutValue: "2017-01-01T00:00:00Z",
         },
       ],
@@ -358,13 +362,13 @@ describe("getSeriesWithColors", () => {
             ["Widget", 210],
           ],
           yAxisPosition: "left",
-          column: {
+          column: createMockColumn({
             semantic_type: "type/CreationTimestamp",
             unit: "year",
             name: "CREATED_AT",
             source: "breakout",
             display_name: "Created At",
-          },
+          }),
           breakoutValue: "2016-01-01T00:00:00Z",
         },
         {
@@ -377,13 +381,13 @@ describe("getSeriesWithColors", () => {
             ["Widget", 1531],
           ],
           yAxisPosition: "left",
-          column: {
+          column: createMockColumn({
             semantic_type: "type/CreationTimestamp",
             unit: "year",
             name: "CREATED_AT",
             source: "breakout",
             display_name: "Created At",
-          },
+          }),
           breakoutValue: "2017-01-01T00:00:00Z",
         },
       ],
@@ -399,13 +403,13 @@ describe("getSeriesWithColors", () => {
             ["Widget", 210],
           ],
           yAxisPosition: "left",
-          column: {
+          column: createMockColumn({
             semantic_type: "type/CreationTimestamp",
             unit: "year",
             name: "CREATED_AT",
             source: "breakout",
             display_name: "Created At",
-          },
+          }),
           breakoutValue: "2016-01-01T00:00:00Z",
         },
         {
@@ -418,13 +422,13 @@ describe("getSeriesWithColors", () => {
             ["Widget", 1531],
           ],
           yAxisPosition: "left",
-          column: {
+          column: createMockColumn({
             semantic_type: "type/CreationTimestamp",
             unit: "year",
             name: "CREATED_AT",
             source: "breakout",
             display_name: "Created At",
-          },
+          }),
           breakoutValue: "2017-01-01T00:00:00Z",
         },
       ],
@@ -624,11 +628,11 @@ describe("getSeriesWithLegends", () => {
             ["Gizmo", 4784],
             ["Widget", 5061],
           ],
-          column: {
+          column: createMockColumn({
             name: "count",
             source: "aggregation",
             display_name: "Count",
-          },
+          }),
         },
       ],
     ];
@@ -645,11 +649,11 @@ describe("getSeriesWithLegends", () => {
             ["Gizmo", 4784],
             ["Widget", 5061],
           ],
-          column: {
+          column: createMockColumn({
             name: "count",
             source: "aggregation",
             display_name: "Count",
-          },
+          }),
         },
       ],
       [
@@ -663,11 +667,11 @@ describe("getSeriesWithLegends", () => {
             ["Gizmo", 4784],
             ["Widget", 5061],
           ],
-          column: {
+          column: createMockColumn({
             name: "count",
             source: "aggregation",
             display_name: "Count",
-          },
+          }),
         },
       ],
     ];
@@ -771,13 +775,13 @@ describe("getSeriesWithLegends", () => {
             ["Widget", 210],
           ],
           yAxisPosition: "left",
-          column: {
+          column: createMockColumn({
             semantic_type: "type/CreationTimestamp",
             unit: "year",
             name: "CREATED_AT",
             source: "breakout",
             display_name: "Created At",
-          },
+          }),
           breakoutValue: "2016-01-01T00:00:00Z",
         },
         {
@@ -790,13 +794,13 @@ describe("getSeriesWithLegends", () => {
             ["Widget", 1531],
           ],
           yAxisPosition: "left",
-          column: {
+          column: createMockColumn({
             semantic_type: "type/CreationTimestamp",
             unit: "year",
             name: "CREATED_AT",
             source: "breakout",
             display_name: "Created At",
-          },
+          }),
           breakoutValue: "2017-01-01T00:00:00Z",
         },
       ],
@@ -814,13 +818,13 @@ describe("getSeriesWithLegends", () => {
             ["Widget", 210],
           ],
           yAxisPosition: "left",
-          column: {
+          column: createMockColumn({
             semantic_type: "type/CreationTimestamp",
             unit: "year",
             name: "CREATED_AT",
             source: "breakout",
             display_name: "Created At",
-          },
+          }),
           breakoutValue: "2016-01-01T00:00:00Z",
         },
         {
@@ -833,13 +837,13 @@ describe("getSeriesWithLegends", () => {
             ["Widget", 1531],
           ],
           yAxisPosition: "left",
-          column: {
+          column: createMockColumn({
             semantic_type: "type/CreationTimestamp",
             unit: "year",
             name: "CREATED_AT",
             source: "breakout",
             display_name: "Created At",
-          },
+          }),
           breakoutValue: "2017-01-01T00:00:00Z",
         },
       ],
@@ -855,13 +859,13 @@ describe("getSeriesWithLegends", () => {
             ["Widget", 210],
           ],
           yAxisPosition: "left",
-          column: {
+          column: createMockColumn({
             semantic_type: "type/CreationTimestamp",
             unit: "year",
             name: "CREATED_AT",
             source: "breakout",
             display_name: "Created At",
-          },
+          }),
           breakoutValue: "2016-01-01T00:00:00Z",
         },
         {
@@ -874,13 +878,13 @@ describe("getSeriesWithLegends", () => {
             ["Widget", 1531],
           ],
           yAxisPosition: "left",
-          column: {
+          column: createMockColumn({
             semantic_type: "type/CreationTimestamp",
             unit: "year",
             name: "CREATED_AT",
             source: "breakout",
             display_name: "Created At",
-          },
+          }),
           breakoutValue: "2017-01-01T00:00:00Z",
         },
       ],
@@ -1035,13 +1039,13 @@ describe("reorderSeries", () => {
             ["Widget", 210],
           ],
           yAxisPosition: "left",
-          column: {
+          column: createMockColumn({
             semantic_type: "type/CreationTimestamp",
             unit: "year",
             name: "CREATED_AT",
             source: "breakout",
             display_name: "Created At",
-          },
+          }),
           breakoutValue: "2016-01-01T00:00:00Z",
         },
         {
@@ -1054,13 +1058,13 @@ describe("reorderSeries", () => {
             ["Widget", 1531],
           ],
           yAxisPosition: "left",
-          column: {
+          column: createMockColumn({
             semantic_type: "type/CreationTimestamp",
             unit: "year",
             name: "CREATED_AT",
             source: "breakout",
             display_name: "Created At",
-          },
+          }),
           breakoutValue: "2017-01-01T00:00:00Z",
         },
       ],
@@ -1078,13 +1082,13 @@ describe("reorderSeries", () => {
             ["Widget", 210],
           ],
           yAxisPosition: "left",
-          column: {
+          column: createMockColumn({
             semantic_type: "type/CreationTimestamp",
             unit: "year",
             name: "CREATED_AT",
             source: "breakout",
             display_name: "Created At",
-          },
+          }),
           breakoutValue: "2016-01-01T00:00:00Z",
         },
         {
@@ -1097,13 +1101,13 @@ describe("reorderSeries", () => {
             ["Widget", 1531],
           ],
           yAxisPosition: "left",
-          column: {
+          column: createMockColumn({
             semantic_type: "type/CreationTimestamp",
             unit: "year",
             name: "CREATED_AT",
             source: "breakout",
             display_name: "Created At",
-          },
+          }),
           breakoutValue: "2017-01-01T00:00:00Z",
         },
       ],
@@ -1118,13 +1122,13 @@ describe("reorderSeries", () => {
             ["Widget", 210],
           ],
           yAxisPosition: "left",
-          column: {
+          column: createMockColumn({
             semantic_type: "type/CreationTimestamp",
             unit: "year",
             name: "CREATED_AT",
             source: "breakout",
             display_name: "Created At",
-          },
+          }),
           breakoutValue: "2016-01-01T00:00:00Z",
         },
         {
@@ -1137,13 +1141,13 @@ describe("reorderSeries", () => {
             ["Widget", 1531],
           ],
           yAxisPosition: "left",
-          column: {
+          column: createMockColumn({
             semantic_type: "type/CreationTimestamp",
             unit: "year",
             name: "CREATED_AT",
             source: "breakout",
             display_name: "Created At",
-          },
+          }),
           breakoutValue: "2017-01-01T00:00:00Z",
         },
       ],

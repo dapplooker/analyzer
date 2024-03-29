@@ -1,24 +1,23 @@
 /* eslint-disable react/prop-types */
-import React from "react";
+import { Component } from "react";
 import { connect } from "react-redux";
 import { t, jt } from "ttag";
 import _ from "underscore";
 
-import Icon from "metabase/components/Icon";
-import CollectionMoveModal from "metabase/containers/CollectionMoveModal";
-
+import { CollectionMoveModal } from "metabase/containers/CollectionMoveModal";
+import Collection, { ROOT_COLLECTION } from "metabase/entities/collections";
+import Dashboards from "metabase/entities/dashboards";
 import { color } from "metabase/lib/colors";
 import * as Urls from "metabase/lib/urls";
+import { Icon } from "metabase/ui";
 
-import Dashboards from "metabase/entities/dashboards";
-import Collection, { ROOT_COLLECTION } from "metabase/entities/collections";
 import { ToastRoot } from "./DashboardMoveModal.styled";
 
 const mapDispatchToProps = {
   setDashboardCollection: Dashboards.actions.setCollection,
 };
 
-class DashboardMoveModalInner extends React.Component {
+class DashboardMoveModal extends Component {
   render() {
     const { dashboard, onClose, setDashboardCollection } = this.props;
     const title = t`Move dashboard to…`;
@@ -43,20 +42,22 @@ class DashboardMoveModalInner extends React.Component {
   }
 }
 
-const DashboardMoveModal = _.compose(
+const DashboardMoveToast = ({ collectionId }) => (
+  <ToastRoot>
+    <Icon name="collection" className="mr1" color="white" />
+    {jt`Dashboard moved to ${(
+      <Collection.Link
+        id={collectionId}
+        className="ml1"
+        color={color("brand")}
+      />
+    )}`}
+  </ToastRoot>
+);
+
+export const DashboardMoveModalConnected = _.compose(
   connect(null, mapDispatchToProps),
   Dashboards.load({
     id: (state, props) => Urls.extractCollectionId(props.params.slug),
   }),
-)(DashboardMoveModalInner);
-
-export default DashboardMoveModal;
-
-const DashboardMoveToast = ({ collectionId }) => (
-  <ToastRoot>
-    <Icon name="collection" mr={1} color="white" />
-    {jt`Dashboard moved to ${(
-      <Collection.Link id={collectionId} ml={1} color={color("brand")} />
-    )}`}
-  </ToastRoot>
-);
+)(DashboardMoveModal);

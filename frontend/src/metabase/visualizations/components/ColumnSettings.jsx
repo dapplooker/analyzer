@@ -1,18 +1,14 @@
 /* eslint-disable react/prop-types */
-import React from "react";
-
 import { t } from "ttag";
 
+import NoResults from "assets/img/no_results.svg";
 import EmptyState from "metabase/components/EmptyState";
-
-import { getSettingDefinitionsForColumn } from "metabase/visualizations/lib/settings/column";
+import ChartSettingsWidget from "metabase/visualizations/components/ChartSettingsWidget";
 import {
   getSettingsWidgets,
   getComputedSettings,
 } from "metabase/visualizations/lib/settings";
-
-import ChartSettingsWidget from "metabase/visualizations/components/ChartSettingsWidget";
-import NoResults from "assets/img/no_results.svg";
+import { getSettingDefinitionsForColumn } from "metabase/visualizations/lib/settings/column";
 
 function getWidgets({
   column,
@@ -68,30 +64,17 @@ export function hasColumnSettingsWidgets({ value, ...props }) {
   return getWidgets({ storedSettings, ...props }).length > 0;
 }
 
-const ColumnSettings = ({
-  value,
-  variant = "default",
-  forcefullyShowHiddenSettings = false,
-  ...props
-}) => {
+const ColumnSettings = ({ value, variant = "default", ...props }) => {
   const storedSettings = value || {};
   const widgets = getWidgets({ storedSettings, ...props });
-  const extraWidgetProps = {};
-
-  if (forcefullyShowHiddenSettings) {
-    // Is used for /settings/localization page to list all the date-time settings
-    // Consider using independent form UI there
-    extraWidgetProps.hidden = false;
-  }
 
   return (
-    <div style={{ maxWidth: 300 }}>
+    <div style={{ maxWidth: 300 }} data-testid="column-settings">
       {widgets.length > 0 ? (
         widgets.map(widget => (
           <ChartSettingsWidget
             key={widget.id}
             {...widget}
-            {...extraWidgetProps}
             unset={storedSettings[widget.id] === undefined}
             noPadding
             variant={variant}

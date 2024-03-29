@@ -1,5 +1,7 @@
 import { onlyOn } from "@cypress/skip-test";
 
+import { USERS } from "e2e/support/cypress_data";
+import { FIRST_COLLECTION_ID } from "e2e/support/cypress_sample_instance_data.js";
 import {
   restore,
   popover,
@@ -9,9 +11,10 @@ import {
   openCollectionMenu,
   openCollectionItemMenu,
   modal,
+  setTokenFeatures,
+  sidebar,
 } from "e2e/support/helpers";
 
-import { USERS } from "e2e/support/cypress_data";
 import { displaySidebarChildOf } from "./helpers/e2e-collections-sidebar.js";
 
 const PERMISSIONS = {
@@ -45,6 +48,7 @@ describe("collection permissions", () => {
                   appBar().within(() => {
                     cy.icon("add").click();
                   });
+                  // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
                   cy.findByText("Dashboard").click();
                   cy.findByTestId("select-button").findByText(
                     "Second collection",
@@ -54,6 +58,7 @@ describe("collection permissions", () => {
                 onlyOn(user === "admin", () => {
                   it("should offer to save dashboard to root collection from a dashboard page (metabase#16832)", () => {
                     cy.visit("/collection/root");
+                    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
                     cy.findByText("Orders in a dashboard").click();
                     appBar().within(() => {
                       cy.icon("add").click();
@@ -73,10 +78,14 @@ describe("collection permissions", () => {
                   cy.findByTestId("pinned-items").should("not.exist");
 
                   pinItem("Orders in a dashboard");
-                  unpinnedItemsLeft(5);
+                  cy.findByTestId("collection-table")
+                    .findByText("Orders in a dashboard")
+                    .should("not.exist");
 
                   pinItem("Orders, Count");
-                  unpinnedItemsLeft(4);
+                  cy.findByTestId("collection-table")
+                    .findByText("Orders, Count")
+                    .should("not.exist");
 
                   // Should see "pinned items" and items should be in that section
                   cy.findByTestId("pinned-items").within(() => {
@@ -84,13 +93,6 @@ describe("collection permissions", () => {
                     cy.findByText("Orders, Count");
                   });
                 });
-
-                function unpinnedItemsLeft(count) {
-                  cy.findAllByTestId("collection-entry").should(
-                    "have.length",
-                    count,
-                  );
-                }
               });
 
               describe("move", () => {
@@ -104,7 +106,7 @@ describe("collection permissions", () => {
 
                 function move(item) {
                   cy.visit("/collection/root");
-                  openEllipsisMenuFor(item);
+                  openCollectionItemMenu(item);
                   popover().within(() => {
                     cy.findByText("Move").click();
                   });
@@ -142,7 +144,7 @@ describe("collection permissions", () => {
 
                 function duplicate(item) {
                   cy.visit("/collection/root");
-                  openEllipsisMenuFor(item);
+                  openCollectionItemMenu(item);
                   cy.findByText("Duplicate").click();
                   cy.get(".Modal")
                     .as("modal")
@@ -168,7 +170,7 @@ describe("collection permissions", () => {
                   cy.skipOn(user === "nodata");
                   cy.createNativeQuestion({
                     name: "Model",
-                    dataset: true,
+                    type: "model",
                     native: {
                       query: "SELECT * FROM ORDERS",
                     },
@@ -179,7 +181,7 @@ describe("collection permissions", () => {
                 describe("archive page", () => {
                   it("should show archived items (metabase#15080, metabase#16617)", () => {
                     cy.visit("collection/root");
-                    openEllipsisMenuFor("Orders");
+                    openCollectionItemMenu("Orders");
                     popover().within(() => {
                       cy.findByText("Archive").click();
                     });
@@ -192,6 +194,7 @@ describe("collection permissions", () => {
                     });
                     popover().findByText("View archive").click();
                     cy.location("pathname").should("eq", "/archive");
+                    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
                     cy.findByText("Orders");
                   });
                 });
@@ -200,6 +203,7 @@ describe("collection permissions", () => {
                   it("shouldn't be able to archive/edit root or personal collection", () => {
                     cy.visit("/collection/root");
                     cy.icon("edit").should("not.exist");
+                    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
                     cy.findByText("Your personal collection").click();
                     cy.icon("edit").should("not.exist");
                   });
@@ -220,6 +224,7 @@ describe("collection permissions", () => {
                     });
 
                     openCollectionMenu();
+                    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
                     popover().within(() => cy.findByText("Archive").click());
                     cy.get(".Modal").findByText("Archive").click();
 
@@ -236,11 +241,14 @@ describe("collection permissions", () => {
                     });
 
                     // While we're here, we can test unarchiving the collection as well
+                    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
                     cy.findByText("Archived collection");
+                    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
                     cy.findByText("Undo").click();
 
                     cy.wait("@editCollection");
 
+                    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
                     cy.findByText(
                       "Sorry, you don’t have permission to see that.",
                     ).should("not.exist");
@@ -324,7 +332,7 @@ describe("collection permissions", () => {
 
                 function archiveUnarchive(item, expectedEntityName) {
                   cy.visit("/collection/root");
-                  openEllipsisMenuFor(item);
+                  openCollectionItemMenu(item);
                   popover().within(() => {
                     cy.findByText("Archive").click();
                   });
@@ -348,6 +356,7 @@ describe("collection permissions", () => {
             it("should not show pins or a helper text (metabase#20043)", () => {
               cy.visit("/collection/root");
 
+              // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
               cy.findByText("Orders in a dashboard");
               cy.icon("pin").should("not.exist");
             });
@@ -355,7 +364,7 @@ describe("collection permissions", () => {
             it("should be offered to duplicate dashboard in collections they have `read` access to", () => {
               const { first_name, last_name } = USERS[user];
               cy.visit("/collection/root");
-              openEllipsisMenuFor("Orders in a dashboard");
+              openCollectionItemMenu("Orders in a dashboard");
               popover().findByText("Duplicate").click();
               cy.findByTestId("select-button").findByText(
                 `${first_name} ${last_name}'s Personal Collection`,
@@ -365,6 +374,7 @@ describe("collection permissions", () => {
             it("should not be able to use bulk actions on collection items (metabase#16490)", () => {
               cy.visit("/collection/root");
 
+              // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
               cy.findByText("Orders")
                 .closest("tr")
                 .within(() => {
@@ -372,6 +382,7 @@ describe("collection permissions", () => {
                   cy.findByRole("checkbox").should("not.exist");
                 });
 
+              // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
               cy.findByText("Orders in a dashboard")
                 .closest("tr")
                 .within(() => {
@@ -385,6 +396,7 @@ describe("collection permissions", () => {
                 const { first_name, last_name } = USERS[user];
                 cy.visit(route);
                 cy.icon("add").click();
+                // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
                 cy.findByText("Dashboard").click();
 
                 // Coming from the root collection, the initial offered collection will be "Our analytics" (read-only access)
@@ -417,18 +429,43 @@ describe("collection permissions", () => {
     cy.signIn("normal");
 
     openNativeEditor().type("select * from people");
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Save").click();
 
     cy.findByTestId("select-button").findByText("Our analytics");
   });
-});
 
-function openEllipsisMenuFor(item, index = 0) {
-  cy.findAllByText(item)
-    .eq(index)
-    .closest("tr")
-    .within(() => cy.icon("ellipsis").click());
-}
+  it("should load the collection permissions admin pages", () => {
+    cy.signInAsAdmin();
+    setTokenFeatures("all");
+    cy.intercept("GET", "/api/collection/graph").as("permissionsGraph");
+    cy.intercept("GET", "/api/permissions/group").as("permissionsGroups");
+
+    cy.visit("/admin/permissions/collections");
+    cy.get("main").findByText("Select a collection to see its permissions");
+
+    cy.visit("/admin/permissions/collections/root");
+    cy.wait(["@permissionsGraph", "@permissionsGroups"]);
+
+    cy.findByTestId("permissions-editor").findByText(
+      "Permissions for Our analytics",
+    );
+    cy.findByTestId("permission-table");
+
+    cy.visit(`/admin/permissions/collections/${FIRST_COLLECTION_ID}`);
+    cy.wait(["@permissionsGraph", "@permissionsGroups"]);
+    cy.findByTestId("permissions-editor").findByText(
+      "Permissions for First collection",
+    );
+    cy.findByTestId("permission-table");
+
+    sidebar().findByText("Metabase analytics").click();
+    cy.findByTestId("permissions-editor").findByText(
+      "Permissions for Metabase analytics",
+    );
+    cy.findByTestId("permission-table");
+  });
+});
 
 function clickButton(name) {
   cy.findByRole("button", { name }).should("not.be.disabled").click();

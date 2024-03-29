@@ -1,5 +1,5 @@
-import { restore, popover } from "e2e/support/helpers";
 import { USER_GROUPS } from "e2e/support/cypress_data";
+import { restore, popover } from "e2e/support/helpers";
 
 const { ALL_USERS_GROUP } = USER_GROUPS;
 
@@ -21,9 +21,11 @@ describe("issue 20436", () => {
 
   it("should display correct permissions on the database level after changes on the table level (metabase#20436)", () => {
     cy.visit(url);
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Unrestricted");
 
     // Go the the view where we can change permissions for individual tables
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Sample Database").click();
 
     // Change the permission levels for ANY of the tables - it doesn't matter which one
@@ -40,6 +42,7 @@ describe("issue 20436", () => {
     cy.wait("@updatePermissions");
 
     cy.visit(url);
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Unrestricted");
   });
 });

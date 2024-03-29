@@ -1,9 +1,14 @@
-import { t } from "ttag";
 import { assocIn } from "icepick";
+import { t } from "ttag";
+
 import { color } from "metabase/lib/colors";
+import {
+  getDefaultSize,
+  getMinSize,
+} from "metabase/visualizations/shared/utils/sizes";
+
 import LineAreaBarChart from "../components/LineAreaBarChart";
 import { waterfallRenderer } from "../lib/LineAreaBarRenderer";
-
 import {
   GRAPH_DATA_SETTINGS,
   GRAPH_AXIS_SETTINGS,
@@ -15,6 +20,9 @@ export default class WaterfallChart extends LineAreaBarChart {
   static identifier = "waterfall";
   static iconName = "waterfall";
   static noun = t`waterfall chart`;
+
+  static minSize = getMinSize("waterfall");
+  static defaultSize = getDefaultSize("waterfall");
 
   static maxMetricsSupported = 1;
   static maxDimensionsSupported = 1;

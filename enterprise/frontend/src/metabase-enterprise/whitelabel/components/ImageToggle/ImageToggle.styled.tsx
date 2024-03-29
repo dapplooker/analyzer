@@ -1,4 +1,5 @@
 import styled from "@emotion/styled";
+
 import { color } from "metabase/lib/colors";
 
 export const ToggleRoot = styled.div`
@@ -10,6 +11,10 @@ export const ToggleRoot = styled.div`
 `;
 
 export const ImageContainer = styled.div`
+  display: flex;
+  width: 7.5rem;
+  justify-content: center;
+  align-items: center;
   border-right: 1px solid ${color("border")};
 `;
 

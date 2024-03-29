@@ -1,5 +1,5 @@
-import React from "react";
 import { t } from "ttag";
+
 import { LinkIcon, LinkRoot, LinkText } from "./SlackAppsLink.styled";
 
 export interface SlackAppsLinkProps {
@@ -22,4 +22,5 @@ const SlackAppsLink = ({ manifest }: SlackAppsLinkProps): JSX.Element => {
   );
 };
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default SlackAppsLink;

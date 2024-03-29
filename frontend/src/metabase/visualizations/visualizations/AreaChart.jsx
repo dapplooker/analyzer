@@ -1,8 +1,13 @@
-import { t } from "ttag";
 import { assocIn } from "icepick";
+import { t } from "ttag";
+
+import {
+  getDefaultSize,
+  getMinSize,
+} from "metabase/visualizations/shared/utils/sizes";
+
 import LineAreaBarChart from "../components/LineAreaBarChart.jsx";
 import { areaRenderer } from "../lib/LineAreaBarRenderer";
-
 import { GRAPH_GOAL_SETTINGS } from "../lib/settings/goal";
 import {
   GRAPH_DATA_SETTINGS,
@@ -19,6 +24,9 @@ export default class AreaChart extends LineAreaBarChart {
   static identifier = "area";
   static iconName = "area";
   static noun = t`area chart`;
+
+  static minSize = getMinSize("area");
+  static defaultSize = getDefaultSize("area");
 
   static settings = {
     ...LINE_SETTINGS,
@@ -38,4 +46,11 @@ export default class AreaChart extends LineAreaBarChart {
     [0, "card", "display"],
     "area",
   );
+
+  static onDisplayUpdate = settings => {
+    if (settings["stackable.stack_display"]) {
+      settings["stackable.stack_display"] = "area";
+    }
+    return settings;
+  };
 }

@@ -11,11 +11,13 @@
    [metabase.models.field :refer [Field]]
    [metabase.models.table :refer [Table]]
    [metabase.sync :as sync]
+   [metabase.sync.util :as sync-util]
    [metabase.test :as mt]
    [metabase.test.mock.util :as mock.util]
    [metabase.test.util :as tu]
    [metabase.util :as u]
-   [toucan.db :as db]))
+   [toucan2.core :as t2]
+   [toucan2.tools.with-temp :as t2.with-temp]))
 
 ;;; +----------------------------------------------------------------------------------------------------------------+
 ;;; |                                        End-to-end 'MovieDB' Sync Tests                                         |
@@ -32,17 +34,20 @@
                         :base-type         :type/Integer
                         :semantic-type     :type/PK
                         :database-is-auto-increment true
+                        :json-unfolding    false
                         :database-position 0}
                        {:name              "title"
                         :database-type     "VARCHAR"
                         :base-type         :type/Text
                         :semantic-type     :type/Title
                         :database-is-auto-increment false
+                        :json-unfolding    false
                         :database-position 1}
                        {:name              "studio"
                         :database-type     "VARCHAR"
                         :base-type         :type/Text
                         :database-is-auto-increment false
+                        :json-unfolding    false
                         :database-position 2}}
              :description nil}
    "studio" {:name   "studio"
@@ -52,11 +57,13 @@
                         :base-type         :type/Text
                         :semantic-type     :type/PK
                         :database-is-auto-increment false
+                        :json-unfolding    false
                         :database-position 0}
                        {:name              "name"
                         :database-type     "VARCHAR"
                         :base-type         :type/Text
                         :database-is-auto-increment false
+                        :json-unfolding    false
                         :database-position 1}}
              :description ""}})
 
@@ -71,6 +78,7 @@
   [_ _ table]
   (get sync-test-tables (:name table)))
 
+#_{:clj-kondo/ignore [:deprecated-var]}
 (defmethod driver/describe-table-fks ::sync-test
   [_ _ table]
   (set (when (= "movie" (:name table))
@@ -79,8 +87,8 @@
                                :schema nil}
             :dest-column-name "studio"}})))
 
-(defmethod driver/supports? [::sync-test :foreign-keys]
-  [_ _]
+(defmethod driver/database-supports? [::sync-test :foreign-keys]
+  [_driver _feature _db]
   true)
 
 (defmethod driver/mbql->native ::sync-test
@@ -93,7 +101,7 @@
 
 (defn- table-details [table]
   (into {} (-> (dissoc table :db :pk_field :field_values)
-               (assoc :fields (for [field (db/select Field, :table_id (:id table), {:order-by [:name]})]
+               (assoc :fields (for [field (t2/select Field, :table_id (:id table), {:order-by [:name]})]
                                 (into {} (-> field
                                              (update :fingerprint map?)
                                              (update :fingerprint_version (complement zero?))))))
@@ -120,6 +128,7 @@
     :last_analyzed       false
     :parent_id           false
     :position            0
+    :json_unfolding      false
     :table_id            true
     :updated_at          true}))
 
@@ -195,48 +204,49 @@
     :position          0}))
 
 (deftest sync-database-test
-  (mt/with-temp Database [db {:engine ::sync-test}]
-    (sync/sync-database! db)
-    (let [[movie studio] (mapv table-details (db/select Table :db_id (u/the-id db) {:order-by [:name]}))]
-      (testing "`movie` Table"
-        (is (= (merge
-                (table-defaults)
-                {:schema              "default"
-                 :name                "movie"
-                 :display_name        "Movie"
-                 :initial_sync_status "complete"
-                 :fields              [(field:movie-id) (field:movie-studio) (field:movie-title)]})
-               movie)))
-      (testing "`studio` Table"
-        (is (= (merge
-                (table-defaults)
-                {:name                "studio"
-                 :display_name        "Studio"
-                 :initial_sync_status "complete"
-                 :fields              [(field:studio-name) (field:studio-studio)]})
-               studio)))))
-  (testing "Returns results from sync-database step"
-    (mt/with-temp Database [db {:engine ::sync-test}]
-      (let [results (sync/sync-database! db)]
-        (is (= ["metadata" "analyze" "field-values"]
-               (map :name results)))))))
+  (binding [sync-util/*log-exceptions-and-continue?* false]
+    (t2.with-temp/with-temp [Database db {:engine ::sync-test}]
+      (let [results        (sync/sync-database! db)
+            [movie studio] (mapv table-details (t2/select Table :db_id (u/the-id db) {:order-by [:name]}))]
+        (testing "`movie` Table"
+          (is (= (merge
+                  (table-defaults)
+                  {:schema              "default"
+                   :name                "movie"
+                   :display_name        "Movie"
+                   :initial_sync_status "complete"
+                   :fields              [(field:movie-id) (field:movie-studio) (field:movie-title)]})
+                 movie)))
+        (testing "`studio` Table"
+          (is (= (merge
+                  (table-defaults)
+                  {:name                "studio"
+                   :display_name        "Studio"
+                   :initial_sync_status "complete"
+                   :fields              [(field:studio-name) (field:studio-studio)]
+                   :description         ""})
+                 studio)))
+        (testing "Returns results from sync-database step"
+          (is (= ["metadata" "analyze" "field-values"]
+                 (map :name results))))))))
 
 (deftest sync-table-test
-  (mt/with-temp* [Database [db {:engine ::sync-test}]
-                  Table    [table {:name "movie", :schema "default", :db_id (u/the-id db)}]]
-    (sync/sync-table! table)
-    (is (= (merge
-            (table-defaults)
-            {:schema       "default"
-             :name         "movie"
-             :display_name "Movie"
-             :fields       [(field:movie-id)
-                            (assoc (field:movie-studio)
-                                   :fk_target_field_id false
-                                   :semantic_type nil
-                                   :has_field_values :auto-list)
-                            (field:movie-title)]})
-           (table-details (db/select-one Table :id (:id table)))))))
+  (binding [sync-util/*log-exceptions-and-continue?* false]
+    (mt/with-temp [Database db           {:engine ::sync-test}
+                   Table    table        {:name "movie", :schema "default", :db_id (u/the-id db)}
+                   Table    studio-table {:name "studio", :schema nil, :db_id (u/the-id db)}]
+      (sync/sync-table! studio-table)
+      (sync/sync-table! table)
+      (is (= (merge
+              (table-defaults)
+              {:schema              "default"
+               :name                "movie"
+               :display_name        "Movie"
+               :initial_sync_status "complete"
+               :fields              [(field:movie-id)
+                                     (field:movie-studio)
+                                     (field:movie-title)]})
+             (table-details (t2/select-one Table :id (:id table))))))))
 
 ;; !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ;; !!                                                                                                               !!

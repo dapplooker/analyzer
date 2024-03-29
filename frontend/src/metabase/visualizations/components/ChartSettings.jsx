@@ -1,34 +1,29 @@
 /* eslint-disable react/prop-types */
-import React, { Component } from "react";
 import { assocIn } from "icepick";
-import _ from "underscore";
+import { Component } from "react";
+import * as React from "react";
 import { t } from "ttag";
+import _ from "underscore";
 
 import Button from "metabase/core/components/Button";
 import Radio from "metabase/core/components/Radio";
-
-import Visualization from "metabase/visualizations/components/Visualization";
-
-import { getSettingsWidgetsForSeries } from "metabase/visualizations/lib/settings/visualization";
-import { updateSeriesColor } from "metabase/visualizations/lib/series";
 import * as MetabaseAnalytics from "metabase/lib/analytics";
 import {
   getVisualizationTransformed,
   extractRemappings,
 } from "metabase/visualizations";
+import Visualization from "metabase/visualizations/components/Visualization";
+import { updateSeriesColor } from "metabase/visualizations/lib/series";
 import {
   updateSettings,
   getClickBehaviorSettings,
   getComputedSettings,
   getSettingsWidgets,
 } from "metabase/visualizations/lib/settings";
-
-import { keyForSingleSeries } from "metabase/visualizations/lib/settings/series";
 import { getSettingDefinitionsForColumn } from "metabase/visualizations/lib/settings/column";
+import { keyForSingleSeries } from "metabase/visualizations/lib/settings/series";
+import { getSettingsWidgetsForSeries } from "metabase/visualizations/lib/settings/visualization";
 import { getColumnKey } from "metabase-lib/queries/utils/get-column-key";
-
-import ChartSettingsWidgetList from "./ChartSettingsWidgetList";
-import ChartSettingsWidgetPopover from "./ChartSettingsWidgetPopover";
 
 import {
   SectionContainer,
@@ -40,10 +35,15 @@ import {
   ChartSettingsVisualizationContainer,
   ChartSettingsFooterRoot,
 } from "./ChartSettings.styled";
+import ChartSettingsWidgetList from "./ChartSettingsWidgetList";
+import ChartSettingsWidgetPopover from "./ChartSettingsWidgetPopover";
 
 // section names are localized
 const DEFAULT_TAB_PRIORITY = [t`Data`];
 
+/**
+ * @deprecated HOCs are deprecated
+ */
 const withTransientSettingState = ComposedComponent =>
   class extends React.Component {
     static displayName = `withTransientSettingState[${
@@ -97,7 +97,10 @@ class ChartSettings extends Component {
   }
 
   handleShowSection = section => {
-    this.setState({ currentSection: section, currentWidget: null });
+    this.setState({
+      currentSection: section,
+      currentWidget: null,
+    });
   };
 
   // allows a widget to temporarily replace itself with a different widget
@@ -113,12 +116,18 @@ class ChartSettings extends Component {
   handleResetSettings = () => {
     MetabaseAnalytics.trackStructEvent("Chart Settings", "Reset Settings");
 
-    const settings = getClickBehaviorSettings(this._getSettings());
-    this.props.onChange(settings);
+    const originalCardSettings =
+      this.props.dashcard.card.visualization_settings;
+    const clickBehaviorSettings = getClickBehaviorSettings(this._getSettings());
+
+    this.props.onChange({ ...originalCardSettings, ...clickBehaviorSettings });
   };
 
-  handleChangeSettings = changedSettings => {
-    this.props.onChange(updateSettings(this._getSettings(), changedSettings));
+  handleChangeSettings = (changedSettings, question) => {
+    this.props.onChange(
+      updateSettings(this._getSettings(), changedSettings),
+      question,
+    );
   };
 
   handleChangeSeriesColor = (seriesKey, color) => {
@@ -150,13 +159,14 @@ class ChartSettings extends Component {
     if (this.props.widgets) {
       return this.props.widgets;
     } else {
-      const { isDashboard } = this.props;
+      const { isDashboard, dashboard } = this.props;
       const transformedSeries = this._getTransformedSeries();
 
       return getSettingsWidgetsForSeries(
         transformedSeries,
         this.handleChangeSettings,
         isDashboard,
+        { dashboardId: dashboard?.id },
       );
     }
   }
@@ -270,7 +280,7 @@ class ChartSettings extends Component {
       dashcard,
       isDashboard,
     } = this.props;
-    const { currentWidget, popoverRef } = this.state;
+    const { popoverRef } = this.state;
 
     const settings = this._getSettings();
     const widgets = this._getWidgets();
@@ -406,9 +416,6 @@ class ChartSettings extends Component {
           </ChartSettingsPreview>
         )}
         <ChartSettingsWidgetPopover
-          currentWidgetKey={
-            currentWidget?.props?.initialKey || currentWidget?.props?.seriesKey
-          }
           anchor={popoverRef}
           widgets={[this.getFormattingWidget(), this.getStyleWidget()].filter(
             widget => !!widget,
@@ -426,19 +433,11 @@ const ChartSettingsFooter = ({ onDone, onCancel, onReset }) => (
       <Button
         borderless
         icon="refresh"
-        data-metabase-event="Chart Settings;Reset"
         onClick={onReset}
       >{t`Reset to defaults`}</Button>
     )}
-    <Button
-      onClick={onCancel}
-      data-metabase-event="Chart Settings;Cancel"
-    >{t`Cancel`}</Button>
-    <Button
-      primary
-      onClick={onDone}
-      data-metabase-event="Chart Settings;Done"
-    >{t`Done`}</Button>
+    <Button onClick={onCancel}>{t`Cancel`}</Button>
+    <Button primary onClick={onDone}>{t`Done`}</Button>
   </ChartSettingsFooterRoot>
 );
 

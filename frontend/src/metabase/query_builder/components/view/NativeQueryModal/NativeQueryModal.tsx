@@ -1,6 +1,8 @@
-import React, { ReactNode } from "react";
+import type { ReactNode } from "react";
 import { t } from "ttag";
+
 import NativeCodePanel from "../NativeCodePanel";
+
 import {
   ModalBody,
   ModalCloseButton,
@@ -57,4 +59,5 @@ const NativeQueryModal = ({
   );
 };
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default NativeQueryModal;

@@ -1,27 +1,24 @@
-import React from "react";
 import { t } from "ttag";
 
 import TabContent from "metabase/core/components/TabContent";
 import TabLink from "metabase/core/components/TabLink";
-
 import * as Urls from "metabase/lib/urls";
-
-import type { Collection } from "metabase-types/api";
 import type Question from "metabase-lib/Question";
 import type Table from "metabase-lib/metadata/Table";
+import type { Collection } from "metabase-types/api";
 
 import ModelActionDetails from "./ModelActionDetails";
 import ModelDetailHeader from "./ModelDetailHeader";
-import ModelInfoSidePanel from "./ModelInfoSidePanel";
-import ModelSchemaDetails from "./ModelSchemaDetails";
-import ModelUsageDetails from "./ModelUsageDetails";
 import {
   RootLayout,
   ModelMain,
-  TabList,
+  TabRow,
   TabPanel,
   TabPanelContent,
 } from "./ModelDetailPage.styled";
+import ModelInfoSidePanel from "./ModelInfoSidePanel";
+import ModelSchemaDetails from "./ModelSchemaDetails";
+import ModelUsageDetails from "./ModelUsageDetails";
 
 interface Props {
   model: Question;
@@ -29,7 +26,8 @@ interface Props {
   tab: string;
   hasDataPermissions: boolean;
   hasActionsTab: boolean;
-  canRunActions: boolean;
+  hasNestedQueriesEnabled: boolean;
+  supportsNestedQueries: boolean;
   onChangeName: (name?: string) => void;
   onChangeDescription: (description?: string | null) => void;
   onChangeCollection: (collection: Collection) => void;
@@ -41,7 +39,8 @@ function ModelDetailPage({
   mainTable,
   hasDataPermissions,
   hasActionsTab,
-  canRunActions,
+  hasNestedQueriesEnabled,
+  supportsNestedQueries,
   onChangeName,
   onChangeDescription,
   onChangeCollection,
@@ -58,7 +57,7 @@ function ModelDetailPage({
           onChangeCollection={onChangeCollection}
         />
         <TabContent value={tab}>
-          <TabList>
+          <TabRow>
             <TabLink
               value="usage"
               to={Urls.modelDetail(modelCard, "usage")}
@@ -73,12 +72,16 @@ function ModelDetailPage({
                 to={Urls.modelDetail(modelCard, "actions")}
               >{t`Actions`}</TabLink>
             )}
-          </TabList>
+          </TabRow>
           <TabPanel value="usage">
             <TabPanelContent>
               <ModelUsageDetails
                 model={model}
-                hasNewQuestionLink={hasDataPermissions}
+                hasNewQuestionLink={
+                  hasDataPermissions &&
+                  supportsNestedQueries &&
+                  hasNestedQueriesEnabled
+                }
               />
             </TabPanelContent>
           </TabPanel>
@@ -93,10 +96,7 @@ function ModelDetailPage({
           {hasActionsTab && (
             <TabPanel value="actions">
               <TabPanelContent>
-                <ModelActionDetails
-                  model={model}
-                  canRunActions={canRunActions}
-                />
+                <ModelActionDetails model={model} />
               </TabPanelContent>
             </TabPanel>
           )}
@@ -111,4 +111,5 @@ function ModelDetailPage({
   );
 }
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default ModelDetailPage;

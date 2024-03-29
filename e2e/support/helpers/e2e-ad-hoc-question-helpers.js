@@ -13,7 +13,7 @@ export function adhocQuestionHash(question) {
     // without "locking" the display, the QB will run its picking logic and override the setting
     question = Object.assign({}, question, { displayIsLocked: true });
   }
-  return btoa(unescape(encodeURIComponent(JSON.stringify(question))));
+  return btoa(decodeURIComponent(encodeURIComponent(JSON.stringify(question))));
 }
 
 /**
@@ -78,7 +78,9 @@ export function visitQuestionAdhoc(
 
   runQueryIfNeeded(question, autorun);
 
-  cy.wait("@" + alias).then(xhr => callback && callback(xhr));
+  if (mode !== "notebook") {
+    cy.wait("@" + alias).then(xhr => callback && callback(xhr));
+  }
 }
 
 /**

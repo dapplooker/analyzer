@@ -1,42 +1,80 @@
+import type { Collection } from "./collection";
+import type { DashboardId, DashCardId } from "./dashboard";
 import type { DatabaseId } from "./database";
 import type { Field } from "./field";
+import type { Parameter } from "./parameters";
 import type {
   DatasetQuery,
+  DimensionReference,
   FieldReference,
-  AggregationReference,
+  PublicDatasetQuery,
 } from "./query";
+import type { UserInfo } from "./user";
+import type { SmartScalarComparison } from "./visualization-settings";
 
-export interface Card extends UnsavedCard {
+export type CardType = "model" | "question";
+
+export interface Card<Q extends DatasetQuery = DatasetQuery>
+  extends UnsavedCard<Q> {
   id: CardId;
-  collection_id: number | null;
+  created_at: string;
+  updated_at: string;
   name: string;
   description: string | null;
+  /**
+   * @deprecated Use "type" instead
+   */
   dataset: boolean;
-  database_id?: DatabaseId;
+  type: CardType;
+  public_uuid: string | null;
+
+  /* Indicates whether static embedding for this card has been published */
+  enable_embedding: boolean;
   can_write: boolean;
-  cache_ttl: number | null;
+  initially_published_at: string | null;
+
+  database_id?: DatabaseId;
+  collection?: Collection | null;
+  collection_id: number | null;
+
+  result_metadata: Field[];
+  moderation_reviews?: ModerationReview[];
+
   query_average_duration?: number | null;
   last_query_start: string | null;
-  result_metadata: Field[];
+  average_query_time: number | null;
+  cache_ttl: number | null;
+  based_on_upload?: number | null; // table id of upload table, if any
+
   archived: boolean;
 
-  creator?: {
-    id: number;
-    common_name: string;
-    first_name: string | null;
-    last_name: string | null;
-    email: string;
-    last_login: string;
-    date_joined: string;
-  };
+  creator?: UserInfo;
+}
+
+export interface PublicCard {
+  id: CardId;
+  name: string;
+  description: string | null;
+  display: CardDisplayType;
+  visualization_settings: VisualizationSettings;
+  parameters?: Parameter[];
+  dataset_query: PublicDatasetQuery;
 }
 
 export type CardDisplayType = string;
 
-export interface UnsavedCard {
+export interface UnsavedCard<Q extends DatasetQuery = DatasetQuery> {
   display: CardDisplayType;
-  dataset_query: DatasetQuery;
+  dataset_query: Q;
+  parameters?: Parameter[];
   visualization_settings: VisualizationSettings;
+
+  // If coming from dashboard
+  dashboardId?: DashboardId;
+  dashcardId?: DashCardId;
+
+  // Not part of the card API contract, a field used by query builder for showing lineage
+  original_card_id?: number;
 }
 
 export type SeriesSettings = {
@@ -62,18 +100,19 @@ export type ColumnFormattingSetting = {
 };
 
 export type PivotTableCollapsedRowsSetting = {
-  rows: (FieldReference | AggregationReference)[];
+  rows: FieldReference[];
   value: string[]; // identifiers for collapsed rows
 };
 
 export type TableColumnOrderSetting = {
   name: string;
+  key: string;
   enabled: boolean;
 
   // We have some corrupted visualization settings where both names are mixed
   // We should settle on `fieldRef`, make it required and remove `field_ref`
-  fieldRef?: FieldReference;
-  field_ref?: FieldReference;
+  fieldRef?: DimensionReference;
+  field_ref?: DimensionReference;
 };
 
 export type VisualizationSettings = {
@@ -113,6 +152,12 @@ export type VisualizationSettings = {
   "table.column_formatting"?: ColumnFormattingSetting[];
   "pivot_table.collapsed_rows"?: PivotTableCollapsedRowsSetting;
 
+  // Scalar Settings
+  "scalar.comparisons"?: SmartScalarComparison[];
+  "scalar.field"?: string;
+  "scalar.switch_positive_negative"?: boolean;
+  "scalar.compact_primary_number"?: boolean;
+
   [key: string]: any;
 };
 
@@ -125,3 +170,23 @@ export interface ModerationReview {
 
 export type CardId = number;
 export type ModerationReviewStatus = "verified";
+
+export type CardFilterOption =
+  | "all"
+  | "mine"
+  | "bookmarked"
+  | "database"
+  | "table"
+  | "recent"
+  | "popular"
+  | "using_model"
+  | "archived";
+
+export interface CardQuery {
+  ignore_view?: boolean;
+}
+
+export interface CardListQuery {
+  f?: CardFilterOption;
+  model_id?: CardId;
+}

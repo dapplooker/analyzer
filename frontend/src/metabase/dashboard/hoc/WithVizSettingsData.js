@@ -1,14 +1,16 @@
-/* eslint-disable react/prop-types */
-import React from "react";
+import { Component } from "react";
 import { connect } from "react-redux";
 import { withRouter } from "react-router";
 import _ from "underscore";
 
-import { getUserAttributes } from "metabase/selectors/user";
 import { getLinkTargets } from "metabase/lib/click-behavior";
+import { getUserAttributes } from "metabase/selectors/user";
 
-// This HOC give access to data referenced in viz settings.
-const WithVizSettingsData = ComposedComponent => {
+/**
+ * This HOC gives access to data referenced in viz settings.
+ * @deprecated HOCs are deprecated
+ */
+export const WithVizSettingsData = ComposedComponent => {
   return withRouter(
     connect(
       (state, props) => ({
@@ -17,8 +19,10 @@ const WithVizSettingsData = ComposedComponent => {
             .groupBy(target => target.entity.name)
             .mapObject(targets =>
               _.chain(targets)
-                .map(({ entity, entityId }) =>
-                  entity.selectors.getObject(state, { entityId }),
+                .map(({ entity, entityType, entityId }) =>
+                  entityType === "question"
+                    ? entity.selectors.getObject(state, { entityId })?.card()
+                    : entity.selectors.getObject(state, { entityId }),
                 )
                 .filter(object => object != null)
                 .indexBy(object => object.id)
@@ -38,7 +42,7 @@ const WithVizSettingsData = ComposedComponent => {
       }),
       dispatch => ({ dispatch }),
     )(
-      class WithVizSettingsData extends React.Component {
+      class WithVizSettingsData extends Component {
         render() {
           return <ComposedComponent {..._.omit(this.props, "dispatch")} />;
         }
@@ -46,5 +50,3 @@ const WithVizSettingsData = ComposedComponent => {
     ),
   );
 };
-
-export default WithVizSettingsData;

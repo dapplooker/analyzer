@@ -1,14 +1,15 @@
-import React from "react";
-import PropTypes from "prop-types";
-import { Link } from "react-router";
 import cx from "classnames";
+import PropTypes from "prop-types";
+import { memo } from "react";
+import { Link } from "react-router";
 import { t } from "ttag";
-import L from "metabase/components/List.css";
 
-import Icon from "metabase/components/Icon";
 import InputBlurChange from "metabase/components/InputBlurChange";
-import Ellipsified from "metabase/core/components/Ellipsified";
+import L from "metabase/components/List/List.css";
 import Button from "metabase/core/components/Button";
+import { Ellipsified } from "metabase/core/components/Ellipsified";
+import { Icon } from "metabase/ui";
+
 import S from "./ReferenceHeader.css";
 
 const EditableReferenceHeader = ({
@@ -75,7 +76,6 @@ const EditableReferenceHeader = ({
                 primary
                 className="flex flex-align-right mr2"
                 style={{ fontSize: 14 }}
-                data-metabase-event={`Data Reference;Entity -> QB click;${type}`}
               >
                 <Link to={headerLink}>{t`See this ${type}`}</Link>
               </Button>
@@ -107,4 +107,4 @@ EditableReferenceHeader.propTypes = {
   nameFormField: PropTypes.object,
 };
 
-export default React.memo(EditableReferenceHeader);
+export default memo(EditableReferenceHeader);

@@ -1,6 +1,10 @@
-import React from "react";
 import { t } from "ttag";
-import NewsletterForm from "../../containers/NewsletterForm";
+
+import { useSelector } from "metabase/lib/redux";
+
+import { getIsStepActive } from "../../selectors";
+import { NewsletterForm } from "../NewsletterForm";
+
 import {
   StepBody,
   StepFooter,
@@ -8,18 +12,15 @@ import {
   StepTitle,
 } from "./CompletedStep.styled";
 
-export interface CompletedStepProps {
-  isStepActive: boolean;
-}
-
-const CompletedStep = ({
-  isStepActive,
-}: CompletedStepProps): JSX.Element | null => {
+export const CompletedStep = (): JSX.Element | null => {
+  const isStepActive = useSelector(state =>
+    getIsStepActive(state, "completed"),
+  );
   if (!isStepActive) {
     return null;
   }
 
-  const baseUrl = (window as any).MetabaseRoot || "/";
+  const baseUrl = window.MetabaseRoot ?? "/";
 
   return (
     <StepRoot>
@@ -35,5 +36,3 @@ const CompletedStep = ({
     </StepRoot>
   );
 };
-
-export default CompletedStep;

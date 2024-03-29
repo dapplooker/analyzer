@@ -1,12 +1,15 @@
-import React, { useMemo, useRef, useState } from "react";
-import PropTypes from "prop-types";
 import cx from "classnames";
+import PropTypes from "prop-types";
+import { useMemo, useRef, useState } from "react";
+import { t } from "ttag";
 
-import Icon from "metabase/components/Icon";
 import TippyPopover from "metabase/components/Popover/TippyPopover";
 import UserAvatar from "metabase/components/UserAvatar";
-import { color } from "metabase/lib/colors";
 import Typeahead from "metabase/hoc/Typeahead";
+import { color } from "metabase/lib/colors";
+import { Icon } from "metabase/ui";
+
+import { AddMemberAutocompleteSuggestionRoot } from "./AddMemberRow.styled";
 import { AddRow } from "./AddRow";
 
 AddMemberRow.propTypes = {
@@ -53,7 +56,7 @@ export default function AddMemberRow({ users, excludeIds, onCancel, onDone }) {
           ref={rowRef}
           value={text}
           isValid={selectedUsersById.size > 0}
-          placeholder="Julie McMemberson"
+          placeholder={t`Julie McMemberson`}
           onChange={e => setText(e.target.value)}
           onDone={handleDone}
           onCancel={onCancel}
@@ -146,8 +149,8 @@ AddMemberAutocompleteSuggestion.propTypes = {
 
 function AddMemberAutocompleteSuggestion({ user, color, selected, onClick }) {
   return (
-    <div
-      className={cx("px2 py1 cursor-pointer", { "bg-brand": selected })}
+    <AddMemberAutocompleteSuggestionRoot
+      isSelected={selected}
       onClick={onClick}
     >
       <span className="inline-block mr2">
@@ -156,6 +159,6 @@ function AddMemberAutocompleteSuggestion({ user, color, selected, onClick }) {
       <span className={cx("h3", { "text-white": selected })}>
         {user.common_name}
       </span>
-    </div>
+    </AddMemberAutocompleteSuggestionRoot>
   );
 }

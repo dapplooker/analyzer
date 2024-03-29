@@ -1,12 +1,12 @@
-import React, { Component } from "react";
+import cx from "classnames";
 import PropTypes from "prop-types";
+import { Component } from "react";
+import * as React from "react";
 import { findDOMNode } from "react-dom";
 import _ from "underscore";
-import cx from "classnames";
 
-import Icon from "metabase/components/Icon";
 import TippyPopover from "metabase/components/Popover/TippyPopover";
-
+import { isObscured } from "metabase/lib/dom";
 import {
   KEYCODE_ESCAPE,
   KEYCODE_ENTER,
@@ -16,7 +16,8 @@ import {
   KEYCODE_BACKSPACE,
   KEY_COMMA,
 } from "metabase/lib/keyboard";
-import { isObscured } from "metabase/lib/dom";
+import { Icon } from "metabase/ui";
+
 import { TokenFieldAddon, TokenFieldItem } from "../TokenFieldItem";
 
 import {
@@ -82,7 +83,7 @@ const defaultStyleValue = {
   fontWeight: 700,
 };
 
-class TokenField extends Component<TokenFieldProps, TokenFieldState> {
+class _TokenField extends Component<TokenFieldProps, TokenFieldState> {
   inputRef: React.RefObject<HTMLInputElement>;
   scrollElement = null;
 
@@ -310,6 +311,7 @@ class TokenField extends Component<TokenFieldProps, TokenFieldState> {
       keyCode === KEYCODE_ENTER
     ) {
       if (this.addSelectedOption(event)) {
+        event.preventDefault();
         event.stopPropagation();
       }
     } else if (event.keyCode === KEYCODE_UP) {
@@ -417,7 +419,8 @@ class TokenField extends Component<TokenFieldProps, TokenFieldState> {
       // if we previously updated on input change then we don't need to do it again,
       if (this.props.updateOnInputChange) {
         // if multi=true also prevent the input from changing due to this key press
-        if (multi) {
+        const value = this.props.parseFreeformValue(input?.value);
+        if (multi && value !== null) {
           e.preventDefault();
         }
         // and clear the input
@@ -698,7 +701,13 @@ DefaultTokenFieldLayout.propTypes = {
   isFocused: PropTypes.bool,
 };
 
-export default Object.assign(TokenField, {
+/**
+ * @deprecated use MultiSelect or Autocomplete from metabase/ui
+ */
+const TokenField = Object.assign(_TokenField, {
   FieldItem: TokenFieldItem,
   NewItemInputContainer: TokenInputItem,
 });
+
+// eslint-disable-next-line import/no-default-export
+export default TokenField;

@@ -1,3 +1,4 @@
+import { SAMPLE_DATABASE } from "e2e/support/cypress_sample_database";
 import {
   restore,
   visitDashboard,
@@ -5,8 +6,8 @@ import {
   editDashboard,
   saveDashboard,
   sidebar,
+  getDashboardCard,
 } from "e2e/support/helpers";
-import { SAMPLE_DATABASE } from "e2e/support/cypress_sample_database";
 
 const { PRODUCTS_ID, PRODUCTS } = SAMPLE_DATABASE;
 
@@ -42,14 +43,14 @@ describe("issue 22788", () => {
 
     cy.createQuestionAndDashboard({ questionDetails, dashboardDetails }).then(
       ({ body: { dashboard_id, card_id, id } }) => {
-        cy.request("PUT", `/api/dashboard/${dashboard_id}/cards`, {
-          cards: [
+        cy.request("PUT", `/api/dashboard/${dashboard_id}`, {
+          dashcards: [
             {
               id,
               card_id,
               row: 0,
               col: 0,
-              size_x: 8,
+              size_x: 11,
               size_y: 6,
               parameter_mappings: [
                 {
@@ -75,11 +76,17 @@ describe("issue 22788", () => {
     openFilterSettings();
 
     // Make sure the filter is still connected to the custom column
-    cy.findByText("Column to filter on")
-      .parent()
-      .within(() => {
-        cy.findByText(ccDisplayName);
-      });
+
+    getDashboardCard().within(() => {
+      cy.findByText("Column to filter on");
+      cy.findByText(ccDisplayName);
+    });
+
+    // need to actually change the dashboard to test a real save
+    sidebar().within(() => {
+      cy.findByDisplayValue("Text").clear().type("my filter text");
+      cy.button("Done").click();
+    });
 
     // need to actually change the dashboard to test a real save
     sidebar().within(() => {

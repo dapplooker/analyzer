@@ -1,15 +1,15 @@
 (ns metabase.query-processor.middleware.cache-backend.db
   (:require
-   [honey.sql :as sql]
-   [java-time :as t]
+   [java-time.api :as t]
    [metabase.db :as mdb]
+   [metabase.db.query :as mdb.query]
    [metabase.models.query-cache :refer [QueryCache]]
    [metabase.query-processor.middleware.cache-backend.interface :as i]
    [metabase.util.date-2 :as u.date]
    [metabase.util.i18n :refer [trs]]
    [metabase.util.log :as log]
-   [toucan.db :as db]
    [toucan2.connection :as t2.connection]
+   #_{:clj-kondo/ignore [:discouraged-namespace]}
    [toucan2.core :as t2])
   (:import
    (java.sql Connection PreparedStatement ResultSet Types)))
@@ -27,18 +27,16 @@
   ;; extra microsecond compiling the same exact query every time. :shrug:
   ;;
   ;; Since application DB can change at run time (during tests) it's not just a plain delay
-  (let [f (memoize (fn [_db-type quoting-style]
-                     (first (sql/format {:select   [:results]
-                                         :from     [:query_cache]
-                                         :where    [:and
-                                                    [:= :query_hash [:raw "?"]]
-                                                    [:>= :updated_at [:raw "?"]]]
-                                         :order-by [[:updated_at :desc]]
-                                         :limit    [:inline 1]}
-                                        {:quoted  true
-                                         :dialect quoting-style}))))]
+  (let [f (memoize (fn [_db-type]
+                     (first (mdb.query/compile {:select   [:results]
+                                                :from     [:query_cache]
+                                                :where    [:and
+                                                           [:= :query_hash [:raw "?"]]
+                                                           [:>= :updated_at [:raw "?"]]]
+                                                :order-by [[:updated_at :desc]]
+                                                :limit    [:inline 1]}))))]
     (fn []
-      (f (mdb/db-type) (db/quoting-style)))))
+      (f (mdb/db-type)))))
 
 (defn- prepare-statement
   ^PreparedStatement [^Connection conn query-hash max-age-seconds]
@@ -76,8 +74,8 @@
   {:pre [(number? max-age-seconds)]}
   (log/tracef "Purging old cache entries.")
   (try
-    (db/simple-delete! QueryCache
-                       :updated_at [:<= (seconds-ago max-age-seconds)])
+    (t2/delete! (t2/table-name QueryCache)
+                :updated_at [:<= (seconds-ago max-age-seconds)])
     (catch Throwable e
       (log/error e (trs "Error purging old cache entries"))))
   nil)
@@ -88,13 +86,13 @@
   [^bytes query-hash ^bytes results]
   (log/debug (trs "Caching results for query with hash {0}." (pr-str (i/short-hex-hash query-hash))))
   (try
-    (or (db/update-where! QueryCache {:query_hash query-hash}
-          :updated_at (t/offset-date-time)
-          :results    results)
-        (db/insert! QueryCache
-          :updated_at (t/offset-date-time)
-          :query_hash query-hash
-          :results    results))
+    (or (pos? (t2/update! QueryCache {:query_hash query-hash}
+                          {:updated_at (t/offset-date-time)
+                           :results    results}))
+        (first (t2/insert-returning-instances! QueryCache
+                                               :updated_at (t/offset-date-time)
+                                               :query_hash query-hash
+                                               :results    results)))
     (catch Throwable e
       (log/error e (trs "Error saving query results to cache."))))
   nil)

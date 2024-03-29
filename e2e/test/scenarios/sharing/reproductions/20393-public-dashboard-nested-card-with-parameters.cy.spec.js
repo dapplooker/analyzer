@@ -1,7 +1,14 @@
-import { restore, popover, visitDashboard } from "e2e/support/helpers";
+import {
+  restore,
+  popover,
+  visitDashboard,
+  openNewPublicLinkDropdown,
+} from "e2e/support/helpers";
 
 describe("issue 20393", () => {
   beforeEach(() => {
+    cy.intercept("POST", "/api/dashboard/*/public_link").as("publicLink");
+
     restore();
     cy.signInAsAdmin();
   });
@@ -20,22 +27,22 @@ describe("issue 20393", () => {
     popover().contains("CREATED_AT").click();
 
     // save the dashboard
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Save").click();
 
     // open the sharing modal and enable sharing
-    cy.icon("share").click();
-    cy.findByRole("switch").click();
+    openNewPublicLinkDropdown("dashboard");
 
     // navigate to the public dashboard link
-    cy.findByText("Public link")
-      .parent()
-      .within(() => {
-        cy.get("input").then(input => {
-          cy.visit(input.val());
-        });
-      });
+    cy.wait("@publicLink").then(({ response: { body } }) => {
+      const { uuid } = body;
+
+      cy.signOut();
+      cy.visit(`/public/dashboard/${uuid}`);
+    });
 
     // verify that the card is visible on the page
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Q2");
   });
 });
@@ -46,23 +53,15 @@ function createDashboardWithNestedCard() {
     native: { query: 'SELECT * FROM "ORDERS"', "template-tags": {} },
   }).then(({ body }) =>
     cy
-      .createQuestion({
-        name: "Q2",
-        query: { "source-table": `card__${body.id}` },
+      .createQuestionAndDashboard({
+        questionDetails: {
+          name: "Q2",
+          query: { "source-table": `card__${body.id}` },
+        },
+        dashboardDetails: {
+          name: "Q2 in a dashboard",
+        },
       })
-      .then(({ body: { id: cardId } }) =>
-        cy
-          .createDashboard("Q2 in a dashboard")
-          .then(({ body: { id: dashId } }) => {
-            cy.request("POST", `/api/dashboard/${dashId}/cards`, {
-              cardId,
-              row: 0,
-              col: 0,
-              size_x: 4,
-              size_y: 4,
-            });
-            visitDashboard(dashId);
-          }),
-      ),
+      .then(({ body: { dashboard_id } }) => visitDashboard(dashboard_id)),
   );
 }

@@ -1,9 +1,9 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { t } from "ttag";
 
 import AuditParameters from "../components/AuditParameters";
-
 import { table } from "../lib/cards/queries";
+
 import AuditTable from "./AuditTable";
 
 const getSortOrder = isAscending => (isAscending ? "asc" : "desc");

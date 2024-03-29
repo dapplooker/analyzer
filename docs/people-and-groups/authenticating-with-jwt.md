@@ -19,7 +19,7 @@ Metabase supports two auth flows that can be used with JWT:
 
 Metabase's auth flows are custom workflows modelled after OAuth 2.0. You can use the auth flow with PKCE to incorporate random keys generated on demand.
 
-Currently, the only algorithm Metabase supports is [HS256](https://en.wikipedia.org/wiki/JSON_Web_Token) ([HMAC](https://en.wikipedia.org/wiki/HMAC) + [SHA-256](https://en.wikipedia.org/wiki/SHA-2).
+Currently, the only algorithm Metabase supports is [HS256](https://en.wikipedia.org/wiki/JSON_Web_Token) ([HMAC](https://en.wikipedia.org/wiki/HMAC) + [SHA-256](https://en.wikipedia.org/wiki/SHA-2)).
 
 ## Typical flow for a JWT-based SSO interaction with Metabase
 
@@ -36,9 +36,7 @@ Assuming your site is localhost serving on port 3000:
 
 Navigate to the **Admin**>**Settings** section of the Admin area, then click on the **Authentication** tab. Click the **Configure** button in the JWT section of this page, and you'll see this form:
 
-![SAML form](images/JWT-auth-form.png)
-
-Click the toggle at the top of the form to enable JWT-based authentication. **Make sure to set the toggle to Enabled**, otherwise JWT authentication won't work, even if all of your other settings are correct.
+![JWT form](images/JWT-auth-form.png)
 
 Here's a breakdown of each of the settings:
 
@@ -53,6 +51,8 @@ These are additional settings you can fill in to pass user attributes to Metabas
 - **Email attribute:** the key to retrieve each JWT user's email address.
 - **First Name attribute:** the key to retrieve each JWT user's first name.
 - **Last Name attribute:** if you guessed that this is the key to retrieve each JWT user's last name, well then you have been paying attention.
+
+You can send additional user attributes to Metabase by adding the attributes as key/value pairs to your JWT. These attributes will be synced on every login.
 
 ## Group schema
 

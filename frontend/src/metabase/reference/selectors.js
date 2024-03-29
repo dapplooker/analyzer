@@ -1,9 +1,7 @@
-import { createSelector } from "reselect";
-import { assoc, getIn } from "icepick";
+import { createSelector } from "@reduxjs/toolkit";
+import { getIn } from "icepick";
 
-import _ from "underscore";
 import Dashboards from "metabase/entities/dashboards";
-
 import { resourceListToMap } from "metabase/lib/redux";
 import {
   getShallowDatabases as getDatabases,
@@ -12,9 +10,6 @@ import {
   getShallowMetrics as getMetrics,
   getShallowSegments as getSegments,
 } from "metabase/selectors/metadata";
-import * as Query from "metabase-lib/queries/utils/query";
-import * as Filter from "metabase-lib/queries/utils/filter";
-import * as Aggregation from "metabase-lib/queries/utils/aggregation";
 
 import { idsToObjectMap, databaseToForeignKeys } from "./utils";
 
@@ -115,21 +110,6 @@ export const getFieldBySegment = createSelector(
 const getQuestions = (state, props) =>
   getIn(state, ["entities", "questions"]) || {};
 
-export const getMetricQuestions = createSelector(
-  [getMetricId, getQuestions],
-  (metricId, questions) =>
-    Object.values(questions)
-      .filter(
-        question =>
-          question.dataset_query.type === "query" &&
-          _.any(
-            Query.getAggregations(question.dataset_query.query),
-            aggregation => Aggregation.getMetric(aggregation) === metricId,
-          ),
-      )
-      .reduce((map, question) => assoc(map, question.id, question), {}),
-);
-
 const getRevisions = (state, props) => state.revisions;
 
 export const getMetricRevisions = createSelector(
@@ -140,20 +120,6 @@ export const getMetricRevisions = createSelector(
 export const getSegmentRevisions = createSelector(
   [getSegmentId, getRevisions],
   (segmentId, revisions) => getIn(revisions, ["segment", segmentId]) || {},
-);
-
-export const getSegmentQuestions = createSelector(
-  [getSegmentId, getQuestions],
-  (segmentId, questions) =>
-    Object.values(questions)
-      .filter(
-        question =>
-          question.dataset_query.type === "query" &&
-          Query.getFilters(question.dataset_query.query).some(
-            filter => Filter.isSegment(filter) && filter[1] === segmentId,
-          ),
-      )
-      .reduce((map, question) => assoc(map, question.id, question), {}),
 );
 
 export const getTableQuestions = createSelector(

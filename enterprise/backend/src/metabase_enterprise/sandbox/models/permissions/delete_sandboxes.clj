@@ -7,7 +7,7 @@
    [metabase.util :as u]
    [metabase.util.i18n :refer [tru]]
    [metabase.util.log :as log]
-   [toucan.db :as db]))
+   [toucan2.core :as t2]))
 
 (defn- delete-gtaps-with-condition! [group-or-id condition]
   (when (seq condition)
@@ -25,7 +25,7 @@
                                                      :where     conditions}))))]
           (do
             (log/debugf "Deleting %d matching GTAPs: %s" (count gtap-ids) (pr-str gtap-ids))
-            (db/delete! GroupTableAccessPolicy :id [:in gtap-ids]))
+            (t2/delete! GroupTableAccessPolicy :id [:in gtap-ids]))
           (log/debug "No matching GTAPs need to be deleted."))
         (catch Throwable e
           (throw (ex-info (tru "Error deleting Sandboxes: {0}" (ex-message e))
@@ -90,14 +90,15 @@
 (defn- delete-gtaps-for-group-database! [{:keys [group-id database-id], :as context} changes]
   (log/debugf "Deleting unneeded GTAPs for Group %d for Database %d. Graph changes: %s"
               group-id database-id (pr-str changes))
-  (if (#{:none :all :block} changes)
+  (if (#{:none :all :block :impersonated} changes)
     (do
       (log/debugf "Group %d %s for Database %d, deleting all GTAPs for this DB"
                   group-id
                   (case changes
                     :none  "no longer has any perms"
                     :all   "now has full data perms"
-                    :block "is now BLOCKED from all non-data-perms access")
+                    :block "is now BLOCKED from all non-data-perms access"
+                    :impersonated "is now using connection impersonation")
                   database-id)
       (delete-gtaps-with-condition! group-id [:= :table.db_id database-id]))
     (doseq [schema-name (set (keys changes))]
@@ -108,9 +109,10 @@
 (defn- delete-gtaps-for-group! [{:keys [group-id]} changes]
   (log/debugf "Deleting unneeded GTAPs for Group %d. Graph changes: %s" group-id (pr-str changes))
   (doseq [database-id (set (keys changes))]
-    (delete-gtaps-for-group-database!
-     {:group-id group-id, :database-id database-id}
-     (get-in changes [database-id :data :schemas]))))
+    (when-let [data-perm-changes (get-in changes [database-id :data :schemas])]
+      (delete-gtaps-for-group-database!
+       {:group-id group-id, :database-id database-id}
+       data-perm-changes))))
 
 (defenterprise delete-gtaps-if-needed-after-permissions-change!
   "For use only inside `metabase.models.permissions`; don't call this elsewhere. Delete GTAPs (sandboxes) that are no

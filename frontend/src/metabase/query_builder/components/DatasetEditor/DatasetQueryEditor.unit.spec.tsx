@@ -1,5 +1,4 @@
 import { screen } from "@testing-library/react";
-import React from "react";
 import _ from "underscore";
 
 import {
@@ -7,26 +6,24 @@ import {
   setupDatabasesEndpoints,
   setupNativeQuerySnippetEndpoints,
 } from "__support__/server-mocks";
+import { createMockEntitiesState } from "__support__/store";
 import { renderWithProviders } from "__support__/ui";
-import { Card } from "metabase-types/api";
+import { checkNotNull } from "metabase/lib/types";
+import { getMetadata } from "metabase/selectors/metadata";
+import type { Card } from "metabase-types/api";
 import {
   createMockCard,
   createMockCollection,
-  createMockDatabase,
   createMockNativeDatasetQuery,
 } from "metabase-types/api/mocks";
-import {
-  createMockEntitiesState,
-  createMockState,
-} from "metabase-types/store/mocks";
-import { checkNotNull } from "metabase/core/utils/types";
-import { getMetadata } from "metabase/selectors/metadata";
+import { createSampleDatabase } from "metabase-types/api/mocks/presets";
+import { createMockState } from "metabase-types/store/mocks";
 
 const { NativeQueryEditor } = jest.requireActual(
   "metabase/query_builder/components/NativeQueryEditor",
 );
 
-const TEST_DB = createMockDatabase();
+const TEST_DB = createSampleDatabase();
 
 const TEST_NATIVE_CARD = createMockCard({
   dataset_query: createMockNativeDatasetQuery({
@@ -55,23 +52,18 @@ const setup = async ({
   readOnly = false,
 }: SetupOpts) => {
   setupDatabasesEndpoints([TEST_DB]);
-  setupCollectionsEndpoints([ROOT_COLLECTION]);
+  setupCollectionsEndpoints({ collections: [ROOT_COLLECTION] });
   setupNativeQuerySnippetEndpoints();
 
   const storeInitialState = createMockState({
     entities: createMockEntitiesState({
-      databases: [TEST_DB],
-      fields: {},
+      databases: [createSampleDatabase()],
       questions: [card],
-      tables: {},
-      metrics: {},
-      schemas: {},
-      segments: {},
     }),
   });
   const metadata = getMetadata(storeInitialState);
   const question = checkNotNull(metadata.question(card.id));
-  const query = question.query();
+  const query = question.legacyQuery({ useStructuredQuery: true });
   const DatasetQueryEditor = await importDatasetQueryEditor();
 
   const { rerender } = renderWithProviders(

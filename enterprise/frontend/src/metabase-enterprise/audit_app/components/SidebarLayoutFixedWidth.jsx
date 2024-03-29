@@ -1,8 +1,7 @@
 /* eslint "react/prop-types": "warn" */
-import React from "react";
-import PropTypes from "prop-types";
-
 import cx from "classnames";
+import PropTypes from "prop-types";
+import { cloneElement, Children } from "react";
 
 // SidebarLayoutFixedWidth is similar to SidebarLayout but uses a fixed sidebar
 // width, which is needed for our current Dashboard component to resize correctly
@@ -16,7 +15,7 @@ const SidebarLayoutFixedWidth = ({
   children,
 }) => (
   <div className={cx("relative", className)} style={style}>
-    {React.cloneElement(
+    {cloneElement(
       sidebar,
       {
         className: "Layout-sidebar absolute top left bottom",
@@ -25,15 +24,15 @@ const SidebarLayoutFixedWidth = ({
       sidebar.props.children,
     )}
     {children &&
-      React.cloneElement(
-        React.Children.only(children),
+      cloneElement(
+        Children.only(children),
         {
           style: {
             [right ? "marginRight" : "marginLeft"]: sidebarWidth,
-            ...(React.Children.only(children).props.style || {}),
+            ...(Children.only(children).props.style || {}),
           },
         },
-        React.Children.only(children).props.children,
+        Children.only(children).props.children,
       )}
   </div>
 );

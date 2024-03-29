@@ -1,16 +1,15 @@
+import { SAMPLE_DB_ID } from "e2e/support/cypress_data";
+import { SAMPLE_DATABASE } from "e2e/support/cypress_sample_database";
 import {
   restore,
   visitQuestionAdhoc,
   popover,
   visualize,
 } from "e2e/support/helpers";
-import { SAMPLE_DATABASE } from "e2e/support/cypress_sample_database";
-import { SAMPLE_DB_ID } from "e2e/support/cypress_data";
 
 const { ORDERS, ORDERS_ID, PRODUCTS, PRODUCTS_ID } = SAMPLE_DATABASE;
 
 const query = {
-  display: "table",
   dataset_query: {
     database: SAMPLE_DB_ID,
     type: "query",
@@ -34,7 +33,7 @@ const query = {
   },
 };
 
-describe.skip("issue 20743", () => {
+describe("issue 30743", () => {
   beforeEach(() => {
     restore();
     cy.signInAsAdmin();
@@ -42,7 +41,7 @@ describe.skip("issue 20743", () => {
     visitQuestionAdhoc(query, { mode: "notebook" });
   });
 
-  it("should be possible to sort on the breakout column (metabase#20743)", () => {
+  it("should be possible to sort on the breakout column (metabase#30743)", () => {
     cy.findByLabelText("Sort").click();
     popover().contains("Category").click();
 

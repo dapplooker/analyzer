@@ -2,7 +2,7 @@
   (:require
    [clojure.math.combinatorics :as math.combo]
    [clojure.string :as str]
-   [java-time :as t]
+   [java-time.api :as t]
    [metabase.config :as config]
    [metabase.db.jdbc-protocols :as mdb.jdbc-protocols]
    [metabase.db.spec :as mdb.spec]
@@ -13,6 +13,7 @@
    [metabase.driver.sql-jdbc.execute :as sql-jdbc.execute]
    [metabase.driver.sql-jdbc.sync :as sql-jdbc.sync]
    [metabase.driver.sql.query-processor :as sql.qp]
+   [metabase.lib.metadata :as lib.metadata]
    [metabase.plugins.classloader :as classloader]
    [metabase.query-processor.error-type :as qp.error-type]
    [metabase.query-processor.store :as qp.store]
@@ -48,9 +49,18 @@
 ;;; this will prevent the H2 driver from showing up in the list of options when adding a new Database.
 (defmethod driver/superseded-by :h2 [_driver] :deprecated)
 
-(defmethod sql.qp/honey-sql-version :h2
-  [_driver]
-  2)
+(defn- get-field
+  "Returns value of private field. This function is used to bypass field protection to instantiate
+   a low-level H2 Parser object in order to detect DDL statements in queries."
+  ([obj field]
+   (.get (doto (.getDeclaredField (class obj) field)
+           (.setAccessible true))
+         obj))
+  ([obj field or-else]
+   (try (get-field obj field)
+        (catch java.lang.NoSuchFieldException _e
+          ;; when there are no fields: return or-else
+          or-else))))
 
 (defn- get-field
   "Returns value of private field. This function is used to bypass field protection to instantiate
@@ -76,7 +86,9 @@
                               :actions/custom            true
                               :datetime-diff             true
                               :now                       true
-                              :test/jvm-timezone-setting false}]
+                              :test/jvm-timezone-setting false
+                              :uploads                   true
+                              :index-info                true}]
   (defmethod driver/database-supports? [:h2 feature]
     [_driver _feature _database]
     supported?))
@@ -165,7 +177,7 @@
     ;; connection string. We don't allow SQL execution on H2 databases for the default admin account for security
     ;; reasons
     (when (= (keyword query-type) :native)
-      (let [{:keys [details]} (qp.store/database)
+      (let [{:keys [details]} (lib.metadata/database (qp.store/metadata-provider))
             user              (db-details->user details)]
         (when (or (str/blank? user)
                   (= user "sa"))        ; "sa" is the default USER
@@ -221,11 +233,23 @@
     (boolean
      ;; Command types are organized with all DDL commands listed first, so all ddl commands are before ALTER_SEQUENCE.
      ;; see https://github.com/h2database/h2database/blob/master/h2/src/main/org/h2/command/CommandInterface.java#L297
+     ;; This doesn't list all the possible commands, but it lists the most common and useful ones.
      (and (every? #{CommandInterface/INSERT
                     CommandInterface/MERGE
                     CommandInterface/TRUNCATE_TABLE
                     CommandInterface/UPDATE
                     CommandInterface/DELETE
+                    CommandInterface/CREATE_TABLE
+                    CommandInterface/DROP_TABLE
+                    CommandInterface/CREATE_SCHEMA
+                    CommandInterface/DROP_SCHEMA
+                    CommandInterface/ALTER_TABLE_RENAME
+                    CommandInterface/ALTER_TABLE_ADD_COLUMN
+                    CommandInterface/ALTER_TABLE_DROP_COLUMN
+                    CommandInterface/ALTER_TABLE_ALTER_COLUMN_CHANGE_TYPE
+                    CommandInterface/ALTER_TABLE_ALTER_COLUMN_NOT_NULL
+                    CommandInterface/ALTER_TABLE_ALTER_COLUMN_DROP_NOT_NULL
+                    CommandInterface/ALTER_TABLE_ALTER_COLUMN_RENAME
                     ;; Read-only commands might not make sense for actions, but they are allowed
                     CommandInterface/SELECT ; includes SHOW, TABLE, VALUES
                     CommandInterface/EXPLAIN
@@ -300,19 +324,11 @@
 
     message))
 
-(def ^:private date-format-str "yyyy-MM-dd HH:mm:ss.SSS zzz")
-
-(defmethod driver.common/current-db-time-date-formatters :h2
-  [_]
-  (driver.common/create-db-time-formatters date-format-str))
-
-(defmethod driver.common/current-db-time-native-query :h2
-  [_]
-  (format "select formatdatetime(current_timestamp(),'%s') AS VARCHAR" date-format-str))
-
-(defmethod driver/current-db-time :h2
-  [& args]
-  (apply driver.common/current-db-time args))
+(defmethod driver/db-default-timezone :h2
+  [_driver _database]
+  ;; Based on this answer https://stackoverflow.com/a/18883531 and further experiments, h2 uses timezone of the jvm
+  ;; where the driver is loaded.
+  (System/getProperty "user.timezone"))
 
 
 ;;; +----------------------------------------------------------------------------------------------------------------+
@@ -504,8 +520,9 @@
 
 (defmethod sql-jdbc.conn/connection-details->spec :h2
   [_ details]
-  {:pre [(map? details) (:db details)]}
-  (mdb.spec/spec :h2 (update details :db connection-string-set-safe-options)))
+  {:pre [(map? details)]}
+  (mdb.spec/spec :h2 (cond-> details
+                       (string? (:db details)) (update :db connection-string-set-safe-options))))
 
 (defmethod sql-jdbc.sync/active-tables :h2
   [& args]
@@ -515,19 +532,20 @@
   [_]
   #{"INFORMATION_SCHEMA"})
 
-(defmethod sql-jdbc.execute/connection-with-timezone :h2
-  [driver database ^String _timezone-id]
+(defmethod sql-jdbc.execute/do-with-connection-with-options :h2
+  [driver db-or-id-or-spec {:keys [write?], :as options} f]
   ;; h2 doesn't support setting timezones, or changing the transaction level without admin perms, so we can skip those
   ;; steps that are in the default impl
-  (let [conn (.getConnection (sql-jdbc.execute/datasource-with-diagnostic-info! driver database))]
-    (try
-      ;; in H2, setting readOnly to true doesn't prevent writes
-      ;; see https://github.com/h2database/h2database/issues/1163
-      (doto conn
-        (.setReadOnly true))
-      (catch Throwable e
-        (.close conn)
-        (throw e)))))
+  (sql-jdbc.execute/do-with-resolved-connection
+   driver
+   db-or-id-or-spec
+   (dissoc options :session-timezone)
+   (fn [^java.sql.Connection conn]
+     (when-not (sql-jdbc.execute/recursive-connection?)
+       ;; in H2, setting readOnly to true doesn't prevent writes
+       ;; see https://github.com/h2database/h2database/issues/1163
+       (.setReadOnly conn (not write?)))
+     (f conn))))
 
 ;; de-CLOB any CLOB values that come back
 (defmethod sql-jdbc.execute/read-column-thunk :h2
@@ -555,3 +573,23 @@
       (do (log/error (tru "SSH tunnel can only be established for H2 connections using the TCP protocol"))
           db-details))
     db-details))
+
+(defmethod driver/upload-type->database-type :h2
+  [_driver upload-type]
+  (case upload-type
+    :metabase.upload/varchar-255              [:varchar]
+    :metabase.upload/text                     [:varchar]
+    :metabase.upload/int                      [:bigint]
+    :metabase.upload/auto-incrementing-int-pk [:bigint :generated-always :as :identity]
+    :metabase.upload/float                    [(keyword "DOUBLE PRECISION")]
+    :metabase.upload/boolean                  [:boolean]
+    :metabase.upload/date                     [:date]
+    :metabase.upload/datetime                 [:timestamp]
+    :metabase.upload/offset-datetime          [:timestamp-with-time-zone]))
+
+(defmethod driver/create-auto-pk-with-append-csv? :h2 [_driver] true)
+
+(defmethod driver/table-name-length-limit :h2
+  [_driver]
+  ;; http://www.h2database.com/html/advanced.html#limits_limitations
+  256)

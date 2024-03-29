@@ -1,25 +1,29 @@
 /* eslint-disable react/prop-types */
-import React from "react";
+import { assoc } from "icepick";
+import { PureComponent } from "react";
 import { connect } from "react-redux";
 import { t } from "ttag";
-import { assoc } from "icepick";
 import _ from "underscore";
 
+import ErrorBoundary from "metabase/ErrorBoundary";
 import ExplicitSize from "metabase/components/ExplicitSize";
-
 import * as MetabaseAnalytics from "metabase/lib/analytics";
 import { formatNumber } from "metabase/lib/formatting";
 import Utils from "metabase/lib/utils";
 import { parseHashOptions } from "metabase/lib/browser";
 
+import { equals } from "metabase/lib/utils";
+import { getIsShowingRawTable } from "metabase/query_builder/selectors";
+import { getFont } from "metabase/styled-components/selectors";
 import {
   getVisualizationTransformed,
   extractRemappings,
 } from "metabase/visualizations";
+import { Mode } from "metabase/visualizations/click-actions/Mode";
+import { getMode } from "metabase/visualizations/click-actions/lib/modes";
 import ChartCaption from "metabase/visualizations/components/ChartCaption";
 import ChartTooltip from "metabase/visualizations/components/ChartTooltip";
-import ChartClickActions from "metabase/visualizations/components/ChartClickActions";
-
+import { ConnectedClickActionsPopover } from "metabase/visualizations/components/ClickActions";
 import { performDefaultAction } from "metabase/visualizations/lib/action";
 import {
   MinRowsError,
@@ -28,18 +32,15 @@ import {
 import { getComputedSettingsForSeries } from "metabase/visualizations/lib/settings/visualization";
 import { isSameSeries, getCardKey } from "metabase/visualizations/lib/utils";
 
-import { getMode } from "metabase/modes/lib/modes";
-import { getFont } from "metabase/styled-components/selectors";
 import { getIsCurrentUserPaidSubscription } from "metabase/selectors/user";
 
-import ErrorBoundary from "metabase/ErrorBoundary";
+import { isRegularClickAction } from "metabase/visualizations/types";
 import Question from "metabase-lib/Question";
-import Mode from "metabase-lib/Mode";
 import { datasetContainsNoResults } from "metabase-lib/queries/utils/dataset";
 import { memoizeClass } from "metabase-lib/utils";
 
 import ChartSettingsErrorButton from "./ChartSettingsErrorButton";
-import ErrorView from "./ErrorView";
+import { ErrorView } from "./ErrorView";
 import LoadingView from "./LoadingView";
 import NoResultsView from "./NoResultsView";
 import {
@@ -51,7 +52,9 @@ import {
 import "./Visualization.css";
 
 const defaultProps = {
+  errorMessageOverride: undefined,
   showTitle: false,
+  isAction: false,
   isDashboard: false,
   isEditing: false,
   isSettings: false,
@@ -68,9 +71,12 @@ const defaultProps = {
 const mapStateToProps = state => ({
   fontFamily: getFont(state),
   isCurrentUserPaidSubscription: getIsCurrentUserPaidSubscription(state),
+  isRawTable: getIsShowingRawTable(state),
 });
 
-class Visualization extends React.PureComponent {
+const SMALL_CARD_WIDTH_THRESHOLD = 150;
+
+class Visualization extends PureComponent {
   state = {
     hovered: null,
     clicked: null,
@@ -89,9 +95,9 @@ class Visualization extends React.PureComponent {
   UNSAFE_componentWillReceiveProps(newProps) {
     if (
       !isSameSeries(newProps.rawSeries, this.props.rawSeries) ||
-      !Utils.equals(newProps.settings, this.props.settings) ||
-      !Utils.equals(newProps.timelineEvents, this.props.timelineEvents) ||
-      !Utils.equals(
+      !equals(newProps.settings, this.props.settings) ||
+      !equals(newProps.timelineEvents, this.props.timelineEvents) ||
+      !equals(
         newProps.selectedTimelineEventIds,
         this.props.selectedTimelineEventIds,
       )
@@ -105,9 +111,7 @@ class Visualization extends React.PureComponent {
   }
 
   componentDidUpdate(prevProps, prevState) {
-    if (
-      !Utils.equals(this.getWarnings(prevProps, prevState), this.getWarnings())
-    ) {
+    if (!equals(this.getWarnings(prevProps, prevState), this.getWarnings())) {
       this.updateWarnings();
     }
   }
@@ -233,7 +237,11 @@ class Visualization extends React.PureComponent {
     if (!clicked) {
       return [];
     }
-    const { metadata, getExtraDataForClick = () => ({}) } = this.props;
+    const {
+      metadata,
+      isRawTable,
+      getExtraDataForClick = () => ({}),
+    } = this.props;
 
     const seriesIndex = clicked.seriesIndex || 0;
     const card = this.state.series[seriesIndex].card;
@@ -242,8 +250,14 @@ class Visualization extends React.PureComponent {
 
     return mode
       ? mode.actionsForClick(
-          { ...clicked, extraData: getExtraDataForClick(clicked) },
-          {},
+          {
+            ...clicked,
+            extraData: {
+              ...getExtraDataForClick(clicked),
+              isRawTable,
+            },
+          },
+          this.state.computedSettings,
         )
       : [];
   }
@@ -327,12 +341,14 @@ class Visualization extends React.PureComponent {
       actionButtons,
       className,
       dashcard,
+      errorMessageOverride,
       showTitle,
       isDashboard,
       width,
       height,
       headerIcon,
       errorIcon,
+      isAction,
       isSlow,
       isMobile,
       expectedDuration,
@@ -344,7 +360,7 @@ class Visualization extends React.PureComponent {
       isCurrentUserPaidSubscription,
     } = this.props;
     const { visualization } = this.state;
-    const small = width < 330;
+    const small = width < SMALL_CARD_WIDTH_THRESHOLD;
 
     const isText = dashcard?.card?.display === "text";
     const isScalar =
@@ -366,6 +382,7 @@ class Visualization extends React.PureComponent {
     let { style } = this.props;
 
     const clickActions = this.getClickActions(clicked);
+    const regularClickActions = clickActions.filter(isRegularClickAction);
     // disable hover when click action is active
     if (clickActions.length > 0) {
       hovered = null;
@@ -472,11 +489,15 @@ class Visualization extends React.PureComponent {
       (showTitle &&
         hasHeaderContent &&
         (loading || error || noResults || isHeaderEnabled)) ||
-      (replacementContent && (dashcard.size_y !== 1 || isMobile));
+      (replacementContent && (dashcard.size_y !== 1 || isMobile) && !isAction);
 
     return (
       <ErrorBoundary>
-        <VisualizationRoot className={className} style={style}>
+        <VisualizationRoot
+          className={className}
+          style={style}
+          data-testid="visualization-root"
+        >
           {
             !hideWaterMark &&
             !isText &&
@@ -509,6 +530,7 @@ class Visualization extends React.PureComponent {
                 settings={settings}
                 icon={headerIcon}
                 actionButtons={extra}
+                width={width}
                 onChangeCardAndRun={
                   this.props.onChangeCardAndRun && !replacementContent
                     ? this.handleOnChangeCardAndRun
@@ -523,7 +545,7 @@ class Visualization extends React.PureComponent {
             <NoResultsView isSmall={small} />
           ) : error ? (
             <ErrorView
-              error={error}
+              error={errorMessageOverride ?? error}
               icon={errorIcon}
               isSmall={small}
               isDashboard={isDashboard}
@@ -532,7 +554,7 @@ class Visualization extends React.PureComponent {
             <LoadingView expectedDuration={expectedDuration} isSlow={isSlow} />
           ) : (
             <div
-              data-card-key={getCardKey(series[0].card)}
+              data-card-key={getCardKey(series[0].card?.id)}
               className={`flex flex-column flex-full ${isNightTheme ? "Card--night": ""}`}
             >
               <CardVisualization
@@ -540,6 +562,7 @@ class Visualization extends React.PureComponent {
                 // NOTE: CardVisualization class used to target ExplicitSize HOC
                 className="CardVisualization flex-full flex-basis-none"
                 isPlaceholder={isPlaceholder}
+                isMobile={isMobile}
                 series={series}
                 settings={settings}
                 card={series[0].card} // convenience for single-series visualizations
@@ -564,9 +587,9 @@ class Visualization extends React.PureComponent {
           )}
           <ChartTooltip series={series} hovered={hovered} settings={settings} />
           {this.props.onChangeCardAndRun && (
-            <ChartClickActions
+            <ConnectedClickActionsPopover
               clicked={clicked}
-              clickActions={clickActions}
+              clickActions={regularClickActions}
               onChangeCardAndRun={this.handleOnChangeCardAndRun}
               onClose={this.hideActions}
               series={series}
@@ -584,7 +607,7 @@ Visualization.defaultProps = defaultProps;
 export default _.compose(
   ExplicitSize({
     selector: ".CardVisualization",
-    refreshMode: props => (props.isVisible ? "throttle" : "debounce"),
+    refreshMode: props => (props.isVisible ? "throttle" : "debounceLeading"),
   }),
   connect(mapStateToProps),
   memoizeClass("_getQuestionForCardCached"),

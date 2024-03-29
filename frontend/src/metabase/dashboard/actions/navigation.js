@@ -1,10 +1,28 @@
 import { createThunkAction } from "metabase/lib/redux";
-
-import { openUrl } from "metabase/redux/app";
+import * as Urls from "metabase/lib/urls";
 import { getParametersMappedToDashcard } from "metabase/parameters/utils/dashboards";
+import { openUrl } from "metabase/redux/app";
 import { getMetadata } from "metabase/selectors/metadata";
 import { getCardAfterVisualizationClick } from "metabase/visualizations/lib/utils";
+import * as Lib from "metabase-lib";
 import Question from "metabase-lib/Question";
+import * as ML_Urls from "metabase-lib/urls";
+
+import { getDashboardId } from "../selectors";
+
+export const EDIT_QUESTION = "metabase/dashboard/EDIT_QUESTION";
+export const editQuestion = createThunkAction(
+  EDIT_QUESTION,
+  question => (dispatch, getState) => {
+    const dashboardId = getDashboardId(getState());
+    const { isNative } = Lib.queryDisplayInfo(question.query());
+    const mode = isNative ? "view" : "notebook";
+    const url = Urls.question(question.card(), { mode });
+
+    dispatch(openUrl(url));
+    return { dashboardId };
+  },
+);
 
 /**
  * All navigation actions from dashboards to cards (e.x. clicking a title, drill through)
@@ -21,7 +39,7 @@ import Question from "metabase-lib/Question";
  *     - those all can be applied without or with a dashboard filter
  */
 
-const NAVIGATE_TO_NEW_CARD = "metabase/dashboard/NAVIGATE_TO_NEW_CARD";
+export const NAVIGATE_TO_NEW_CARD = "metabase/dashboard/NAVIGATE_TO_NEW_CARD";
 export const navigateToNewCardFromDashboard = createThunkAction(
   NAVIGATE_TO_NEW_CARD,
   ({ nextCard, previousCard, dashcard, objectId }) =>
@@ -35,7 +53,8 @@ export const navigateToNewCardFromDashboard = createThunkAction(
       );
 
       let question = new Question(cardAfterClick, metadata);
-      if (question.query().isEditable()) {
+      const { isEditable } = Lib.queryDisplayInfo(question.query());
+      if (isEditable) {
         question = question
           .setDisplay(cardAfterClick.display || previousCard.display)
           .setSettings(dashcard.card.visualization_settings)
@@ -57,10 +76,15 @@ export const navigateToNewCardFromDashboard = createThunkAction(
       // When building a question URL, it'll usually clean the query and
       // strip clauses referencing fields from tables without metadata
       const previousQuestion = new Question(previousCard, metadata);
-      const isDrillingFromNativeModel =
-        previousQuestion.isDataset() && previousQuestion.isNative();
+      const { isNative: isPreviousNative } = Lib.queryDisplayInfo(
+        previousQuestion.query(),
+      );
 
-      const url = question.getUrlWithParameters(
+      const isDrillingFromNativeModel =
+        previousQuestion.isDataset() && isPreviousNative;
+
+      const url = ML_Urls.getUrlWithParameters(
+        question,
         parametersMappedToCard,
         parameterValues,
         {
@@ -70,5 +94,6 @@ export const navigateToNewCardFromDashboard = createThunkAction(
       );
 
       dispatch(openUrl(url));
+      return { dashboardId };
     },
 );

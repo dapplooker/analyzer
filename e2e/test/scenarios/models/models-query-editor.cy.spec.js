@@ -1,4 +1,6 @@
+import { ORDERS_QUESTION_ID } from "e2e/support/cypress_sample_instance_data";
 import {
+  modal,
   restore,
   runNativeQuery,
   summarize,
@@ -20,14 +22,14 @@ describe("scenarios > models query editor", () => {
 
   describe("GUI models", () => {
     beforeEach(() => {
-      cy.request("PUT", "/api/card/1", {
+      cy.request("PUT", `/api/card/${ORDERS_QUESTION_ID}`, {
         name: "Orders Model",
-        dataset: true,
+        type: "model",
       });
     });
 
     it("allows to edit GUI model query", () => {
-      cy.visit("/model/1");
+      cy.visit(`/model/${ORDERS_QUESTION_ID}`);
       cy.wait("@dataset");
 
       cy.get(".cellData").should("contain", "37.65").and("contain", "109.22");
@@ -41,6 +43,7 @@ describe("scenarios > models query editor", () => {
       cy.findByTestId("data-step-cell").contains("Orders");
       cy.button("Save changes").should("be.disabled");
 
+      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
       cy.findByText("Row limit").click();
       cy.findByPlaceholderText("Enter a limit").type("2");
 
@@ -54,7 +57,9 @@ describe("scenarios > models query editor", () => {
       cy.button("Save changes").click();
       cy.wait("@updateCard");
 
-      cy.url().should("include", "/model/1").and("not.include", "/query");
+      cy.url()
+        .should("include", `/model/${ORDERS_QUESTION_ID}`)
+        .and("not.include", "/query");
       cy.location("hash").should("eq", "");
 
       cy.get(".cellData")
@@ -63,7 +68,7 @@ describe("scenarios > models query editor", () => {
     });
 
     it("allows for canceling changes", () => {
-      cy.visit("/model/1");
+      cy.visit(`/model/${ORDERS_QUESTION_ID}`);
       cy.wait("@dataset");
 
       cy.get(".cellData").should("contain", "37.65").and("contain", "109.22");
@@ -74,6 +79,7 @@ describe("scenarios > models query editor", () => {
         cy.findByText("Edit query definition").click();
       });
 
+      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
       cy.findByText("Row limit").click();
       cy.findByPlaceholderText("Enter a limit").type("2");
 
@@ -85,16 +91,19 @@ describe("scenarios > models query editor", () => {
         .and("not.contain", "109.22");
 
       cy.button("Cancel").click();
+      modal().button("Discard changes").click();
       cy.wait("@cardQuery");
 
-      cy.url().should("include", "/model/1").and("not.include", "/query");
+      cy.url()
+        .should("include", `/model/${ORDERS_QUESTION_ID}`)
+        .and("not.include", "/query");
       cy.location("hash").should("eq", "");
 
       cy.get(".cellData").should("contain", "37.65").and("contain", "109.22");
     });
 
     it("locks display to table", () => {
-      cy.visit("/model/1/query");
+      cy.visit(`/model/${ORDERS_QUESTION_ID}/query`);
 
       summarize({ mode: "notebook" });
 
@@ -114,7 +123,7 @@ describe("scenarios > models query editor", () => {
       cy.createNativeQuestion(
         {
           name: "Native Model",
-          dataset: true,
+          type: "model",
           native: {
             query: "SELECT * FROM orders limit 5",
           },
@@ -153,7 +162,7 @@ describe("scenarios > models query editor", () => {
       cy.createNativeQuestion(
         {
           name: "Native Model",
-          dataset: true,
+          type: "model",
           native: {
             query: "SELECT * FROM orders limit 5",
           },
@@ -181,6 +190,7 @@ describe("scenarios > models query editor", () => {
         .and("not.contain", "109.22");
 
       cy.button("Cancel").click();
+      modal().button("Discard changes").click();
       cy.wait("@cardQuery");
 
       cy.get(".cellData").should("contain", "37.65").and("contain", "109.22");
@@ -190,7 +200,7 @@ describe("scenarios > models query editor", () => {
       cy.createNativeQuestion(
         {
           name: "Erroring Model",
-          dataset: true,
+          type: "model",
           native: {
             // Let's use API to type the most of the query, but stil make it invalid
             query: "SELECT 1 FROM",
@@ -205,22 +215,27 @@ describe("scenarios > models query editor", () => {
         cy.findByText("Edit metadata").click();
       });
 
+      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
       cy.findByText(/Syntax error in SQL/).should("be.visible");
 
+      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
       cy.findByText("Query").click();
 
+      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
       cy.findByText(/Syntax error in SQL/).should("be.visible");
 
       cy.get(".ace_content").type("{backspace}".repeat(" FROM".length));
       runNativeQuery();
 
       cy.get(".cellData").contains(1);
+      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
       cy.findByText(/Syntax error in SQL/).should("not.exist");
 
       cy.button("Save changes").click();
       cy.wait("@updateCard");
 
       cy.get(".cellData").contains(1);
+      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
       cy.findByText(/Syntax error in SQL/).should("not.exist");
     });
   });

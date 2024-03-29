@@ -1,27 +1,26 @@
-/* eslint-disable react/prop-types */
+/* eslint-disable import/order */
 import { t } from "ttag";
-import moment from "moment-timezone";
+import moment from "moment-timezone"; // eslint-disable-line no-restricted-imports -- deprecated usage
 import _ from "underscore";
 
 import ChartNestedSettingColumns from "metabase/visualizations/components/settings/ChartNestedSettingColumns";
-import ChartSettingOrderedColumns from "metabase/visualizations/components/settings/ChartSettingOrderedColumns";
+import { ChartSettingTableColumns } from "metabase/visualizations/components/settings/ChartSettingTableColumns";
+import {
+  formatColumn,
+  getCurrencySymbol,
+  getDateFormatFromStyle,
+  numberFormatterForOptions,
+} from "metabase/lib/formatting";
+
+import { hasHour } from "metabase/lib/formatting/datetime-utils";
+
+import { currency } from "cljs/metabase.shared.util.currency";
 
 // HACK: cyclical dependency causing errors in unit tests
 // import { getVisualizationRaw } from "metabase/visualizations";
 function getVisualizationRaw(...args) {
   return require("metabase/visualizations").getVisualizationRaw(...args);
 }
-
-import {
-  formatColumn,
-  numberFormatterForOptions,
-  getCurrencySymbol,
-  getDateFormatFromStyle,
-} from "metabase/lib/formatting";
-
-import { hasDay, hasHour } from "metabase/lib/formatting/datetime-utils";
-
-import { currency } from "cljs/metabase.shared.util.currency";
 
 const DEFAULT_GET_COLUMNS = (series, vizSettings) =>
   [].concat(...series.map(s => (s.data && s.data.cols) || []));
@@ -52,8 +51,12 @@ import {
   isCoordinate,
   isCurrency,
   isDateWithoutTime,
+  isPercentage,
 } from "metabase-lib/types/utils/isa";
-import { findColumnIndexForColumnSetting } from "metabase-lib/queries/utils/dataset";
+import {
+  getColumnSettingKey,
+  findColumnIndexesForColumnSettings,
+} from "metabase-lib/queries/utils/dataset";
 import { getColumnKey } from "metabase-lib/queries/utils/get-column-key";
 import { nestedSettings } from "./nested";
 
@@ -80,7 +83,7 @@ function getInhertiedSettingsForColumn(column) {
   };
 }
 
-const EXAMPLE_DATE = moment("2018-01-07 17:24");
+const EXAMPLE_DATE = moment("2018-01-31 17:24");
 
 function getDateStyleOptionsForUnit(unit, abbreviate = false, separator) {
   // hour-of-day shouldn't have any date style. It's handled as a time instead.
@@ -91,30 +94,12 @@ function getDateStyleOptionsForUnit(unit, abbreviate = false, separator) {
   }
 
   const options = [
-    dateStyleOption("MMMM D, YYYY", unit, null, abbreviate, separator),
-    dateStyleOption("D MMMM, YYYY", unit, null, abbreviate, separator),
-    dateStyleOption("dddd, MMMM D, YYYY", unit, null, abbreviate, separator),
-    dateStyleOption(
-      "M/D/YYYY",
-      unit,
-      hasDay(unit) ? "month, day, year" : null,
-      abbreviate,
-      separator,
-    ),
-    dateStyleOption(
-      "D/M/YYYY",
-      unit,
-      hasDay(unit) ? "day, month, year" : null,
-      abbreviate,
-      separator,
-    ),
-    dateStyleOption(
-      "YYYY/M/D",
-      unit,
-      hasDay(unit) ? "year, month, day" : null,
-      abbreviate,
-      separator,
-    ),
+    dateStyleOption("MMMM D, YYYY", unit, abbreviate, separator),
+    dateStyleOption("D MMMM, YYYY", unit, abbreviate, separator),
+    dateStyleOption("dddd, MMMM D, YYYY", unit, abbreviate, separator),
+    dateStyleOption("M/D/YYYY", unit, abbreviate, separator),
+    dateStyleOption("D/M/YYYY", unit, abbreviate, separator),
+    dateStyleOption("YYYY/M/D", unit, abbreviate, separator),
   ];
   const seen = new Set();
   return options.filter(option => {
@@ -128,20 +113,13 @@ function getDateStyleOptionsForUnit(unit, abbreviate = false, separator) {
   });
 }
 
-function dateStyleOption(
-  style,
-  unit,
-  description,
-  abbreviate = false,
-  separator,
-) {
+function dateStyleOption(style, unit, abbreviate = false, separator) {
   let format = getDateFormatFromStyle(style, unit, separator);
   if (abbreviate) {
     format = format.replace(/MMMM/, "MMM").replace(/dddd/, "ddd");
   }
   return {
-    name:
-      EXAMPLE_DATE.format(format) + (description ? ` (${description})` : ``),
+    name: EXAMPLE_DATE.format(format),
     value: style,
   };
 }
@@ -290,8 +268,17 @@ export const NUMBER_COLUMN_SETTINGS = {
         { name: t`Currency`, value: "currency" },
       ],
     },
-    getDefault: (column, settings) =>
-      isCurrency(column) && settings["currency"] ? "currency" : "decimal",
+    getDefault: (column, settings) => {
+      if (isCurrency(column) && settings["currency"]) {
+        return "currency";
+      }
+
+      if (isPercentage(column)) {
+        return "percent";
+      }
+
+      return "decimal";
+    },
     // hide this for currency
     getHidden: (column, settings) =>
       isCurrency(column) && settings["number_style"] === "currency",
@@ -360,7 +347,7 @@ export const NUMBER_COLUMN_SETTINGS = {
       ],
     },
     default: true,
-    getHidden: (column, settings, { series }) =>
+    getHidden: (_column, settings, { series }) =>
       settings["number_style"] !== "currency" ||
       series[0].card.display !== "table",
     readDependencies: ["number_style"],
@@ -466,7 +453,7 @@ const COMMON_COLUMN_SETTINGS = {
 };
 
 export function getSettingDefinitionsForColumn(series, column) {
-  const { visualization } = getVisualizationRaw(series);
+  const visualization = getVisualizationRaw(series);
   const extraColumnSettings =
     typeof visualization.columnSettings === "function"
       ? visualization.columnSettings(column)
@@ -526,36 +513,49 @@ export const getTitleForColumn = (column, series, settings) => {
   }
 };
 
-export const tableColumnSettings = {
+export const buildTableColumnSettings = ({
+  getIsColumnVisible = col => col.visibility_type !== "details-only",
+} = {}) => ({
   // NOTE: table column settings may be identified by fieldRef (possible not normalized) or column name:
   //   { name: "COLUMN_NAME", enabled: true }
   //   { fieldRef: ["field", 2, {"source-field": 1}], enabled: true }
   "table.columns": {
     section: t`Columns`,
-    title: t`Columns`,
-    widget: ChartSettingOrderedColumns,
+    // title: t`Columns`,
+    widget: ChartSettingTableColumns,
     getHidden: (series, vizSettings) => vizSettings["table.pivot"],
-    isValid: ([{ card, data }]) =>
-      // If "table.columns" happened to be an empty array,
-      // it will be treated as "all columns are hidden",
-      // This check ensures it's not empty,
-      // otherwise it will be overwritten by `getDefault` below
-      card.visualization_settings["table.columns"].length !== 0 &&
-      _.all(
-        card.visualization_settings["table.columns"],
-        columnSetting =>
-          findColumnIndexForColumnSetting(data.cols, columnSetting) >= 0,
-      ),
-    getDefault: ([
-      {
-        data: { cols },
-      },
-    ]) =>
-      cols.map(col => ({
-        name: col.name,
-        fieldRef: col.field_ref,
-        enabled: col.visibility_type !== "details-only",
-      })),
+    getValue: (series, vizSettings) => {
+      function isValid([{ card, data }], columnSettings) {
+        const columnIndexes = findColumnIndexesForColumnSettings(
+          data.cols,
+          columnSettings.filter(({ enabled }) => enabled),
+        );
+        return columnIndexes.every(columnIndex => columnIndex >= 0);
+      }
+
+      function getDefault([{ data }]) {
+        return data.cols.map(col => ({
+          name: col.name,
+          key: getColumnKey(col),
+          enabled: getIsColumnVisible(col),
+          fieldRef: col.field_ref,
+        }));
+      }
+
+      function getValue(columnSettings) {
+        return columnSettings.map(setting => ({
+          ...setting,
+          key: getColumnSettingKey(setting),
+        }));
+      }
+
+      const columnSettings = vizSettings["table.columns"];
+      if (!columnSettings || !isValid(series, columnSettings)) {
+        return getDefault(series);
+      } else {
+        return getValue(columnSettings);
+      }
+    },
     getProps: (series, settings) => {
       const [
         {
@@ -565,16 +565,8 @@ export const tableColumnSettings = {
 
       return {
         columns: cols,
-        getColumnName: columnSetting => {
-          const columnIndex = findColumnIndexForColumnSetting(
-            cols,
-            columnSetting,
-          );
-          if (columnIndex >= 0) {
-            return getTitleForColumn(cols[columnIndex], series, settings);
-          }
-        },
+        getColumnName: column => getTitleForColumn(column, series, settings),
       };
     },
   },
-};
+});

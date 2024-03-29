@@ -1,6 +1,6 @@
-import React, { useState } from "react";
-import _ from "underscore";
+import { useState } from "react";
 import { t } from "ttag";
+import _ from "underscore";
 
 import TokenField, { parseNumberValue } from "metabase/components/TokenField";
 import NumericInput from "metabase/core/components/NumericInput";
@@ -105,6 +105,7 @@ function NumberInputWidget({
   );
 }
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default NumberInputWidget;
 
 function normalize(value: number[] | undefined): number[] {

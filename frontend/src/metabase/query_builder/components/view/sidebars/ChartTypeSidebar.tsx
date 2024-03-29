@@ -1,15 +1,17 @@
-import React, { useCallback, useMemo } from "react";
-import _ from "underscore";
+import type * as React from "react";
+import { useCallback, useMemo } from "react";
 import { t } from "ttag";
-import Icon from "metabase/components/Icon";
-import SidebarContent from "metabase/query_builder/components/SidebarContent";
+import _ from "underscore";
 
+import type { UpdateQuestionOpts } from "metabase/query_builder/actions";
+import SidebarContent from "metabase/query_builder/components/SidebarContent";
+import { Icon } from "metabase/ui";
 import visualizations from "metabase/visualizations";
 import { sanatizeResultData } from "metabase/visualizations/shared/utils/data";
-import { Visualization } from "metabase/visualizations/shared/types/visualization";
-
-import Question from "metabase-lib/Question";
-import Query from "metabase-lib/queries/Query";
+import type { Visualization } from "metabase/visualizations/types";
+import * as Lib from "metabase-lib";
+import type Question from "metabase-lib/Question";
+import type Query from "metabase-lib/queries/Query";
 
 import {
   OptionIconContainer,
@@ -48,10 +50,7 @@ interface ChartTypeSidebarProps {
     showSidebarTitle: boolean;
   }) => void;
   onCloseChartType: () => void;
-  updateQuestion: (
-    question: Question,
-    props: { reload: boolean; shouldUpdateUrl: boolean },
-  ) => void;
+  updateQuestion: (question: Question, props: UpdateQuestionOpts) => void;
   setUIControls: (props: { isShowingRawTable: boolean }) => void;
   query: Query;
 }
@@ -70,14 +69,14 @@ const ChartTypeSidebar = ({
       _.union(
         DEFAULT_ORDER,
         Array.from(visualizations).map(([vizType]) => vizType),
-      ).filter(vizType => !visualizations.get(vizType).hidden),
+      ).filter(vizType => !visualizations?.get(vizType)?.hidden),
       vizType => {
         const visualization = visualizations.get(vizType);
         return (
           result &&
           result.data &&
-          visualization.isSensible &&
-          visualization.isSensible(sanatizeResultData(result.data), query)
+          visualization?.isSensible &&
+          visualization?.isSensible(sanatizeResultData(result.data), query)
         );
       },
     );
@@ -100,11 +99,17 @@ const ChartTypeSidebar = ({
       if (display === question.display()) {
         openChartSettings(e);
       } else {
-        const newQuestion = question.setDisplay(display).lockDisplay(); // prevent viz auto-selection
+        let newQuestion = question.setDisplay(display).lockDisplay(); // prevent viz auto-selection
+        const visualization = visualizations.get(display);
+        if (visualization?.onDisplayUpdate) {
+          const updatedSettings = visualization.onDisplayUpdate(
+            newQuestion.settings(),
+          );
+          newQuestion = newQuestion.updateSettings(updatedSettings);
+        }
 
         updateQuestion(newQuestion, {
-          reload: false,
-          shouldUpdateUrl: question.query().isEditable(),
+          shouldUpdateUrl: Lib.queryDisplayInfo(question.query()).isEditable,
         });
         setUIControls({ isShowingRawTable: false });
       }
@@ -187,7 +192,7 @@ const ChartTypeOption = ({
         <SettingsButton
           onlyIcon
           icon="gear"
-          iconSize={12}
+          iconSize={16}
           onClick={onSettingsClick}
         />
       )}
@@ -196,4 +201,5 @@ const ChartTypeOption = ({
   </OptionRoot>
 );
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default ChartTypeSidebar;

@@ -1,8 +1,8 @@
 /* eslint-disable react/prop-types */
-import React from "react";
 import cx from "classnames";
 
 import { formDomOnlyProps } from "metabase/lib/redux";
+
 import { HelpText } from "./FormTextAreaWidget.styled";
 
 const FormTextAreaWidget = ({
@@ -23,6 +23,7 @@ const FormTextAreaWidget = ({
       aria-labelledby={`${field.name}-label`}
       tabIndex={tabIndex}
       {...formDomOnlyProps(field)}
+      value={field.value || ""}
     />
     {helperText && (
       <HelpText

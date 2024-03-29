@@ -8,7 +8,8 @@
    [metabase.models.interface :as mi]
    [metabase.models.table :as table :refer [Table]]
    [metabase.util :as u]
-   [schema.core :as s]))
+   [schema.core :as s]
+   [toucan2.core :as t2]))
 
 (def ^:private ^{:arglists '([field])} field-type
   "Return the most specific type of a given field."
@@ -26,7 +27,8 @@
 
 (def SourceEntity
   "A source for a card. Can be either a table or another card."
-  (s/cond-pre (mi/InstanceOf Table) (mi/InstanceOf Card)))
+  #_{:clj-kondo/ignore [:deprecated-var]}
+  (s/cond-pre (mi/InstanceOf:Schema Table) (mi/InstanceOf:Schema Card)))
 
 (def Bindings
   "Top-level lexical context mapping source names to their corresponding entity and constituent dimensions. See also
@@ -104,7 +106,7 @@
 (defn domain-entity-for-table
   "Find the best fitting domain entity for given table."
   [table]
-  (let [table (assoc table :fields (table/fields table))]
+  (let [table (t2/hydrate table :fields)]
     (some->> @domain-entity-specs
              vals
              (filter (partial satisfies-requierments? table))

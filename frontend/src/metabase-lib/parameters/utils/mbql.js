@@ -1,23 +1,23 @@
-import moment from "moment-timezone";
+import moment from "moment-timezone"; // eslint-disable-line no-restricted-imports -- deprecated usage
 import _ from "underscore";
 
-import { isDimensionTarget } from "metabase-types/guards";
+import * as Lib from "metabase-lib";
+import { FieldDimension } from "metabase-lib/Dimension";
+import {
+  deriveFieldOperatorFromParameter,
+  getParameterOperatorName,
+} from "metabase-lib/parameters/utils/operators";
+import {
+  getParameterSubType,
+  isDateParameter,
+} from "metabase-lib/parameters/utils/parameter-type";
 import {
   setStartingFrom,
   EXCLUDE_OPTIONS,
   EXCLUDE_UNITS,
 } from "metabase-lib/queries/utils/query-time";
-import Dimension, { FieldDimension } from "metabase-lib/Dimension";
-import {
-  getParameterSubType,
-  isDateParameter,
-} from "metabase-lib/parameters/utils/parameter-type";
 import { isTemplateTagReference } from "metabase-lib/references";
-import {
-  deriveFieldOperatorFromParameter,
-  getParameterOperatorName,
-} from "metabase-lib/parameters/utils/operators";
-import { hasParameterValue } from "metabase-lib/parameters/utils/parameter-values";
+import { isDimensionTarget } from "metabase-types/guards";
 
 const withTemporalUnit = (fieldRef, unit) => {
   const dimension =
@@ -167,9 +167,9 @@ export function numberParameterValueToMBQL(parameter, fieldRef) {
   );
 }
 
-export function isFieldFilterParameterConveratableToMBQL(parameter) {
+function isFieldFilterParameterConveratableToMBQL(parameter) {
   const { value, target } = parameter;
-  const hasValue = hasParameterValue(value);
+  const hasValue = value != null;
   const hasWellFormedTarget = Array.isArray(target?.[1]);
   const hasFieldDimensionTarget =
     isDimensionTarget(target) && !isTemplateTagReference(target[1]);
@@ -177,21 +177,40 @@ export function isFieldFilterParameterConveratableToMBQL(parameter) {
   return hasValue && hasWellFormedTarget && hasFieldDimensionTarget;
 }
 
-/** compiles a parameter with value to an MBQL clause */
-export function fieldFilterParameterToMBQLFilter(parameter, metadata) {
+/** compiles a parameter with value to MBQL */
+function fieldFilterParameterToMBQL(query, stageIndex, parameter) {
   if (!isFieldFilterParameterConveratableToMBQL(parameter)) {
     return null;
   }
 
-  const dimension = Dimension.parseMBQL(parameter.target[1], metadata);
-  const field = dimension.field();
-  const fieldRef = dimension.mbql();
+  const columns = Lib.filterableColumns(query, stageIndex);
+  const [columnIndex] = Lib.findColumnIndexesFromLegacyRefs(
+    query,
+    stageIndex,
+    columns,
+    [parameter.target[1]],
+  );
+  if (columnIndex < 0) {
+    return null;
+  }
+
+  const column = columns[columnIndex];
+  const fieldRef = Lib.legacyRef(query, stageIndex, column);
 
   if (isDateParameter(parameter)) {
     return dateParameterValueToMBQL(parameter.value, fieldRef);
-  } else if (field.isNumeric()) {
+  } else if (Lib.isNumeric(column)) {
     return numberParameterValueToMBQL(parameter, fieldRef);
   } else {
     return stringParameterValueToMBQL(parameter, fieldRef);
+  }
+}
+
+export function fieldFilterParameterToFilter(query, stageIndex, parameter) {
+  const mbql = fieldFilterParameterToMBQL(query, stageIndex, parameter);
+  if (mbql) {
+    return Lib.expressionClauseForLegacyExpression(query, stageIndex, mbql);
+  } else {
+    return null;
   }
 }

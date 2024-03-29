@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from "react";
 import PropTypes from "prop-types";
-import { t } from "ttag";
+import { useState, useEffect } from "react";
 import { connect } from "react-redux";
+import { t } from "ttag";
+import _ from "underscore";
 
-import { useSafeAsyncFunction } from "metabase/hooks/use-safe-async-function";
 import Tables from "metabase/entities/tables";
+import { useSafeAsyncFunction } from "metabase/hooks/use-safe-async-function";
 import Table from "metabase-lib/metadata/Table";
 
 import {
@@ -14,9 +15,10 @@ import {
   AbsoluteContainer,
   Fade,
 } from "../MetadataInfo.styled";
-import { InfoContainer, MetadataContainer } from "./TableInfo.styled";
+
 import ColumnCount from "./ColumnCount";
 import ConnectedTables from "./ConnectedTables";
+import { InfoContainer, MetadataContainer } from "./TableInfo.styled";
 
 type OwnProps = {
   className?: string;
@@ -59,7 +61,7 @@ function useDependentTableMetadata({
   fetchMetadata,
 }: Pick<AllProps, "tableId" | "table" | "fetchForeignKeys" | "fetchMetadata">) {
   const isMissingFields = !table?.numFields();
-  const isMissingFks = table?.fks == null;
+  const isMissingFks = _.isEmpty(table?.fks);
   const shouldFetchMetadata = isMissingFields || isMissingFks;
   const [hasFetchedMetadata, setHasFetchedMetadata] = useState(
     !shouldFetchMetadata,
@@ -127,4 +129,5 @@ export function TableInfo({
   );
 }
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default connect(mapStateToProps, mapDispatchToProps)(TableInfo);

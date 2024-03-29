@@ -1,6 +1,5 @@
 import { isa as cljs_isa } from "cljs/metabase.types";
 import { isVirtualCardId } from "metabase-lib/metadata/utils/saved-questions";
-
 import {
   TYPE,
   TYPE_HIERARCHIES,
@@ -12,6 +11,7 @@ import {
   STRING,
   STRING_LIKE,
   NUMBER,
+  INTEGER,
   BOOLEAN,
   SUMMABLE,
   SCOPE,
@@ -103,6 +103,7 @@ export function getFieldType(field) {
 
 export const isDate = isFieldType.bind(null, TEMPORAL);
 export const isNumeric = isFieldType.bind(null, NUMBER);
+export const isInteger = isFieldType.bind(null, INTEGER);
 export const isBoolean = isFieldType.bind(null, BOOLEAN);
 export const isString = isFieldType.bind(null, STRING);
 export const isSummable = isFieldType.bind(null, SUMMABLE);
@@ -150,8 +151,6 @@ export const isNumber = field =>
   isNumericBaseType(field) &&
   (field.semantic_type == null || isa(field.semantic_type, TYPE.Number));
 
-export const isBinnedNumber = field => isNumber(field) && !!field.binning_info;
-
 export const isTime = field => {
   if (!field) {
     return false;
@@ -180,6 +179,9 @@ export const isLongitude = field =>
 
 export const isCurrency = field =>
   field && isa(field.semantic_type, TYPE.Currency);
+
+export const isPercentage = field =>
+  field && isa(field.semantic_type, TYPE.Percentage);
 
 export const isDescription = field =>
   field && isa(field.semantic_type, TYPE.Description);

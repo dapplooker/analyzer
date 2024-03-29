@@ -1,35 +1,33 @@
-import React, { useCallback, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import _ from "underscore";
 
-import Icon, { IconProps } from "metabase/components/Icon";
-
-import type { PickerItem, PickerItemId } from "./types";
+import type { IconName, IconProps } from "metabase/ui";
+import { Icon } from "metabase/ui";
 
 import { ItemRoot, ItemContent, ItemTitle, ExpandButton } from "./Item.styled";
+import type { PickerItem } from "./types";
 
-interface Props {
-  item: PickerItem;
+interface Props<TId> {
+  item: PickerItem<TId>;
   name: string;
-  icon: string | IconProps;
-  color: string;
+  icon: IconName | IconProps;
   selected: boolean;
   canSelect: boolean;
   hasChildren?: boolean;
-  onChange: (item: PickerItem) => void;
-  onChangeOpenCollectionId?: (id: PickerItemId) => void;
+  onChange: (item: PickerItem<TId>) => void;
+  onChangeOpenCollectionId?: (id: TId) => void;
 }
 
-function Item({
+function Item<TId>({
   item,
   name,
   icon,
-  color,
   selected,
   canSelect,
   hasChildren,
   onChange,
   onChangeOpenCollectionId,
-}: Props) {
+}: Props<TId>) {
   const handleClick = useMemo(() => {
     if (canSelect) {
       return () => onChange(item);
@@ -60,9 +58,11 @@ function Item({
       isSelected={selected}
       hasChildren={hasChildren}
       data-testid="item-picker-item"
+      aria-selected={selected}
+      role="option"
     >
       <ItemContent>
-        <Icon size={22} {...iconProps} color={selected ? "white" : color} />
+        <Icon {...iconProps} />
         <ItemTitle>{name}</ItemTitle>
         {hasChildren && (
           <ExpandButton
@@ -78,4 +78,5 @@ function Item({
   );
 }
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default Item;

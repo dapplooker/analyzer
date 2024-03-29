@@ -1,8 +1,6 @@
-import React from "react";
 import { jt } from "ttag";
 
 import { coerceCollectionId } from "metabase/collections/utils";
-
 import type { CollectionId } from "metabase-types/api";
 
 import {
@@ -29,4 +27,5 @@ function QuestionMoveToast({ isModel, collectionId }: QuestionMoveToastProps) {
   );
 }
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default QuestionMoveToast;

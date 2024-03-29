@@ -1,28 +1,8 @@
 import { css } from "@emotion/react";
 import styled from "@emotion/styled";
 import Icon from "metabase/components/Icon";
+import { color } from "metabase/lib/colors";
 import LoadingSpinner from "metabase/components/LoadingSpinner";
-
-export interface WidgetRootProps {
-  isExpanded?: boolean;
-}
-
-export const WidgetRoot = styled.div<WidgetRootProps>`
-  padding: 1rem;
-  width: ${props => (props.isExpanded ? "300px" : "260px")};
-`;
-
-export const WidgetHeader = styled.div`
-  padding: 0.5rem;
-`;
-
-export const WidgetMessage = styled.div`
-  padding: 0 0.5rem;
-`;
-
-export const WidgetFormat = styled.div`
-  width: 100%;
-`;
 
 const BorderedBase = css`
   padding: 0.6rem 1.25rem;
@@ -42,4 +22,13 @@ export const BorderedDownloadIcon = styled(Icon)`
 
 export const BorderedLoadingSpinner = styled(LoadingSpinner)`
   ${BorderedBase}
+`;
+
+export const DownloadIcon = styled(Icon)`
+  color: ${color("text-medium")};
+
+  &:hover {
+    color: ${color("brand")};
+    cursor: pointer;
+  }
 `;

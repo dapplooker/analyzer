@@ -1,16 +1,16 @@
-import React, { useCallback } from "react";
 import PropTypes from "prop-types";
+import { useCallback } from "react";
 import _ from "underscore";
 
 import { SIDEBAR_NAME } from "metabase/dashboard/constants";
-
-import ParameterSidebar from "metabase/parameters/components/ParameterSidebar";
-import SharingSidebar from "metabase/sharing/components/SharingSidebar";
 import * as MetabaseAnalytics from "metabase/lib/analytics";
-import ClickBehaviorSidebar from "./ClickBehaviorSidebar";
-import DashboardInfoSidebar from "./DashboardInfoSidebar";
-import { AddCardSidebar } from "./add-card-sidebar/AddCardSidebar";
-import { ActionSidebar } from "./ActionSidebar";
+import { ParameterSidebar } from "metabase/parameters/components/ParameterSidebar";
+import SharingSidebar from "metabase/sharing/components/SharingSidebar";
+
+import { ActionSidebarConnected } from "./ActionSidebar";
+import { AddCardSidebar } from "./AddCardSidebar";
+import { ClickBehaviorSidebar } from "./ClickBehaviorSidebar/ClickBehaviorSidebar";
+import { DashboardInfoSidebar } from "./DashboardInfoSidebar";
 
 DashboardSidebars.propTypes = {
   dashboard: PropTypes.object,
@@ -32,6 +32,7 @@ DashboardSidebars.propTypes = {
   setParameterSourceType: PropTypes.func.isRequired,
   setParameterSourceConfig: PropTypes.func.isRequired,
   setParameterFilteringParameters: PropTypes.func.isRequired,
+  setParameterRequired: PropTypes.func.isRequired,
   dashcardData: PropTypes.object,
   isSharing: PropTypes.bool.isRequired,
   isEditing: PropTypes.bool.isRequired,
@@ -44,7 +45,8 @@ DashboardSidebars.propTypes = {
   }).isRequired,
   closeSidebar: PropTypes.func.isRequired,
   setDashboardAttribute: PropTypes.func,
-  saveDashboardAndCards: PropTypes.func,
+  selectedTabId: PropTypes.number,
+  getEmbeddedParameterVisibility: PropTypes.func.isRequired,
 };
 
 export function DashboardSidebars({
@@ -65,6 +67,7 @@ export function DashboardSidebars({
   setParameterSourceType,
   setParameterSourceConfig,
   setParameterFilteringParameters,
+  setParameterRequired,
   dashcardData,
   isFullscreen,
   onCancel,
@@ -72,17 +75,19 @@ export function DashboardSidebars({
   sidebar,
   closeSidebar,
   setDashboardAttribute,
-  saveDashboardAndCards,
+  selectedTabId,
+  getEmbeddedParameterVisibility,
 }) {
   const handleAddCard = useCallback(
     cardId => {
       addCardToDashboard({
         dashId: dashboard.id,
         cardId: cardId,
+        tabId: selectedTabId,
       });
       MetabaseAnalytics.trackStructEvent("Dashboard", "Add Card");
     },
-    [addCardToDashboard, dashboard.id],
+    [addCardToDashboard, dashboard.id, selectedTabId],
   );
 
   if (isFullscreen) {
@@ -91,12 +96,7 @@ export function DashboardSidebars({
 
   switch (sidebar.name) {
     case SIDEBAR_NAME.addQuestion:
-      return (
-        <AddCardSidebar
-          initialCollection={dashboard.collection_id}
-          onSelect={handleAddCard}
-        />
-      );
+      return <AddCardSidebar onSelect={handleAddCard} />;
     case SIDEBAR_NAME.action: {
       const onUpdateVisualizationSettings = settings =>
         onUpdateDashCardVisualizationSettings(
@@ -105,7 +105,7 @@ export function DashboardSidebars({
         );
 
       return (
-        <ActionSidebar
+        <ActionSidebarConnected
           dashboard={dashboard}
           dashcardId={sidebar.props.dashcardId}
           onUpdateVisualizationSettings={onUpdateVisualizationSettings}
@@ -138,6 +138,7 @@ export function DashboardSidebars({
       );
       return (
         <ParameterSidebar
+          getEmbeddedParameterVisibility={getEmbeddedParameterVisibility}
           parameter={parameter}
           otherParameters={otherParameters}
           onChangeName={setParameterName}
@@ -150,6 +151,7 @@ export function DashboardSidebars({
           onRemoveParameter={removeParameter}
           onShowAddParameterPopover={showAddParameterPopover}
           onClose={closeSidebar}
+          onChangeRequired={setParameterRequired}
         />
       );
     }
@@ -165,7 +167,6 @@ export function DashboardSidebars({
       return (
         <DashboardInfoSidebar
           dashboard={dashboard}
-          saveDashboardAndCards={saveDashboardAndCards}
           setDashboardAttribute={setDashboardAttribute}
         />
       );

@@ -14,7 +14,7 @@
    [metabase.query-processor.middleware.fix-bad-references
     :as fix-bad-refs]
    [metabase.test :as mt]
-   [toucan.db :as db])
+   [toucan2.core :as t2])
   (:import
    (java.time Instant)
    (java.time.temporal ChronoUnit)))
@@ -60,12 +60,12 @@
       (mt/test-drivers (mt/normal-drivers-with-feature :persist-models)
         (mt/dataset daily-bird-counts
           (mt/with-persistence-enabled [persist-models!]
-            (mt/with-temp* [Card [model {:dataset       true
-                                         :database_id   (mt/id)
-                                         :query_type    :query
-                                         :dataset_query {:database (mt/id)
-                                                         :type     :query
-                                                         :query    {:source-table (mt/id :bird-count)}}}]]
+            (mt/with-temp [Card model {:dataset       true
+                                       :database_id   (mt/id)
+                                       :query_type    :query
+                                       :dataset_query {:database (mt/id)
+                                                       :type     :query
+                                                       :query    {:source-table (mt/id :bird-count)}}}]
               (let [ ;; Get the number of rows before the model is persisted
                     query-on-top       {:database (mt/id)
                                         :type     :query
@@ -86,7 +86,7 @@
 (defn- populate-metadata [{query :dataset_query id :id :as _model}]
   (let [updater (a/thread
                   (let [metadata (a/<!! (qp.async/result-metadata-for-query-async query))]
-                    (db/update! 'Card id :result_metadata metadata)))]
+                    (t2/update! 'Card id {:result_metadata metadata})))]
     ;; 4 seconds is long but redshift can be a little slow
     (when (= ::timed-out (mt/wait-for-result updater 4000 ::timed-out))
       (throw (ex-info "Query metadata not set in time for querying against model"
@@ -95,16 +95,16 @@
 (deftest persisted-models-complex-queries-test
   (testing "Can use aggregations and custom columns with persisted models (#28679)"
     (mt/test-drivers (mt/normal-drivers-with-feature :persist-models)
-      (mt/dataset sample-dataset
+      (mt/dataset test-data
         (doseq [[query-type query] [[:query (mt/mbql-query products)]
                                     [:native (mt/native-query
                                               (mt/compile
                                                (mt/mbql-query products)))]]]
           (mt/with-persistence-enabled [persist-models!]
-            (mt/with-temp* [Card [model {:dataset true
-                                         :database_id (mt/id)
-                                         :query_type query-type
-                                         :dataset_query query}]]
+            (mt/with-temp [Card model {:dataset true
+                                       :database_id (mt/id)
+                                       :query_type query-type
+                                       :dataset_query query}]
               (when (= query-type :native)
                 ;; mbql we figure out metadata from query itself. native is opaque and must have metadata in order to
                 ;; know which fields are in the model.
@@ -140,18 +140,18 @@
 
   (testing "Can use joins with persisted models (#28902)"
     (mt/test-drivers (mt/normal-drivers-with-feature :persist-models)
-      (mt/dataset sample-dataset
+      (mt/dataset test-data
         (mt/with-persistence-enabled [persist-models!]
-          (mt/with-temp* [Card [model {:dataset true
-                                       :database_id (mt/id)
-                                       :query_type :query
-                                       :dataset_query
-                                       (mt/mbql-query orders
-                                         {:fields [$total &products.products.category]
-                                          :joins [{:source-table $$products
-                                                   :condition [:= $product_id &products.products.id]
-                                                   :strategy :left-join
-                                                   :alias "products"}]})}]]
+          (mt/with-temp [Card model {:dataset true
+                                     :database_id (mt/id)
+                                     :query_type :query
+                                     :dataset_query
+                                     (mt/mbql-query orders
+                                                    {:fields [$total &products.products.category]
+                                                     :joins [{:source-table $$products
+                                                              :condition [:= $product_id &products.products.id]
+                                                              :strategy :left-join
+                                                              :alias "products"}]})}]
             (persist-models!)
             (let [query   {:type :query
                            :database (mt/id)

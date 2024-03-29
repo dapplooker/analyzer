@@ -2,7 +2,7 @@ import {
   restore,
   openNavigationSidebar,
   visitDashboard,
-} from "__support__/e2e/helpers";
+} from "e2e/support/helpers";
 
 const ratingFilter = {
   name: "Text",
@@ -39,14 +39,21 @@ describe("issue 27356", () => {
 
   it("should seamlessly move between dashboards with or without filters without triggering an error (metabase#27356)", () => {
     openNavigationSidebar();
-
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText(paramDashboard.name).click();
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("This dashboard is looking empty.");
 
+    openNavigationSidebar();
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText(regularDashboard.name).click();
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("This dashboard is looking empty.");
 
+    openNavigationSidebar();
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText(paramDashboard.name).click();
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("This dashboard is looking empty.");
   });
 });

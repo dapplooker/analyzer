@@ -1,9 +1,12 @@
-import React from "react";
+import { t } from "ttag";
+
+import ErrorBoundary from "metabase/ErrorBoundary";
 import useIsSmallScreen from "metabase/hooks/use-is-small-screen";
-import { CollectionId, User } from "metabase-types/api";
-import AppBarSmall from "./AppBarSmall";
-import AppBarLarge from "./AppBarLarge";
+import type { CollectionId, User } from "metabase-types/api";
+
 import { AppBarRoot } from "./AppBar.styled";
+import AppBarLarge from "./AppBarLarge";
+import AppBarSmall from "./AppBarSmall";
 
 export interface AppBarProps {
   currentUser: User;
@@ -25,10 +28,17 @@ const AppBar = (props: AppBarProps): JSX.Element => {
   const isSmallScreen = useIsSmallScreen();
 
   return (
-    <AppBarRoot data-testid="app-bar">
-      {isSmallScreen ? <AppBarSmall {...props} /> : <AppBarLarge {...props} />}
+    <AppBarRoot data-testid="app-bar" aria-label={t`Navigation bar`}>
+      <ErrorBoundary>
+        {isSmallScreen ? (
+          <AppBarSmall {...props} />
+        ) : (
+          <AppBarLarge {...props} />
+        )}
+      </ErrorBoundary>
     </AppBarRoot>
   );
 };
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default AppBar;

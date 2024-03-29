@@ -1,11 +1,12 @@
 /* eslint-disable react/prop-types */
-import React, { Component } from "react";
 import cx from "classnames";
-import ExplicitSize from "metabase/components/ExplicitSize";
-import styles from "./ChartWithLegend.css";
+import { Component } from "react";
 
-import LegendVertical from "./LegendVertical";
+import ExplicitSize from "metabase/components/ExplicitSize";
+
+import styles from "./ChartWithLegend.css";
 import LegendHorizontal from "./LegendHorizontal";
+import LegendVertical from "./LegendVertical";
 
 const GRID_ASPECT_RATIO = 4 / 3;
 const PADDING = 14;
@@ -148,5 +149,5 @@ class ChartWithLegend extends Component {
 
 export default ExplicitSize({
   wrapped: true,
-  refreshMode: props => (props.isDashboard ? "debounce" : "throttle"),
+  refreshMode: props => (props.isDashboard ? "debounceLeading" : "throttle"),
 })(ChartWithLegend);

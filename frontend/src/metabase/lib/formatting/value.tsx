@@ -1,11 +1,12 @@
-import React from "react";
-import ReactMarkdown from "react-markdown";
+import type { Moment } from "moment-timezone"; // eslint-disable-line no-restricted-imports -- deprecated usage
+import moment from "moment-timezone"; // eslint-disable-line no-restricted-imports -- deprecated usage
 import Mustache from "mustache";
-import moment, { Moment } from "moment-timezone";
+import type * as React from "react";
+import ReactMarkdown from "react-markdown";
 
 import ExternalLink from "metabase/core/components/ExternalLink";
-import { renderLinkTextForClick } from "metabase/lib/formatting/link";
 import { NULL_DISPLAY_VALUE, NULL_NUMERIC_VALUE } from "metabase/lib/constants";
+import { renderLinkTextForClick } from "metabase/lib/formatting/link";
 import {
   clickBehaviorIsValid,
   getDataFromClicked,
@@ -20,24 +21,24 @@ import {
   isTime,
   isURL,
 } from "metabase-lib/types/utils/isa";
-import { formatEmail } from "./email";
-import { formatTime } from "./time";
-import { formatUrl } from "./url";
+
 import { formatDateTimeWithUnit, formatRange } from "./date";
-import { formatNumber } from "./numbers";
+import { formatEmail } from "./email";
 import { formatCoordinate } from "./geography";
 import { formatImage } from "./image";
-
-import { OptionsType } from "./types";
+import { formatNumber } from "./numbers";
+import { formatTime } from "./time";
+import type { OptionsType } from "./types";
+import { formatUrl } from "./url";
 
 const MARKDOWN_RENDERERS = {
-  // eslint-disable-next-line react/display-name
   a: ({ href, children }: any) => (
     <ExternalLink href={href}>{children}</ExternalLink>
   ),
 };
 
-export function formatValue(value: unknown, options: OptionsType = {}) {
+export function formatValue(value: unknown, _options: OptionsType = {}) {
+  let { prefix, suffix, ...options } = _options;
   // avoid rendering <ExternalLink> if we have click_behavior set
   if (
     options.click_behavior &&
@@ -77,17 +78,17 @@ export function formatValue(value: unknown, options: OptionsType = {}) {
       return formatted;
     }
   }
-  if (options.prefix || options.suffix) {
+  if (prefix || suffix) {
     if (options.jsx && typeof formatted !== "string") {
       return (
         <span>
-          {options.prefix || ""}
+          {prefix || ""}
           {formatted}
-          {options.suffix || ""}
+          {suffix || ""}
         </span>
       );
     } else {
-      return `${options.prefix || ""}${formatted}${options.suffix || ""}`;
+      return `${prefix || ""}${formatted}${suffix || ""}`;
     }
   } else {
     return formatted;
@@ -174,7 +175,7 @@ export function formatValueRaw(
   } else if (isEmail(column)) {
     return formatEmail(value as string, options);
   } else if (isTime(column)) {
-    return formatTime(value as Moment);
+    return formatTime(value as Moment, column.unit, options);
   } else if (column && column.unit != null) {
     return formatDateTimeWithUnit(
       value as string | number,

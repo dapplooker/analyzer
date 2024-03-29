@@ -1,12 +1,12 @@
-import React from "react";
-import { CollectionId, User } from "metabase-types/api";
-import NewItemButton from "../NewItemButton";
-import ProfileLink from "../ProfileLink";
-import SearchBar from "../SearchBar";
+import { SearchBar } from "metabase/nav/components/search/SearchBar";
+import type { CollectionId } from "metabase-types/api";
+
 import CollectionBreadcrumbs from "../../containers/CollectionBreadcrumbs";
 import QuestionLineage from "../../containers/QuestionLineage";
+import NewItemButton from "../NewItemButton";
+import { ProfileLink } from "../ProfileLink";
 import DappLookerHeaderLinks from "./DappLookerHeaderLinks";
-import AppBarLogo from "./AppBarLogo";
+
 import {
   AppBarLeftContainer,
   AppBarRightContainer,
@@ -14,9 +14,10 @@ import {
   AppBarInfoContainer,
   AppBarProfileLinkContainer,
 } from "./AppBarLarge.styled";
+import { AppBarLogo } from "./AppBarLogo";
+import { AppBarToggle } from "./AppBarToggle";
 
 export interface AppBarLargeProps {
-  currentUser: User;
   collectionId?: CollectionId;
   isNavBarOpen?: boolean;
   isNavBarEnabled?: boolean;
@@ -31,7 +32,6 @@ export interface AppBarLargeProps {
 }
 
 const AppBarLarge = ({
-  currentUser,
   collectionId,
   isNavBarOpen,
   isNavBarEnabled,
@@ -48,15 +48,15 @@ const AppBarLarge = ({
 
   return (
     <AppBarRoot isNavBarOpen={isNavBarVisible}>
-      <AppBarLeftContainer
-        isNavBarEnabled={isNavBarEnabled}
-        isLogoVisible={isLogoVisible}
-      >
+      <AppBarLeftContainer>
+        <AppBarToggle
+          isNavBarEnabled={isNavBarEnabled}
+          isNavBarOpen={isNavBarOpen}
+          onToggleClick={onToggleNavbar}
+        />
         <AppBarLogo
           isLogoVisible={isLogoVisible}
-          isNavBarOpen={isNavBarVisible}
           isNavBarEnabled={isNavBarEnabled}
-          onToggleClick={onToggleNavbar}
         />
         <AppBarInfoContainer
           isVisible={!isNavBarVisible || isQuestionLineageVisible}
@@ -75,7 +75,7 @@ const AppBarLarge = ({
           {isNewButtonVisible && <NewItemButton collectionId={collectionId} />}
           {isProfileLinkVisible && (
             <AppBarProfileLinkContainer>
-              <ProfileLink user={currentUser} onLogout={onLogout} />
+              <ProfileLink onLogout={onLogout} />
             </AppBarProfileLinkContainer>
           )}
         </AppBarRightContainer>
@@ -84,4 +84,5 @@ const AppBarLarge = ({
   );
 };
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default AppBarLarge;

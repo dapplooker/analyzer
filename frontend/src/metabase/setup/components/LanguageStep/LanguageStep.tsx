@@ -1,12 +1,24 @@
-import React, { useCallback, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { t } from "ttag";
 import _ from "underscore";
+
 import Button from "metabase/core/components/Button";
-import { LocaleData } from "metabase-types/api";
-import { Locale } from "metabase-types/store";
-import ActiveStep from "../ActiveStep";
-import InactiveStep from "../InvactiveStep";
+import { useDispatch, useSelector } from "metabase/lib/redux";
+import type { Locale } from "metabase-types/store";
+
+import { selectStep, updateLocale } from "../../actions";
+import {
+  getAvailableLocales,
+  getIsSetupCompleted,
+  getIsStepActive,
+  getIsStepCompleted,
+  getLocale,
+} from "../../selectors";
 import { getLocales } from "../../utils";
+import { ActiveStep } from "../ActiveStep";
+import { InactiveStep } from "../InactiveStep";
+import type { NumberedStepProps } from "../types";
+
 import {
   LocaleGroup,
   LocaleInput,
@@ -15,44 +27,44 @@ import {
   StepDescription,
 } from "./LanguageStep.styled";
 
-export interface LanguageStepProps {
-  locale?: Locale;
-  localeData?: LocaleData[];
-  isStepActive: boolean;
-  isStepCompleted: boolean;
-  isSetupCompleted: boolean;
-  onLocaleChange: (locale: Locale) => void;
-  onStepSelect: () => void;
-  onStepSubmit: () => void;
-}
-
-const LanguageStep = ({
-  locale,
-  localeData,
-  isStepActive,
-  isStepCompleted,
-  isSetupCompleted,
-  onLocaleChange,
-  onStepSelect,
-  onStepSubmit,
-}: LanguageStepProps): JSX.Element => {
+export const LanguageStep = ({ stepLabel }: NumberedStepProps): JSX.Element => {
+  const locale = useSelector(getLocale);
+  const localeData = useSelector(getAvailableLocales);
+  const isStepActive = useSelector(state => getIsStepActive(state, "language"));
+  const isStepCompleted = useSelector(state =>
+    getIsStepCompleted(state, "language"),
+  );
+  const isSetupCompleted = useSelector(state => getIsSetupCompleted(state));
   const fieldId = useMemo(() => _.uniqueId(), []);
   const locales = useMemo(() => getLocales(localeData), [localeData]);
+  const dispatch = useDispatch();
+
+  const handleLocaleChange = (locale: Locale) => {
+    dispatch(updateLocale(locale));
+  };
+
+  const handleStepSelect = () => {
+    dispatch(selectStep("language"));
+  };
+
+  const handleStepSubmit = () => {
+    dispatch(selectStep("user_info"));
+  };
 
   if (!isStepActive) {
     return (
       <InactiveStep
         title={t`Your language is set to ${locale?.name}`}
-        label={1}
+        label={stepLabel}
         isStepCompleted={isStepCompleted}
         isSetupCompleted={isSetupCompleted}
-        onStepSelect={onStepSelect}
+        onStepSelect={handleStepSelect}
       />
     );
   }
 
   return (
-    <ActiveStep title={t`What's your preferred language?`} label={1}>
+    <ActiveStep title={t`What's your preferred language?`} label={stepLabel}>
       <StepDescription>
         {t`This language will be used throughout Metabase and will be the default for new users.`}
       </StepDescription>
@@ -63,15 +75,17 @@ const LanguageStep = ({
             locale={item}
             checked={item.code === locale?.code}
             fieldId={fieldId}
-            onLocaleChange={onLocaleChange}
+            onLocaleChange={handleLocaleChange}
           />
         ))}
       </LocaleGroup>
       <Button
         primary={locale != null}
         disabled={locale == null}
-        onClick={onStepSubmit}
-      >{t`Next`}</Button>
+        onClick={handleStepSubmit}
+      >
+        {t`Next`}
+      </Button>
     </ActiveStep>
   );
 };
@@ -107,5 +121,3 @@ const LocaleItem = ({
     </LocaleLabel>
   );
 };
-
-export default LanguageStep;

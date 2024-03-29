@@ -8,7 +8,7 @@ import {
 
 const MONGO_DB_ID = 2;
 
-describe("issue 13097", { tags: "@external" }, () => {
+describe("issue 13097", { tags: "@mongo" }, () => {
   beforeEach(() => {
     restore("mongo-4");
     cy.signInAsAdmin();
@@ -31,12 +31,16 @@ describe("issue 13097", { tags: "@external" }, () => {
   it("should correctly apply distinct count on multiple columns (metabase#13097)", () => {
     summarize({ mode: "notebook" });
 
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Number of distinct values of ...").click();
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("City").click();
 
     cy.findAllByTestId("notebook-cell-item").find(".Icon-add").click();
 
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Number of distinct values of ...").click();
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("State").click();
 
     visualize();
