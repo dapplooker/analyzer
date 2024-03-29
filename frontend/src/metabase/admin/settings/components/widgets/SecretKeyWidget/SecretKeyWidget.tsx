@@ -1,19 +1,25 @@
-import React from "react";
-
 import { t } from "ttag";
+
 import Confirm from "metabase/components/Confirm";
 import { UtilApi } from "metabase/services";
-import SettingInput from "../SettingInput";
+
+import { SettingInput } from "../SettingInput";
+
 import { GenerateButton, SecretKeyWidgetRoot } from "./SecretKeyWidget.styled";
 
 interface SecretKeyWidgetProps {
   onChange: (token: string) => void;
   setting: any;
+  confirmation: {
+    header: string;
+    dialog: string;
+  };
 }
 
 const SecretKeyWidget = ({
   onChange,
   setting,
+  confirmation,
   ...rest
 }: SecretKeyWidgetProps) => {
   const generateToken = async () => {
@@ -27,8 +33,8 @@ const SecretKeyWidget = ({
       {setting.value ? (
         <Confirm
           triggerClasses="full-height"
-          title={t`Regenerate embedding key?`}
-          content={t`This will cause existing embeds to stop working until they are updated with the new key.`}
+          title={confirmation.header}
+          content={confirmation.dialog}
           action={generateToken}
         >
           <GenerateButton primary>{t`Regenerate key`}</GenerateButton>
@@ -43,4 +49,5 @@ const SecretKeyWidget = ({
   );
 };
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default SecretKeyWidget;

@@ -1,20 +1,19 @@
-import React from "react";
 import { connect } from "react-redux";
 import { useMount } from "react-use";
 
 import Radio from "metabase/core/components/Radio";
 import Fields from "metabase/entities/fields";
+import type Field from "metabase-lib/metadata/Field";
+import type { State } from "metabase-types/store";
 
-import { State } from "metabase-types/store";
-
-import { CategoryWidgetProps as CategoryWidgetOwnProps } from "./types";
+import type { CategoryWidgetProps as CategoryWidgetOwnProps } from "./types";
 
 interface CategoryWidgetStateProps {
   fieldValues: unknown[][];
 }
 
 interface CategoryWidgetDispatchProps {
-  fetchFieldValues: (opts: { id: number }) => void;
+  fetchFieldValues: (field: Field) => void;
 }
 
 interface CategoryWidgetProps
@@ -44,7 +43,7 @@ function CategoryRadioPicker({
 }: CategoryWidgetProps) {
   useMount(() => {
     if (typeof field.id === "number") {
-      fetchFieldValues({ id: field.id });
+      fetchFieldValues(field);
     }
   });
 
@@ -63,6 +62,7 @@ function CategoryRadioPicker({
   );
 }
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default connect<
   CategoryWidgetStateProps,
   CategoryWidgetDispatchProps,

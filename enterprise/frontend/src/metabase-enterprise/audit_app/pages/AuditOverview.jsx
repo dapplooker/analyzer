@@ -1,9 +1,5 @@
-/* eslint-disable react/prop-types */
-import React from "react";
-
 import AuditContent from "../components/AuditContent";
 import AuditDashboard from "../containers/AuditDashboard";
-
 import * as UsersCards from "../lib/cards/users";
 
 const AuditOverview = props => (

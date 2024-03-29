@@ -1,27 +1,28 @@
 /* eslint-disable react/prop-types */
-import React, { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { connect } from "react-redux";
 import { t, ngettext, msgid } from "ttag";
 
+import AdminPaneLayout from "metabase/components/AdminPaneLayout";
+import Alert from "metabase/components/Alert";
+import { useConfirmation } from "metabase/hooks/use-confirmation";
 import {
   isAdminGroup,
   isDefaultGroup,
   canEditMembership,
   getGroupNameLocalized,
 } from "metabase/lib/groups";
-
 import { PLUGIN_GROUP_MANAGERS } from "metabase/plugins";
-import Alert from "metabase/components/Alert";
-import AdminPaneLayout from "metabase/components/AdminPaneLayout";
 import { getUser } from "metabase/selectors/user";
-import { useConfirmation } from "metabase/hooks/use-confirmation";
-import { getGroupMembersips, getMembershipsByUser } from "../selectors";
+
 import {
   createMembership,
   deleteMembership,
   updateMembership,
   loadMemberships,
 } from "../people";
+import { getGroupMemberships, getMembershipsByUser } from "../selectors";
+
 import GroupMembersTable from "./GroupMembersTable";
 
 const GroupDescription = ({ group }) =>
@@ -47,7 +48,7 @@ const GroupDescription = ({ group }) =>
   ) : null;
 
 const mapStateToProps = (state, props) => ({
-  groupMemberships: getGroupMembersips(state, props),
+  groupMemberships: getGroupMemberships(state, props),
   membershipsByUser: getMembershipsByUser(state),
   currentUser: getUser(state),
 });
@@ -156,16 +157,16 @@ const GroupDetail = ({
   return (
     <AdminPaneLayout
       title={
-        <React.Fragment>
+        <Fragment>
           {getGroupNameLocalized(group ?? {})}
           <span className="text-light ml1">
             {ngettext(
-              msgid`${groupMemberships.length} member`,
-              `${groupMemberships.length} members`,
-              groupMemberships.length,
+              msgid`${group.members.length} member`,
+              `${group.members.length} members`,
+              group.members.length,
             )}
           </span>
-        </React.Fragment>
+        </Fragment>
       }
       buttonText={t`Add members`}
       buttonAction={canEditMembership(group) ? onAddUsersClicked : null}

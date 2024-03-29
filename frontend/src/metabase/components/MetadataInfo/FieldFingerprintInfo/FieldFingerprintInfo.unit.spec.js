@@ -1,23 +1,38 @@
-import React from "react";
+import { createMockEntitiesState } from "__support__/store";
 import { renderWithProviders, screen } from "__support__/ui";
-
-import { PRODUCTS, metadata } from "__support__/sample_database_fixture";
+import { getMetadata } from "metabase/selectors/metadata";
 import Dimension from "metabase-lib/Dimension";
+import {
+  createSampleDatabase,
+  PRODUCTS,
+} from "metabase-types/api/mocks/presets";
+import { createMockState } from "metabase-types/store/mocks";
 
 import FieldFingerprintInfo from "./FieldFingerprintInfo";
+
+const state = createMockState({
+  entities: createMockEntitiesState({
+    databases: [createSampleDatabase()],
+  }),
+});
+const metadata = getMetadata(state);
 
 function setup(field) {
   return renderWithProviders(
     <div data-testid="container">
-      <FieldFingerprintInfo field={field} />
+      <FieldFingerprintInfo
+        field={field}
+        timezone={field.table?.database?.timezone}
+      />
     </div>,
+    { storeInitialState: state },
   );
 }
 
 describe("FieldFingerprintInfo", () => {
   describe("without fingerprint", () => {
     const field = Dimension.parseMBQL(
-      ["field", PRODUCTS.CREATED_AT.id, null],
+      ["field", PRODUCTS.CREATED_AT, null],
       metadata,
     )
       .field()
@@ -33,7 +48,7 @@ describe("FieldFingerprintInfo", () => {
 
   describe("Date field", () => {
     const dateField = Dimension.parseMBQL(
-      ["field", PRODUCTS.CREATED_AT.id, null],
+      ["field", PRODUCTS.CREATED_AT, null],
       metadata,
     )
       .field()
@@ -84,7 +99,7 @@ describe("FieldFingerprintInfo", () => {
 
   describe("Number field", () => {
     const numberField = Dimension.parseMBQL(
-      ["field", PRODUCTS.RATING.id, null],
+      ["field", PRODUCTS.RATING, null],
       metadata,
     ).field();
 
@@ -168,7 +183,7 @@ describe("FieldFingerprintInfo", () => {
 
   describe("Other field types", () => {
     const idField = Dimension.parseMBQL(
-      ["field", PRODUCTS.ID.id, null],
+      ["field", PRODUCTS.ID, null],
       metadata,
     ).field();
 

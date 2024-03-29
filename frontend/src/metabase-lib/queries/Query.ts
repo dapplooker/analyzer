@@ -1,18 +1,19 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-nocheck
-import { DatasetQuery } from "metabase-types/types/Card";
-import { DependentMetadataItem } from "metabase-types/types/Query";
-import Metadata from "metabase-lib/metadata/Metadata";
-import Question from "metabase-lib/Question";
+import _ from "underscore";
+
 import Dimension from "metabase-lib/Dimension";
-import Variable from "metabase-lib/variables/Variable";
-import { memoizeClass } from "metabase-lib/utils";
 import DimensionOptions from "metabase-lib/DimensionOptions";
+import type Question from "metabase-lib/Question";
+import type Metadata from "metabase-lib/metadata/Metadata";
+import type TemplateTagVariable from "metabase-lib/variables/TemplateTagVariable";
+import type Variable from "metabase-lib/variables/Variable";
+import type { DependentMetadataItem, DatasetQuery } from "metabase-types/api";
 
 /**
  * An abstract class for all query types (StructuredQuery & NativeQuery)
  */
-class QueryInner {
+class Query {
   _metadata: Metadata;
 
   /**
@@ -32,16 +33,9 @@ class QueryInner {
    * Returns a question updated with the current dataset query.
    * Can only be applied to query that is a direct child of the question.
    */
-  question(): Question {
-    return this._originalQuestion.setQuery(this);
-  }
-
-  /**
-   * Returns a "clean" version of this query with invalid parts removed
-   */
-  clean() {
-    return this;
-  }
+  question = _.once((): Question => {
+    return this._originalQuestion.setLegacyQuery(this);
+  });
 
   /**
    * Convenience method for accessing the global metadata
@@ -51,20 +45,13 @@ class QueryInner {
   }
 
   /**
-   * Does this query have the sufficient metadata for editing it?
-   */
-  isEditable(): boolean {
-    return true;
-  }
-
-  /**
    * Returns the dataset_query object underlying this Query
    */
   datasetQuery(): DatasetQuery {
     return this._datasetQuery;
   }
 
-  setDatasetQuery(datasetQuery: DatasetQuery): QueryInner {
+  setDatasetQuery(_datasetQuery: DatasetQuery): Query {
     return this;
   }
 
@@ -84,18 +71,11 @@ class QueryInner {
   }
 
   /**
-   * Returns true if the database metadata (or lack thererof indicates the user can modify and run this query
-   */
-  readOnly(): boolean {
-    return true;
-  }
-
-  /**
    * Dimensions exposed by this query
    * NOTE: Ideally we'd also have `dimensions()` that returns a flat list, but currently StructuredQuery has it's own `dimensions()` for another purpose.
    */
   dimensionOptions(
-    filter: (dimension: Dimension) => boolean,
+    _filter?: (dimension: Dimension) => boolean,
   ): DimensionOptions {
     return new DimensionOptions();
   }
@@ -103,7 +83,7 @@ class QueryInner {
   /**
    * Variables exposed by this query
    */
-  variables(filter: (variable: Variable) => boolean): Variable[] {
+  variables(_filter?: (variable: Variable) => boolean): TemplateTagVariable[] {
     return [];
   }
 
@@ -114,15 +94,10 @@ class QueryInner {
     return [];
   }
 
-  setDefaultQuery(): QueryInner {
-    return this;
-  }
-
   parseFieldReference(fieldRef, query = this): Dimension | null | undefined {
     return Dimension.parseMBQL(fieldRef, this._metadata, query);
   }
 }
 
-export default class Query extends memoizeClass<QueryInner>("question")(
-  QueryInner,
-) {}
+// eslint-disable-next-line import/no-default-export -- deprecated usage
+export default Query;

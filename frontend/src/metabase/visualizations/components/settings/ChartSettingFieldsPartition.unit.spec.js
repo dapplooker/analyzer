@@ -1,6 +1,7 @@
-import React from "react";
 import { render, screen } from "@testing-library/react";
+
 import { createMockColumn } from "metabase-types/api/mocks";
+
 import ChartSettingFieldsPartition from "./ChartSettingFieldsPartition";
 
 describe("ChartSettingFieldsPartition", () => {

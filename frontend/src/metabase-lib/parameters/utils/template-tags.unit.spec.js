@@ -1,13 +1,14 @@
 import {
-  getTemplateTagsForParameters,
+  getTemplateTags,
   getTemplateTagParameters,
   remapParameterValuesToTemplateTags,
 } from "metabase-lib/parameters/utils/template-tags";
+import { createMockTemplateTag } from "metabase-types/api/mocks";
 
 describe("parameters/utils/cards", () => {
-  describe("getTemplateTagsForParameters", () => {
+  describe("getTemplateTags", () => {
     it("should return an empty array for an invalid card", () => {
-      expect(getTemplateTagsForParameters({})).toEqual([]);
+      expect(getTemplateTags({})).toEqual([]);
     });
 
     it("should return an empty array for a non-native query", () => {
@@ -16,10 +17,10 @@ describe("parameters/utils/cards", () => {
           type: "query",
         },
       };
-      expect(getTemplateTagsForParameters(card)).toEqual([]);
+      expect(getTemplateTags(card)).toEqual([]);
     });
 
-    it("should return an empty array for a non-parametrized query", () => {
+    it("should return an empty array for a non-parameterized query", () => {
       const card = {
         dataset_query: {
           type: "query",
@@ -28,10 +29,10 @@ describe("parameters/utils/cards", () => {
           },
         },
       };
-      expect(getTemplateTagsForParameters(card)).toEqual([]);
+      expect(getTemplateTags(card)).toEqual([]);
     });
 
-    it("should extract the template tags defining the parameters", () => {
+    it("should extract the template tags", () => {
       const card = {
         dataset_query: {
           type: "native",
@@ -53,11 +54,17 @@ describe("parameters/utils/cards", () => {
           },
         },
       };
-      expect(getTemplateTagsForParameters(card)).toEqual([
+      expect(getTemplateTags(card)).toEqual([
         {
           type: "number",
           name: "stars",
           id: "xyz777",
+        },
+        {
+          id: "abc123",
+          name: "snippet: foo",
+          "snippet-id": 6,
+          type: "snippet",
         },
       ]);
     });
@@ -161,6 +168,38 @@ describe("parameters/utils/cards", () => {
         parametersWithFieldFilterOperatorTypes,
       );
     });
+
+    it("should exclude tags that are not parameters", () => {
+      const tags = [
+        createMockTemplateTag({
+          type: "string",
+          id: "1",
+          name: "a",
+          "display-name": "A",
+        }),
+        createMockTemplateTag({
+          type: "card",
+          id: "2",
+          "card-id": 123,
+        }),
+        createMockTemplateTag({
+          type: "snippet",
+          id: "3",
+          "snippet-id": 1,
+          "snippet-name": "C",
+        }),
+      ];
+      expect(getTemplateTagParameters(tags)).toEqual([
+        {
+          default: undefined,
+          id: "1",
+          name: "A",
+          slug: "a",
+          target: ["variable", ["template-tag", "a"]],
+          type: "string/=",
+        },
+      ]);
+    });
   });
 
   describe("remapParameterValuesToTemplateTags", () => {
@@ -215,6 +254,7 @@ describe("parameters/utils/cards", () => {
       ).toEqual({
         "template-tag-1": "aaa",
         "template-tag-2": "bbb",
+        "template-tag-3": null,
       });
     });
   });

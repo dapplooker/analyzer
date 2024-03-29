@@ -1,19 +1,16 @@
-import React, { useCallback } from "react";
-import { t } from "ttag";
+import type { LocationDescriptor } from "history";
+import { useCallback } from "react";
 import { connect } from "react-redux";
 import { push } from "react-router-redux";
-import type { LocationDescriptor } from "history";
+import { t } from "ttag";
 
 import ModalContent from "metabase/components/ModalContent";
-
 import * as Urls from "metabase/lib/urls";
-
 import type { Collection } from "metabase-types/api";
 import type { State } from "metabase-types/store";
 
-import CreateCollectionForm, {
-  CreateCollectionFormOwnProps,
-} from "./CreateCollectionForm";
+import type { CreateCollectionFormOwnProps } from "../components/CreateCollectionForm";
+import { CreateCollectionForm } from "../components/CreateCollectionForm";
 
 interface CreateCollectionModalOwnProps
   extends Omit<CreateCollectionFormOwnProps, "onCancel"> {
@@ -59,6 +56,7 @@ function CreateCollectionModal({
   );
 }
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default connect<
   unknown,
   CreateCollectionModalDispatchProps,

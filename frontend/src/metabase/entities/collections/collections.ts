@@ -1,15 +1,12 @@
+import { createSelector } from "@reduxjs/toolkit";
 import { t } from "ttag";
-import { createSelector } from "reselect";
-
-import { GET } from "metabase/lib/api";
-import { createEntity, undo } from "metabase/lib/entities";
-import * as Urls from "metabase/lib/urls";
-
-import { CollectionSchema } from "metabase/schema";
-import { getUserPersonalCollectionId } from "metabase/selectors/user";
 
 import { canonicalCollectionId } from "metabase/collections/utils";
-
+import { GET } from "metabase/lib/api";
+import { createEntity, undo } from "metabase/lib/entities";
+import * as Urls from "metabase/lib/urls/collections";
+import { CollectionSchema } from "metabase/schema";
+import { getUserPersonalCollectionId } from "metabase/selectors/user";
 import type { Collection } from "metabase-types/api";
 import type { GetState, ReduxAction } from "metabase-types/store";
 
@@ -83,11 +80,13 @@ const Collections = createEntity({
       [
         state => Collections.selectors.getList(state),
         getUserPersonalCollectionId,
+        (_state, props) => props?.collectionFilter,
       ],
-      (collections, currentUserPersonalCollectionId) =>
+      (collections, currentUserPersonalCollectionId, collectionFilter) =>
         getExpandedCollectionsById(
           collections || [],
           currentUserPersonalCollectionId,
+          collectionFilter,
         ),
     ),
     getInitialCollectionId,
@@ -95,7 +94,7 @@ const Collections = createEntity({
 
   getAnalyticsMetadata(
     [object]: [Collection],
-    { action }: { action: ReduxAction },
+    { action: _action }: { action: ReduxAction },
     getState: GetState,
   ) {
     const type = object && getCollectionType(object.parent_id, getState());
@@ -105,4 +104,5 @@ const Collections = createEntity({
 
 export { getExpandedCollectionsById };
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default Collections;

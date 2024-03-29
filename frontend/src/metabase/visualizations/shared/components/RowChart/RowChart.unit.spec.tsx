@@ -1,11 +1,14 @@
-import React from "react";
 import { render, screen } from "@testing-library/react";
-import type { NumberValue } from "d3-scale";
 import userEvent from "@testing-library/user-event";
-import { ChartFont } from "../../types/style";
-import { FontStyle, TextMeasurer } from "../../types/measure-text";
-import { RowChart, RowChartProps } from "./RowChart";
-import { RowChartTheme } from "./types";
+import type { NumberValue } from "d3-scale";
+
+import { measureTextWidth } from "metabase/lib/measure-text";
+
+import type { ChartFont } from "../../types/style";
+
+import type { RowChartProps } from "./RowChart";
+import { RowChart } from "./RowChart";
+import type { RowChartTheme } from "./types";
 
 type TestDatum = { y: string; x: number; x1: number };
 
@@ -24,9 +27,6 @@ const theme: RowChartTheme = {
     color: "gray",
   },
 };
-
-const measureText: TextMeasurer = (text: string, _style: FontStyle) =>
-  text.length * 10;
 
 const series1 = {
   seriesKey: "series 1",
@@ -56,7 +56,7 @@ const defaultProps = {
   },
   theme,
   stackOffset: null,
-  measureText,
+  measureTextWidth,
 };
 
 const setup = (props?: Partial<RowChartProps<TestDatum>>) => {

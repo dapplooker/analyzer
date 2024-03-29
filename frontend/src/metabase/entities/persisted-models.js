@@ -1,6 +1,7 @@
-import { createSelector } from "reselect";
-import { PersistedModelSchema } from "metabase/schema";
+import { createSelector } from "@reduxjs/toolkit";
+
 import { createEntity } from "metabase/lib/entities";
+import { PersistedModelSchema } from "metabase/schema";
 import { CardApi, PersistedModelsApi } from "metabase/services";
 
 const REFRESH_CACHE = "metabase/entities/persistedModels/REFRESH_CACHE";

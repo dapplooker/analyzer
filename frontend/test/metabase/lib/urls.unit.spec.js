@@ -43,19 +43,22 @@ describe("urls", () => {
         );
       });
 
-      it("does not include undefined params", () => {
+      it("includes undefined params", () => {
         expect(question(null, { query: { foo: undefined } })).toEqual(
-          "/question",
+          "/question?foo=",
         );
         expect(
           question(null, { query: { foo: undefined, bar: "bar" } }),
-        ).toEqual("/question?bar=bar");
+        ).toEqual("/question?foo=&bar=bar");
       });
 
       it("includes null params", () => {
         expect(question(null, { query: { foo: null } })).toEqual(
-          "/question?foo=null",
+          "/question?foo=",
         );
+        expect(
+          question(null, { query: { foo: undefined, bar: "bar" } }),
+        ).toEqual("/question?foo=&bar=bar");
       });
     });
 
@@ -361,8 +364,8 @@ describe("urls", () => {
       { path: "dashboard/1", expected: false },
       { path: "/dashboard/1", expected: false },
       { path: "/dashboard/12-orders", expected: false },
-      { path: "/browse/1", expected: false },
-      { path: "/browse/12-shop", expected: false },
+      { path: "/browse/databases/1", expected: false },
+      { path: "/browse/databases/12-shop", expected: false },
       { path: "/question/1-orders", expected: false },
     ];
 
@@ -455,7 +458,7 @@ describe("urls", () => {
 
       it(`should handle ${caseName} correctly for database browse URLs`, () => {
         expect(browseDatabase(entity)).toBe(
-          expectedUrl("/browse/1", expectedString),
+          expectedUrl("/browse/databases/1", expectedString),
         );
       });
 

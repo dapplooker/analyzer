@@ -1,16 +1,13 @@
-/* eslint-disable react/prop-types */
-import React from "react";
 import { t } from "ttag";
 
 import AuditContent from "../components/AuditContent";
 import AuditDashboard from "../containers/AuditDashboard";
 import AuditTable from "../containers/AuditTable";
 import AuditTableWithSearch from "../containers/AuditTableWithSearch";
-
 import * as UsersCards from "../lib/cards/users";
 
 const AuditUsers = props => (
-  <AuditContent {...props} title="Team members" tabs={AuditUsers.tabs} />
+  <AuditContent {...props} title={t`Team members`} tabs={AuditUsers.tabs} />
 );
 
 const AuditUsersOverviewTab = () => (

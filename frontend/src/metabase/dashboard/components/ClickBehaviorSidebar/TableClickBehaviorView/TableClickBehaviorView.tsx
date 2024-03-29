@@ -1,16 +1,16 @@
-import React, { useMemo, useCallback } from "react";
+import { useMemo, useCallback } from "react";
 import { t } from "ttag";
 import _ from "underscore";
 
+import { hasActionsMenu } from "metabase/lib/click-behavior";
 import type {
-  DashboardOrderedCard,
+  QuestionDashboardCard,
   ClickBehavior,
   ClickBehaviorType,
   DatasetColumn,
 } from "metabase-types/api";
 
-import { hasActionsMenu } from "metabase/lib/click-behavior";
-import Column from "./Column";
+import { Column } from "./Column";
 
 const COLUMN_SORTING_ORDER_BY_CLICK_BEHAVIOR_TYPE = [
   "link",
@@ -20,7 +20,7 @@ const COLUMN_SORTING_ORDER_BY_CLICK_BEHAVIOR_TYPE = [
 
 function explainClickBehaviorType(
   type: ClickBehaviorType,
-  dashcard: DashboardOrderedCard,
+  dashcard: QuestionDashboardCard,
 ) {
   return {
     action: t`Execute an action`,
@@ -34,14 +34,14 @@ function explainClickBehaviorType(
 
 interface Props {
   columns: DatasetColumn[];
-  dashcard: DashboardOrderedCard;
+  dashcard: QuestionDashboardCard;
   getClickBehaviorForColumn: (
     column: DatasetColumn,
   ) => ClickBehavior | undefined;
   onColumnClick: (column: DatasetColumn) => void;
 }
 
-function TableClickBehaviorView({
+export function TableClickBehaviorView({
   columns,
   dashcard,
   getClickBehaviorForColumn,
@@ -96,5 +96,3 @@ function TableClickBehaviorView({
 
   return <>{groupedColumns.map(renderColumnGroup)}</>;
 }
-
-export default TableClickBehaviorView;

@@ -1,13 +1,13 @@
+import { SAMPLE_DB_ID } from "e2e/support/cypress_data";
+import { SAMPLE_DATABASE } from "e2e/support/cypress_sample_database";
 import {
   restore,
   editDashboard,
   visitQuestionAdhoc,
   popover,
   visitDashboard,
+  addOrUpdateDashboardCard,
 } from "e2e/support/helpers";
-
-import { SAMPLE_DB_ID } from "e2e/support/cypress_data";
-import { SAMPLE_DATABASE } from "e2e/support/cypress_sample_database";
 
 const { PRODUCTS_ID, PRODUCTS } = SAMPLE_DATABASE;
 
@@ -48,7 +48,9 @@ describe.skip("issue 19744", () => {
     editDashboard();
     cy.icon("filter").click();
 
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Time").click();
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("All Options").click();
 
     cy.get(".DashCard").contains("Select…").click();
@@ -72,17 +74,15 @@ function saveQuestion(name) {
 }
 
 function addQuestionToDashboardAndVisit() {
-  cy.createDashboard().then(({ body: { id } }) => {
-    cy.get("@questionId").then(cardId => {
-      cy.request("POST", `/api/dashboard/${id}/cards`, {
-        cardId,
-        row: 0,
-        col: 0,
-        size_x: 16,
-        size_y: 10,
+  cy.createDashboard().then(({ body: { id: dashboard_id } }) => {
+    cy.get("@questionId").then(card_id => {
+      addOrUpdateDashboardCard({
+        card_id,
+        dashboard_id,
+        card: { size_x: 21, size_y: 10 },
       });
     });
 
-    visitDashboard(id);
+    visitDashboard(dashboard_id);
   });
 }

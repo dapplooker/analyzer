@@ -1,14 +1,13 @@
-import React from "react";
 import PropTypes from "prop-types";
+import { t } from "ttag";
 
 import Dashboard from "metabase/entities/dashboards";
 import * as Urls from "metabase/lib/urls";
+
 import AuditContent from "../components/AuditContent";
+import OpenInMetabase from "../components/OpenInMetabase";
 import AuditDashboard from "../containers/AuditDashboard";
 import AuditTable from "../containers/AuditTable";
-
-import OpenInMetabase from "../components/OpenInMetabase";
-
 import * as DashboardCards from "../lib/cards/dashboard_detail";
 
 const tabPropTypes = {
@@ -61,14 +60,18 @@ function AuditDashboardAuditLogTab({ dashboardId }) {
 }
 
 AuditDashboardDetail.tabs = [
-  { path: "activity", title: "Activity", component: AuditDashboardActivityTab },
+  {
+    path: "activity",
+    title: t`Activity`,
+    component: AuditDashboardActivityTab,
+  },
   { path: "details", title: "Details" },
   {
     path: "revisions",
-    title: "Revision history",
+    title: t`Revision history`,
     component: AuditDashboardRevisionsTab,
   },
-  { path: "log", title: "Audit log", component: AuditDashboardAuditLogTab },
+  { path: "log", title: t`Audit log`, component: AuditDashboardAuditLogTab },
 ];
 
 export default AuditDashboardDetail;

@@ -9,8 +9,8 @@
    [metabase.util :as u]
    [metabase.util.i18n :refer [trs]]
    [metabase.util.log :as log]
-   [ring.adapter.jetty9 :as ring-jetty]
-   [ring.adapter.jetty9.servlet :as servlet])
+   [ring.adapter.jetty :as ring-jetty]
+   [ring.util.jakarta.servlet :as servlet])
   (:import
    (jakarta.servlet AsyncContext)
    (jakarta.servlet.http HttpServletRequest HttpServletResponse)
@@ -22,13 +22,15 @@
 (defn- jetty-ssl-config []
   (m/filter-vals
    some?
-   {:ssl-port       (config/config-int :mb-jetty-ssl-port)
-    :keystore       (config/config-str :mb-jetty-ssl-keystore)
-    :key-password   (config/config-str :mb-jetty-ssl-keystore-password)
-    :truststore     (config/config-str :mb-jetty-ssl-truststore)
-    :trust-password (config/config-str :mb-jetty-ssl-truststore-password)
-    :client-auth    (when (config/config-bool :mb-jetty-ssl-client-auth)
-                      :need)}))
+   {:ssl-port        (config/config-int :mb-jetty-ssl-port)
+    :keystore        (config/config-str :mb-jetty-ssl-keystore)
+    :key-password    (config/config-str :mb-jetty-ssl-keystore-password)
+    :truststore      (config/config-str :mb-jetty-ssl-truststore)
+    :trust-password  (config/config-str :mb-jetty-ssl-truststore-password)
+    :client-auth     (when (config/config-bool :mb-jetty-ssl-client-auth)
+                       :need)
+    :sni-host-check? (when (config/config-str :mb-jetty-skip-sni)
+                       false)}))
 
 (defn- jetty-config []
   (cond-> (m/filter-vals
@@ -46,8 +48,7 @@
                                              (merge (jetty-ssl-config)))))
 
 (defn- log-config [jetty-config]
-  (log/info (trs "Launching Embedded Jetty Webserver with config:")
-            "\n"
+  (log/info "Launching Embedded Jetty Webserver with config:\n"
             (u/pprint-to-str (m/filter-keys
                               #(not (str/includes? % "password"))
                               jetty-config))))

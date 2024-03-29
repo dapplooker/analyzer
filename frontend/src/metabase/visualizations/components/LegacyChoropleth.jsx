@@ -1,8 +1,8 @@
 /* eslint-disable react/prop-types */
-import React, { Component } from "react";
-
-import d3 from "d3";
 import cx from "classnames";
+import d3 from "d3";
+import { Component } from "react";
+
 import { isSameSeries } from "metabase/visualizations/lib/utils";
 
 const LegacyChoropleth = ({
@@ -29,7 +29,6 @@ const LegacyChoropleth = ({
         }
       >
         {() => (
-          // eslint-disable-line react/display-name
           <svg
             className="flex-full m1"
             viewBox={`${minX} ${minY} ${width} ${height}`}
@@ -50,12 +49,13 @@ const LegacyChoropleth = ({
                 onMouseLeave={() => onHoverFeature(null)}
                 className={cx({ "cursor-pointer": !!onClickFeature })}
                 onClick={
-                  onClickFeature &&
-                  (e =>
-                    onClickFeature({
-                      feature: feature,
-                      event: e.nativeEvent,
-                    }))
+                  onClickFeature
+                    ? e =>
+                        onClickFeature({
+                          feature: feature,
+                          event: e.nativeEvent,
+                        })
+                    : undefined
                 }
               />
             ))}

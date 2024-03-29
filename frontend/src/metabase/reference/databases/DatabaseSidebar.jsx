@@ -1,10 +1,11 @@
 /* eslint "react/prop-types": "warn" */
-import React from "react";
-import PropTypes from "prop-types";
-import { t } from "ttag";
 import cx from "classnames";
-import S from "metabase/components/Sidebar.css";
+import PropTypes from "prop-types";
+import { memo } from "react";
+import { t } from "ttag";
+
 import Breadcrumbs from "metabase/components/Breadcrumbs";
+import S from "metabase/components/Sidebar.css";
 import SidebarItem from "metabase/components/SidebarItem";
 
 const DatabaseSidebar = ({ database, style, className }) => (
@@ -41,4 +42,4 @@ DatabaseSidebar.propTypes = {
   style: PropTypes.object,
 };
 
-export default React.memo(DatabaseSidebar);
+export default memo(DatabaseSidebar);

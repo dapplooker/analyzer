@@ -1,6 +1,6 @@
 import { isDeprecatedEngine } from "metabase/lib/engine";
 import { getSetting } from "metabase/selectors/settings";
-import type { Database } from "metabase-types/api";
+import type Database from "metabase-lib/metadata/Database";
 import type { State } from "metabase-types/store";
 
 interface Props {
@@ -24,15 +24,4 @@ export const hasDeprecatedDatabase = (state: State, props: Props): boolean => {
 
 export const getAdminPaths = (state: State) => {
   return state.admin?.app?.paths ?? [];
-};
-
-export const canAccessAdmin = (state: State): boolean => {
-  return getAdminPaths(state).length > 0;
-};
-
-export const canAccessPath = (
-  state: State,
-  { key }: { key: string },
-): boolean => {
-  return state.admin.app.paths?.find(path => path.key === key) != null;
 };

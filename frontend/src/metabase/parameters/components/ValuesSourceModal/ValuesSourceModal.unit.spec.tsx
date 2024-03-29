@@ -1,14 +1,6 @@
-import React from "react";
 import userEvent from "@testing-library/user-event";
-import { ROOT_COLLECTION } from "metabase/entities/collections";
-import { Card, ParameterValues } from "metabase-types/api";
-import {
-  createMockCard,
-  createMockCollection,
-  createMockDatabase,
-  createMockField,
-  createMockParameterValues,
-} from "metabase-types/api/mocks";
+
+import { createMockMetadata } from "__support__/metadata";
 import {
   setupCardsEndpoints,
   setupCollectionsEndpoints,
@@ -18,26 +10,50 @@ import {
   setupUnauthorizedCardsEndpoints,
   setupUnauthorizedCollectionsEndpoints,
 } from "__support__/server-mocks";
-import { renderWithProviders, screen, waitFor } from "__support__/ui";
-import Field from "metabase-lib/metadata/Field";
-import { UiParameter } from "metabase-lib/parameters/types";
+import {
+  renderWithProviders,
+  screen,
+  waitForLoaderToBeRemoved,
+} from "__support__/ui";
+import { ROOT_COLLECTION } from "metabase/entities/collections";
+import { checkNotNull } from "metabase/lib/types";
 import { createMockUiParameter } from "metabase-lib/parameters/mock";
+import type { UiParameter } from "metabase-lib/parameters/types";
+import type { Card, ParameterValues } from "metabase-types/api";
+import {
+  createMockCard,
+  createMockCollection,
+  createMockDatabase,
+  createMockField,
+  createMockParameterValues,
+} from "metabase-types/api/mocks";
+
 import ValuesSourceModal from "./ValuesSourceModal";
 
 describe("ValuesSourceModal", () => {
+  const metadata = createMockMetadata({
+    fields: [
+      createMockField({
+        id: 1,
+        base_type: "type/Text",
+        semantic_type: "type/Category",
+      }),
+      createMockField({
+        id: 2,
+        base_type: "type/Text",
+        semantic_type: "type/Category",
+      }),
+    ],
+  });
+
+  const field1 = checkNotNull(metadata.field(1));
+  const field2 = checkNotNull(metadata.field(2));
+
   describe("fields source", () => {
-    it("should show a message about not connected fields", async () => {
-      await setup();
-
-      expect(
-        screen.getByText(/You haven’t connected a field to this filter/),
-      ).toBeInTheDocument();
-    });
-
     it("should show a message about missing field values", async () => {
       await setup({
         parameter: createMockUiParameter({
-          fields: [new Field(createMockField({ id: 1 }))],
+          fields: [field1],
         }),
         parameterValues: createMockParameterValues({
           values: [],
@@ -52,10 +68,7 @@ describe("ValuesSourceModal", () => {
     it("should show field values", async () => {
       await setup({
         parameter: createMockUiParameter({
-          fields: [
-            new Field(createMockField({ id: 1 })),
-            new Field(createMockField({ id: 2 })),
-          ],
+          fields: [field1, field2],
         }),
         parameterValues: createMockParameterValues({
           values: [["A"], ["B"], ["C"]],
@@ -65,19 +78,28 @@ describe("ValuesSourceModal", () => {
       expect(screen.getByRole("textbox")).toHaveValue("A\nB\nC");
     });
 
-    it("should not show the fields option for variable template tags", async () => {
-      await setup({
-        parameter: createMockUiParameter({
-          hasVariableTemplateTagTarget: true,
-        }),
-      });
-
+    it("should not show the connected fields option if parameter is not wired to any fields", async () => {
+      await setup();
       expect(
         screen.queryByRole("radio", { name: "From connected fields" }),
       ).not.toBeInTheDocument();
       expect(
         screen.getByRole("radio", { name: "From another model or question" }),
       ).toBeChecked();
+    });
+
+    it("should show the fields option if parameter is wired to a field", async () => {
+      await setup({
+        parameter: createMockUiParameter({
+          fields: [field1],
+        }),
+      });
+      expect(
+        screen.queryByRole("radio", { name: "From connected fields" }),
+      ).toBeChecked();
+      expect(
+        screen.getByRole("radio", { name: "From another model or question" }),
+      ).toBeInTheDocument();
     });
 
     it("should preserve custom list option for variable template tags", async () => {
@@ -94,10 +116,7 @@ describe("ValuesSourceModal", () => {
     it("should copy field values when switching to custom list", async () => {
       await setup({
         parameter: createMockUiParameter({
-          fields: [
-            new Field(createMockField({ id: 1 })),
-            new Field(createMockField({ id: 2 })),
-          ],
+          fields: [field1, field2],
           values_source_config: {
             values: ["A", "B"],
           },
@@ -116,10 +135,7 @@ describe("ValuesSourceModal", () => {
     it("should not overwrite custom list values when field values are empty", async () => {
       await setup({
         parameter: createMockUiParameter({
-          fields: [
-            new Field(createMockField({ id: 1 })),
-            new Field(createMockField({ id: 2 })),
-          ],
+          fields: [field1, field2],
           values_source_config: {
             values: ["A", "B"],
           },
@@ -355,6 +371,7 @@ describe("ValuesSourceModal", () => {
     it("should preserve the list when changing the source type", async () => {
       await setup({
         parameter: createMockUiParameter({
+          fields: [field1],
           values_source_type: "static-list",
           values_source_config: {
             values: ["Gadget", "Widget"],
@@ -395,7 +412,7 @@ const setup = async ({
   setupDatabasesEndpoints(databases);
 
   if (hasCollectionAccess) {
-    setupCollectionsEndpoints(collections);
+    setupCollectionsEndpoints({ collections });
     setupCardsEndpoints(cards);
   } else {
     setupUnauthorizedCollectionsEndpoints(collections);
@@ -416,9 +433,7 @@ const setup = async ({
     />,
   );
 
-  await waitFor(() => {
-    expect(screen.queryByText(/Loading/)).not.toBeInTheDocument();
-  });
+  await waitForLoaderToBeRemoved();
 
   return { onSubmit };
 };

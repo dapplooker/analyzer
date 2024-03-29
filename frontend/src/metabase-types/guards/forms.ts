@@ -5,6 +5,8 @@ import type {
 } from "metabase-types/forms";
 import { isReactComponent } from "./react";
 
+import { isReactComponent } from "./react";
+
 export function isCustomWidget(
   formField: FormFieldDefinition,
 ): formField is CustomFormFieldDefinition {

@@ -1,25 +1,27 @@
-import React from "react";
 import { t } from "ttag";
+
+import ActionMenu from "metabase/collections/components/ActionMenu";
 import {
-  isFullyParametrized,
+  isFullyParameterized,
   isPreviewShown,
 } from "metabase/collections/utils";
+import type { IconName } from "metabase/ui";
 import Visualization from "metabase/visualizations/components/Visualization";
-import { Bookmark, Collection, CollectionItem } from "metabase-types/api";
-import ActionMenu from "metabase/collections/components/ActionMenu";
-import Metadata from "metabase-lib/metadata/Metadata";
-import PinnedQuestionLoader from "./PinnedQuestionLoader";
+import type Database from "metabase-lib/metadata/Database";
+import type { Bookmark, Collection, CollectionItem } from "metabase-types/api";
+
 import {
   CardActionMenuContainer,
   CardPreviewSkeleton,
   CardRoot,
   CardStaticSkeleton,
 } from "./PinnedQuestionCard.styled";
+import PinnedQuestionLoader from "./PinnedQuestionLoader";
 
 export interface PinnedQuestionCardProps {
   item: CollectionItem;
   collection: Collection;
-  metadata: Metadata;
+  databases?: Database[];
   bookmarks?: Bookmark[];
   onCopy: (items: CollectionItem[]) => void;
   onMove: (items: CollectionItem[]) => void;
@@ -30,7 +32,7 @@ export interface PinnedQuestionCardProps {
 const PinnedQuestionCard = ({
   item,
   collection,
-  metadata,
+  databases,
   bookmarks,
   onCopy,
   onMove,
@@ -43,6 +45,7 @@ const PinnedQuestionCard = ({
     <ActionMenu
       item={item}
       collection={collection}
+      databases={databases}
       bookmarks={bookmarks}
       onCopy={onCopy}
       onMove={onMove}
@@ -62,19 +65,16 @@ const PinnedQuestionCard = ({
       className="hover-parent hover--visibility"
     >
       {!isPreview && positionedActionMenu}
-
       {isPreview ? (
-        <PinnedQuestionLoader id={item.id} metadata={metadata}>
+        <PinnedQuestionLoader id={item.id}>
           {({ question, rawSeries, loading, error, errorIcon }) =>
             loading ? (
-              <>
-                {positionedActionMenu}
-                <CardPreviewSkeleton
-                  name={question?.displayName()}
-                  display={question?.display()}
-                  description={question?.description()}
-                />
-              </>
+              <CardPreviewSkeleton
+                name={question?.displayName()}
+                display={question?.display()}
+                description={question?.description()}
+                actionMenu={actionMenu}
+              />
             ) : (
               <Visualization
                 actionButtons={actionMenu}
@@ -91,7 +91,7 @@ const PinnedQuestionCard = ({
         <CardStaticSkeleton
           name={item.name}
           description={item.description ?? t`A question`}
-          icon={item.getIcon()}
+          icon={item.getIcon() as unknown as { name: IconName }}
           tooltip={getSkeletonTooltip(item)}
         />
       )}
@@ -100,11 +100,12 @@ const PinnedQuestionCard = ({
 };
 
 const getSkeletonTooltip = (item: CollectionItem) => {
-  if (!isFullyParametrized(item)) {
+  if (!isFullyParameterized(item)) {
     return t`Open this question and fill in its variables to see it.`;
   } else {
     return undefined;
   }
 };
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default PinnedQuestionCard;

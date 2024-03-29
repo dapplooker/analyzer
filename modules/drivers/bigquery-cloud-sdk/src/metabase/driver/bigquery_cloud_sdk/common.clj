@@ -3,7 +3,8 @@
   (:require
    [metabase.models :refer [Database]]
    [metabase.util :as u]
-   [toucan.db :as db])
+   #_{:clj-kondo/ignore [:discouraged-namespace]}
+   [toucan2.core :as t2])
   (:import
    (com.google.auth.oauth2 ServiceAccountCredentials)
    (java.io ByteArrayInputStream)))
@@ -51,12 +52,11 @@
   details change (i.e. the service account), just calculate it once per change (when the DB is updated, or upon first
   query for a new Database), and store it back to the app DB.
 
-  Returns the calculated project-id (see `database-details->credential-project-id`) String from the credentials."
+  Returns the calculated project-id (see [[database-details->credential-project-id]]) String from the credentials."
   {:added "0.42.0"}
   ^String [{:keys [details] :as database}]
   (let [creds-proj-id (database-details->credential-project-id details)]
-    (db/update! Database
+    (t2/update! Database
       (u/the-id database)
-      :details
-      (assoc details :project-id-from-credentials creds-proj-id))
+      {:details (assoc details :project-id-from-credentials creds-proj-id)})
     creds-proj-id))

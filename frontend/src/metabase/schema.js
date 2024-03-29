@@ -1,13 +1,17 @@
 // normalizr schema for use in actions/reducers
 
 import { schema } from "normalizr";
+
 import { entityTypeForObject } from "metabase/lib/schema";
-import { generateSchemaId } from "metabase-lib/metadata/utils/schema";
-import { SAVED_QUESTIONS_VIRTUAL_DB_ID } from "metabase-lib/metadata/utils/saved-questions";
 import { getUniqueFieldId } from "metabase-lib/metadata/utils/fields";
+import { SAVED_QUESTIONS_VIRTUAL_DB_ID } from "metabase-lib/metadata/utils/saved-questions";
+import { generateSchemaId } from "metabase-lib/metadata/utils/schema";
 
 export const ActionSchema = new schema.Entity("actions");
+export const UserSchema = new schema.Entity("users");
 export const QuestionSchema = new schema.Entity("questions");
+export const ModelIndexSchema = new schema.Entity("modelIndexes");
+export const IndexedEntitySchema = new schema.Entity("indexedEntities");
 export const BookmarkSchema = new schema.Entity("bookmarks");
 export const DashboardSchema = new schema.Entity("dashboards");
 export const PulseSchema = new schema.Entity("pulses");
@@ -70,6 +74,7 @@ export const TimelineEventSchema = new schema.Entity("timelineEvents");
 DatabaseSchema.define({
   tables: [TableSchema],
   schemas: [SchemaSchema],
+  idFields: [FieldSchema],
 });
 
 SchemaSchema.define({
@@ -80,6 +85,7 @@ SchemaSchema.define({
 TableSchema.define({
   db: DatabaseSchema,
   fields: [FieldSchema],
+  fks: [{ origin: FieldSchema, destination: FieldSchema }],
   segments: [SegmentSchema],
   metrics: [MetricSchema],
   schema: SchemaSchema,
@@ -110,6 +116,8 @@ TimelineSchema.define({
 export const ENTITIES_SCHEMA_MAP = {
   actions: ActionSchema,
   questions: QuestionSchema,
+  modelIndexes: ModelIndexSchema,
+  indexedEntity: IndexedEntitySchema,
   bookmarks: BookmarkSchema,
   dashboards: DashboardSchema,
   pulses: PulseSchema,

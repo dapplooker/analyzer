@@ -202,6 +202,15 @@
     nil          nil
     []           nil))
 
+(deftest ^:parallel index-of-lazy-test
+  (testing "index-of should be lazy"
+    (let [evaluated? (atom false)]
+      (is (= 3
+             (u/index-of string? (lazy-cat [1 2 3 "STRING"]
+                                           (reset! evaluated? true)
+                                           [4]))))
+      (is (false? @evaluated?)))))
+
 (deftest ^:parallel snake-key-test
   (is (= {:num_cans 2, :lisp_case? {:nested_maps? true}}
          (u/snake-keys {:num-cans 2, :lisp-case? {:nested-maps? true}}))))
@@ -227,18 +236,43 @@
     {}  nil
     nil nil))
 
-;; TODO Can we achieve something like with-locale in CLJS?
+(deftest ^:parallel lower-case-en-test
+  (is (= "id"
+         (u/lower-case-en "ID"))))
+
 #?(:clj
-   (deftest lower-case-en-test
+   (deftest lower-case-en-turkish-test
+     ;; TODO Can we achieve something like with-locale in CLJS?
      (mt/with-locale "tr"
        (is (= "id"
               (u/lower-case-en "ID"))))))
 
+(deftest ^:parallel upper-case-en-test
+  (is (= "ID"
+         (u/upper-case-en "id"))))
+
 #?(:clj
-   (deftest upper-case-en-test
+   (deftest upper-case-en-turkish-test
      (mt/with-locale "tr"
        (is (= "ID"
               (u/upper-case-en "id"))))))
+
+(deftest ^:parallel capitalize-en-test
+  (are [s expected] (= expected
+                       (u/capitalize-en s))
+    nil    nil
+    ""     ""
+    "ibis" "Ibis"
+    "IBIS" "Ibis"
+    "Ibis" "Ibis"))
+
+#?(:clj
+   (deftest capitalize-en-turkish-test
+     (mt/with-locale "tr"
+       (is (= "Ibis"
+              (u/capitalize-en "ibis")
+              (u/capitalize-en "IBIS")
+              (u/capitalize-en "Ibis"))))))
 
 (deftest ^:parallel parse-currency-test
   (are [s expected] (= expected
@@ -290,7 +324,7 @@
                              (= x m)
                              (= ys (concat non-pos rest))))))))
 
-(deftest normalize-map-test
+(deftest ^:parallel normalize-map-test
   (testing "nil and empty maps return empty maps"
     (is (= {} (u/normalize-map nil)))
     (is (= {} (u/normalize-map {}))))
@@ -306,6 +340,12 @@
        (testing "JS objects get turned into Clojure maps"
          (is (= exp (u/normalize-map #js {"kebab-key" 1 "snake_key" 2 "camelKey" 3})))))))
 
+#?(:clj
+   (deftest normalize-map-turkish-test
+     (mt/with-locale "tr"
+       (is (= {:bird "Toucan"}
+              (u/normalize-map {:BIRD "Toucan"}))))))
+
 (deftest ^:parallel or-with-test
   (testing "empty case"
     (is (= nil (u/or-with identity))))
@@ -320,3 +360,100 @@
              [2 [1 2]]))))
   (testing "failure"
     (is (nil? (u/or-with even? 1 3 5)))))
+
+(deftest ^:parallel dispatch-type-test
+  (are [x expected] (= expected
+                       (u/dispatch-type-keyword x))
+    nil                                   :dispatch-type/nil
+    "x"                                   :dispatch-type/string
+    :x                                    :dispatch-type/keyword
+    1                                     :dispatch-type/integer
+    1.1                                   :dispatch-type/number
+    {:a 1}                                :dispatch-type/map
+    [1]                                   :dispatch-type/sequential
+    #{:a}                                 :dispatch-type/set
+    'str                                  :dispatch-type/symbol
+    #"\d+"                                :dispatch-type/regex
+    str                                   :dispatch-type/fn
+    #?(:clj (Object.) :cljs (js/Object.)) :dispatch-type/*)
+  (testing "All type keywords should derive from :dispatch-type/*"
+    (are [x] (isa? (u/dispatch-type-keyword x) :dispatch-type/*)
+      :dispatch-type/nil
+      :dispatch-type/string
+      :dispatch-type/keyword
+      :dispatch-type/integer
+      :dispatch-type/number
+      :dispatch-type/map
+      :dispatch-type/sequential
+      :dispatch-type/set
+      :dispatch-type/symbol
+      :dispatch-type/regex
+      :dispatch-type/fn
+      :dispatch-type/*)))
+
+(deftest ^:parallel assoc-dissoc-test
+  (testing `lib.options/with-option-value
+    (is (= {:foo "baz"}
+           (u/assoc-dissoc {:foo "bar"} :foo "baz")))
+    (is (= {}
+           (u/assoc-dissoc {:foo "bar"} :foo nil)))
+    (is (= {:foo false}
+           (u/assoc-dissoc {:foo "bar"} :foo false))
+        "false should be assoc'd")))
+
+(deftest ^:parallel assoc-default-test
+  (testing "nil map"
+    (is (= {:x 0}
+           (u/assoc-default nil :x 0))))
+  (testing "empty map"
+    (is (= {0 :x}
+           (u/assoc-default {} 0 :x))))
+  (testing "existing key"
+    (is (= {:x 0}
+           (u/assoc-default {:x 0} :x 1))))
+  (testing "nil value"
+    (is (= {:x 0}
+           (u/assoc-default {:x 0} :y nil))))
+  (testing "multiple defaults"
+    (is (= {:x nil, :z 1}
+           (u/assoc-default {:x nil} :x 0 :y nil :z 1))))
+  (testing "multiple defaults for the same key"
+    (is (= {:x nil, :y 1, :z 2}
+           (u/assoc-default {:x nil} :x 0, :y nil, :y 1, :z 2, :x 3, :z 4))))
+  (testing "preserves metadata"
+    (is (= {:m true}
+           (meta (u/assoc-default ^:m {:x 0} :y 1 :z 2 :a nil))))))
+
+(deftest ^:parallel classify-changes-test
+  (testing "classify correctly"
+    (is (= {:to-update [{:id 2 :name "c3"} {:id 4 :name "c4"}]
+            :to-delete [{:id 1 :name "c1"} {:id 3 :name "c3"}]
+            :to-create [{:id -1 :name "-c1"}]}
+           (u/classify-changes
+             [{:id 1 :name "c1"}   {:id 2 :name "c2"} {:id 3 :name "c3"} {:id 4 :name "c4"}]
+             [{:id -1 :name "-c1"} {:id 2 :name "c3"} {:id 4 :name "c4"}])))))
+
+(deftest ^:parallel empty-or-distinct?-test
+  (are [xs expected] (= expected
+                        (u/empty-or-distinct? xs))
+    nil     true
+    []      true
+    '()     true
+    #{}     true
+    {}      true
+    [1]     true
+    [1 1]   false
+    '(1 1)  false
+    #{1}    true
+    [1 2]   true
+    [1 2 1] false))
+
+(deftest ^:parallel round-to-decimals-test
+  (are [decimal-place expected] (= expected
+                                   (u/round-to-decimals decimal-place 1250.04253))
+    5 1250.04253
+    4 1250.0425
+    3 1250.043
+    2 1250.04
+    1 1250.0
+    0 1250.0))

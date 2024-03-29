@@ -19,6 +19,7 @@ describe("issue 22730", () => {
   });
 
   it("allows filtering by time column (metabase#22730)", () => {
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Explore results").click();
     cy.wait("@dataset");
 
@@ -29,15 +30,13 @@ describe("issue 22730", () => {
 
     popover().within(() => {
       cy.findByText("Filter by this column").click();
-
-      cy.findByTestId("hours-input").clear().type("14").blur();
-
-      cy.findByTestId("minutes-input").clear().type("03").blur();
-
+      cy.findByDisplayValue("00:00").clear().type("14:03");
       cy.button("Add filter").click();
     });
 
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("before-row");
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("after-row").should("not.exist");
   });
 });

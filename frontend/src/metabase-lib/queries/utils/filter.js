@@ -1,14 +1,16 @@
 import _ from "underscore";
+
 import {
   STANDARD_FILTERS,
   FILTER_OPERATORS,
   isLiteral,
 } from "metabase-lib/expressions";
 import { getOperatorByTypeAndName } from "metabase-lib/operators/utils";
-import { STRING } from "metabase-lib/types/constants";
 import { isStartingFrom } from "metabase-lib/queries/utils/query-time";
-import { op, args, noNullValues, add, update, remove, clear } from "./util";
+import { STRING } from "metabase-lib/types/constants";
+
 import { isValidField } from "./field-ref";
+import { op, args, noNullValues, add, update, remove } from "./util";
 
 // returns canonical list of Filters
 export function getFilters(filter) {
@@ -22,7 +24,7 @@ export function getFilters(filter) {
 }
 
 // turns a list of Filters into the canonical FilterClause, either `undefined`, `filter`, or `["and", filter...]`
-function getFilterClause(filters) {
+export function getFilterClause(filters) {
   if (filters.length === 0) {
     return undefined;
   } else if (filters.length === 1) {
@@ -40,13 +42,6 @@ export function updateFilter(filter, index, updatedFilter) {
 }
 export function removeFilter(filter, index) {
   return getFilterClause(remove(getFilters(filter), index));
-}
-export function clearFilters(filter) {
-  return getFilterClause(clear());
-}
-export function clearSegments(filters) {
-  const newFilters = filters.filter(f => !isSegment(f));
-  return getFilterClause(newFilters);
 }
 
 // MISC

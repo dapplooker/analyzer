@@ -1,8 +1,10 @@
+import { ORDERS_QUESTION_ID } from "e2e/support/cypress_sample_instance_data";
 import {
   modal,
   openNotebook,
   openOrdersTable,
   popover,
+  queryBuilderHeader,
   restore,
   saveQuestion,
   visitQuestion,
@@ -25,7 +27,7 @@ describe("issue 30610", () => {
   });
 
   it("should remove stale metadata when updating an existing question (metabase#30610)", () => {
-    visitQuestion(1);
+    visitQuestion(ORDERS_QUESTION_ID);
     openNotebook();
     removeSourceColumns();
     updateQuestion();
@@ -35,7 +37,7 @@ describe("issue 30610", () => {
 });
 
 function updateQuestion() {
-  cy.findByTestId("qb-header").findByText("Save").click();
+  queryBuilderHeader().findByText("Save").click();
   modal().button("Save").click();
 }
 

@@ -1,22 +1,20 @@
-import React from "react";
-import { Route } from "react-router";
 import fetchMock from "fetch-mock";
+import { Route } from "react-router";
 
-import {
-  renderWithProviders,
-  screen,
-  waitForElementToBeRemoved,
-} from "__support__/ui";
 import {
   setupCardsEndpoints,
   setupCollectionsEndpoints,
   setupDatabasesEndpoints,
 } from "__support__/server-mocks";
-
-import * as Urls from "metabase/lib/urls";
+import { createMockEntitiesState } from "__support__/store";
+import {
+  renderWithProviders,
+  screen,
+  waitForLoaderToBeRemoved,
+} from "__support__/ui";
 import { ROOT_COLLECTION } from "metabase/entities/collections";
-
-import type { Card, Dashboard, User } from "metabase-types/api";
+import * as Urls from "metabase/lib/urls";
+import type { Card, Dashboard, DashboardId, User } from "metabase-types/api";
 import {
   createMockCard,
   createMockCollection,
@@ -24,10 +22,10 @@ import {
   createMockDashboard,
   createMockUser,
 } from "metabase-types/api/mocks";
+import type { DashboardState } from "metabase-types/store";
 import {
   createMockState,
   createMockDashboardState,
-  createMockEntitiesState,
   createMockQueryBuilderState,
 } from "metabase-types/store/mocks";
 
@@ -98,7 +96,7 @@ async function setup({
     collections.push(personalCollection);
   }
 
-  setupCollectionsEndpoints(collections);
+  setupCollectionsEndpoints({ collections });
   setupDatabasesEndpoints(databases);
   fetchMock.get("path:/api/bookmark", []);
 
@@ -106,13 +104,26 @@ async function setup({
     setupCardsEndpoints([openQuestionCard]);
   }
 
-  const dashboards = openDashboard ? { [openDashboard.id]: openDashboard } : {};
-  const dashboardId = openDashboard ? openDashboard.id : null;
+  let dashboardId: DashboardId | null = null;
+  const dashboardsForState: DashboardState["dashboards"] = {};
+  const dashboardsForEntities: Dashboard[] = [];
+  if (openDashboard) {
+    dashboardId = openDashboard.id;
+    dashboardsForState[openDashboard.id] = {
+      ...openDashboard,
+      dashcards: openDashboard.dashcards.map(c => c.id),
+    };
+    dashboardsForEntities.push(openDashboard);
+  }
+
   const storeInitialState = createMockState({
     currentUser: user,
-    dashboard: createMockDashboardState({ dashboardId, dashboards }),
+    dashboard: createMockDashboardState({
+      dashboardId,
+      dashboards: dashboardsForState,
+    }),
     qb: createMockQueryBuilderState({ card: openQuestionCard }),
-    entities: createMockEntitiesState({ dashboards }),
+    entities: createMockEntitiesState({ dashboards: dashboardsForEntities }),
   });
 
   renderWithProviders(
@@ -128,9 +139,7 @@ async function setup({
     },
   );
 
-  await waitForElementToBeRemoved(() =>
-    screen.queryAllByTestId("loading-spinner"),
-  );
+  await waitForLoaderToBeRemoved();
 }
 
 async function setupCollectionPage({
@@ -201,7 +210,7 @@ describe("nav > containers > MainNavbar", () => {
     });
 
     it("should be highlighted if child route selected", async () => {
-      await setup({ pathname: "/browse/1" });
+      await setup({ pathname: "/browse/databases/1" });
       const link = screen.getByRole("listitem", { name: /Browse data/i });
       expect(link).toHaveAttribute("aria-selected", "true");
     });

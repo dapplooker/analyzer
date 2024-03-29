@@ -1,12 +1,12 @@
-import React from "react";
-import _ from "underscore";
+import { combineReducers } from "@reduxjs/toolkit";
 import { handleActions } from "redux-actions";
-import { combineReducers } from "redux";
 import { t } from "ttag";
+import _ from "underscore";
+
+import { RestfulRequest } from "metabase/lib/request";
 import { addUndo } from "metabase/redux/undo";
 import { AlertApi } from "metabase/services";
-import { RestfulRequest } from "metabase/lib/request";
-import Icon from "metabase/components/Icon";
+import { Icon } from "metabase/ui";
 
 export const FETCH_ALL_ALERTS = "metabase/alerts/FETCH_ALL_ALERTS";
 const fetchAllAlertsRequest = new RestfulRequest({
@@ -17,7 +17,7 @@ const fetchAllAlertsRequest = new RestfulRequest({
 export const fetchAllAlerts = () => {
   return async (dispatch, getState) => {
     await dispatch(fetchAllAlertsRequest.trigger());
-    dispatch.action(FETCH_ALL_ALERTS);
+    dispatch({ type: FETCH_ALL_ALERTS });
   };
 };
 
@@ -32,9 +32,12 @@ const fetchAlertsForQuestionRequest = new RestfulRequest({
 });
 export const fetchAlertsForQuestion = questionId => {
   return async (dispatch, getState) => {
-    dispatch.action(FETCH_ALERTS_FOR_QUESTION_CLEAR_OLD_ALERTS, questionId);
+    dispatch({
+      payload: questionId,
+      type: FETCH_ALERTS_FOR_QUESTION_CLEAR_OLD_ALERTS,
+    });
     await dispatch(fetchAlertsForQuestionRequest.trigger({ questionId }));
-    dispatch.action(FETCH_ALERTS_FOR_QUESTION);
+    dispatch({ type: FETCH_ALERTS_FOR_QUESTION });
   };
 };
 
@@ -53,7 +56,6 @@ export const createAlert = alert => {
 
     dispatch(
       addUndo({
-        // eslint-disable-next-line react/display-name
         message: () => (
           <div className="flex align-center text-bold">
             <Icon name="alert_confirm" size="19" className="mr2 text-success" />
@@ -63,7 +65,7 @@ export const createAlert = alert => {
       }),
     );
 
-    dispatch.action(CREATE_ALERT);
+    dispatch({ type: CREATE_ALERT });
   };
 };
 
@@ -94,7 +96,6 @@ export const updateAlert = alert => {
 
     dispatch(
       addUndo({
-        // eslint-disable-next-line react/display-name
         message: () => (
           <div className="flex align-center text-bold">
             <Icon name="alert_confirm" size="19" className="mr2 text-success" />
@@ -104,7 +105,7 @@ export const updateAlert = alert => {
       }),
     );
 
-    dispatch.action(UPDATE_ALERT);
+    dispatch({ type: UPDATE_ALERT });
   };
 };
 
@@ -119,12 +120,13 @@ const unsubscribeFromAlertRequest = new RestfulRequest({
 export const unsubscribeFromAlert = alert => {
   return async (dispatch, getState) => {
     await dispatch(unsubscribeFromAlertRequest.trigger(alert));
-    dispatch.action(UNSUBSCRIBE_FROM_ALERT);
+    dispatch({ type: UNSUBSCRIBE_FROM_ALERT });
 
     // This delay lets us to show "You're unsubscribed" text in place of an
     // alert list item for a while before removing the list item completely
     setTimeout(
-      () => dispatch.action(UNSUBSCRIBE_FROM_ALERT_CLEANUP, alert.id),
+      () =>
+        dispatch({ type: UNSUBSCRIBE_FROM_ALERT_CLEANUP, payload: alert.id }),
       5000,
     );
   };
@@ -142,7 +144,6 @@ export const deleteAlert = alertId => {
 
     dispatch(
       addUndo({
-        // eslint-disable-next-line react/display-name
         message: () => (
           <div className="flex align-center text-bold">
             <Icon name="alert_confirm" size="19" className="mr2 text-success" />
@@ -151,7 +152,7 @@ export const deleteAlert = alertId => {
         ),
       }),
     );
-    dispatch.action(DELETE_ALERT, alertId);
+    dispatch({ type: DELETE_ALERT, payload: alertId });
   };
 };
 

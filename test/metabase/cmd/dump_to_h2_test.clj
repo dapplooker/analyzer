@@ -19,36 +19,30 @@
    [metabase.test.data.interface :as tx]
    [metabase.util.encryption-test :as encryption-test]
    [metabase.util.i18n.impl :as i18n.impl]
-   [toucan.db :as db]))
+   [toucan2.core :as t2]))
 
 (set! *warn-on-reflection* true)
 
 (deftest dump-deletes-target-db-files-tests
   ;; test fails when the application db is anything but H2 presently
   ;; TODO: make this test work with postgres / mysql / mariadb
-  (mt/with-temp-file [tmp-h2-db "mbtest_dump.h2"]
-    (let [tmp-h2-db-mv  (str tmp-h2-db ".mv.db")
-          file-contents {tmp-h2-db    "Not really an H2 DB"
-                         tmp-h2-db-mv "Not really another H2 DB"}]
+  (mt/with-temp-file [tmp-h2-db "mbtest_dump.h2"
+                      tmp-h2-db-mv "mbtest_dump.h2.mv.db"]
+    (let [h2-file-dump-content "H:2,block:61,blockSize:1000,chunk:7,clean:1,created:18e17379d42,format:2,version:7"
+          file-contents        {tmp-h2-db    h2-file-dump-content
+                                tmp-h2-db-mv h2-file-dump-content}]
       ;; 1. Don't actually run the copy steps themselves
-      (with-redefs [copy/copy! (constantly nil)]
-        (try
-          (doseq [[filename contents] file-contents]
-            (spit filename contents))
-          (dump-to-h2/dump-to-h2! tmp-h2-db)
+      (mt/with-dynamic-redefs [copy/copy! (constantly nil)]
+        (doseq [[filename contents] file-contents]
+          (spit filename contents))
+        (dump-to-h2/dump-to-h2! tmp-h2-db)
 
-          (doseq [filename (keys file-contents)]
-            (testing (str filename " was deleted")
-              (is (false? (.exists (io/file filename))))))
-
-          (finally
-            (doseq [filename (keys file-contents)
-                    :let     [file (io/file filename)]]
-              (when (.exists file)
-                (io/delete-file file)))))))))
+        (doseq [filename (keys file-contents)]
+          (testing (str filename " was deleted")
+            (is (false? (.exists (io/file filename))))))))))
 
 (deftest cmd-dump-to-h2-returns-code-from-dump-test
-  (with-redefs [dump-to-h2/dump-to-h2! #(throw "err")
+  (with-redefs [dump-to-h2/dump-to-h2! #(throw (Exception. "err"))
                 cmd/system-exit! identity]
     (is (= 1 (cmd/dump-to-h2 "file1")))))
 
@@ -71,18 +65,18 @@
                           h2-file-enc         (format "out-%s.db" (mt/random-name))
                           h2-file-default-enc (format "out-%s.db" (mt/random-name))]
         (mt/test-drivers #{:h2 :postgres :mysql}
-          (with-redefs [i18n.impl/site-locale-from-setting-fn (atom (constantly false))]
+          (with-redefs [i18n.impl/site-locale-from-setting (constantly nil)]
             (binding [setting/*disable-cache*         true
                       mdb.connection/*application-db* (mdb.connection/application-db
                                                        driver/*driver*
                                                        (persistent-data-source driver/*driver* db-name))]
               (when-not (= driver/*driver* :h2)
                 (tx/create-db! driver/*driver* {:database-name db-name}))
-              (binding [copy/*allow-loading-h2-databases* true]
+              (binding [copy/*copy-h2-database-details* true]
                 (load-from-h2/load-from-h2! h2-fixture-db-file)
                 (encryption-test/with-secret-key "89ulvIGoiYw6mNELuOoEZphQafnF/zYe+3vT+v70D1A="
-                  (db/insert! Setting {:key "my-site-admin", :value "baz"})
-                  (db/update! Database 1 {:details "{\"db\":\"/tmp/test.db\"}"})
+                  (t2/insert! Setting {:key "my-site-admin", :value "baz"})
+                  (t2/update! Database 1 {:details {:db "/tmp/test.db"}})
                   (dump-to-h2/dump-to-h2! h2-file-plaintext {:dump-plaintext? true})
                   (dump-to-h2/dump-to-h2! h2-file-enc {:dump-plaintext? false})
                   (dump-to-h2/dump-to-h2! h2-file-default-enc)))

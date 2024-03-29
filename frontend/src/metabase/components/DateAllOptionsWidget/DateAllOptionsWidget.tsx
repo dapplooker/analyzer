@@ -1,15 +1,13 @@
-import React, { useState } from "react";
-import { t } from "ttag";
 import cx from "classnames";
+import { useState } from "react";
+import { t } from "ttag";
 
-import DatePicker from "metabase/query_builder/components/filters/pickers/DatePicker/DatePicker";
-import { filterToUrlEncoded } from "metabase/parameters/utils/date-formatting";
-
+import DatePicker from "metabase/admin/datamodel/components/filters/pickers/DatePicker/DatePicker";
 import {
   WidgetRoot,
   UpdateButton,
 } from "metabase/parameters/components/widgets/Widget.styled";
-
+import { filterToUrlEncoded } from "metabase/parameters/utils/date-formatting";
 import { dateParameterValueToMBQL } from "metabase-lib/parameters/utils/mbql";
 
 // Use a placeholder value as field references are not used in dashboard filters
@@ -22,7 +20,7 @@ interface DateAllOptionsWidgetProps {
   disableOperatorSelection?: boolean;
 }
 
-const DateAllOptionsWidget = ({
+export const DateAllOptionsWidget = ({
   setValue,
   onClose,
   disableOperatorSelection,
@@ -41,13 +39,13 @@ const DateAllOptionsWidget = ({
     const filterValues = filter.slice(2);
     return filterValues.every((value: any) => value != null);
   };
+
   return (
     <WidgetRoot>
       <DatePicker
         filter={filter as any}
         onFilterChange={setFilter}
         onCommit={commitAndClose}
-        hideTimeSelectors
         hideEmptinessOperators
         disableOperatorSelection={disableOperatorSelection}
         supportsExpressions
@@ -64,5 +62,3 @@ const DateAllOptionsWidget = ({
     </WidgetRoot>
   );
 };
-
-export default DateAllOptionsWidget;

@@ -7,17 +7,24 @@
    [metabase.mbql.normalize :as mbql.normalize]
    [metabase.models.interface :as mi]
    [metabase.util.honey-sql-2 :as h2x]
-   [toucan.db :as db]
-   [toucan.models :as models]))
+   [methodical.core :as methodical]
+   [toucan2.core :as t2]
+   [toucan2.model :as t2.model]))
 
 (set! *warn-on-reflection* true)
 
-(models/defmodel Query :query)
+(def Query
+  "Used to be the toucan1 model name defined using [[toucan.models/defmodel]], not it's a reference to the toucan2 model name.
+  We'll keep this till we replace all these symbols in our codebase."
+  :model/Query)
 
-(mi/define-methods
- Query
- {:types       (constantly {:query :json})
-  :primary-key (constantly :query_hash)})
+(methodical/defmethod t2/table-name :model/Query [_model] :query)
+(methodical/defmethod t2.model/primary-keys :model/Query [_model] [:query_hash])
+
+(t2/deftransforms :model/Query
+ {:query mi/transform-json})
+
+(derive :model/Query :metabase/model)
 
 ;;; Helper Fns
 
@@ -26,7 +33,7 @@
    Returns `nil` if no information is available."
   ^Integer [^bytes query-hash]
   {:pre [(instance? (Class/forName "[B") query-hash)]}
-  (db/select-one-field :average_execution_time Query :query_hash query-hash))
+  (t2/select-one-fn :average_execution_time Query :query_hash query-hash))
 
 (defn- int-casting-type
   "Return appropriate type for use in SQL `CAST(x AS type)` statement.
@@ -48,24 +55,24 @@
     (or
      ;; if it DOES NOT have a query (yet) set that. In 0.31.0 we added the query.query column, and it gets set for all
      ;; new entries, so at some point in the future we can take this out, and save a DB call.
-     (db/update-where! Query
+     (pos? (t2/update! Query
                        {:query_hash query-hash, :query nil}
-                       :query                 (json/generate-string query)
-                       :average_execution_time avg-execution-time)
+                       {:query                 (json/generate-string query)
+                        :average_execution_time avg-execution-time}))
      ;; if query is already set then just update average_execution_time. (We're doing this separate call to avoid
      ;; updating query on every single UPDATE)
-     (db/update-where! Query
+     (pos? (t2/update! Query
                        {:query_hash query-hash}
-                       :average_execution_time avg-execution-time))))
+                       {:average_execution_time avg-execution-time})))))
 
 (defn- record-new-query-entry!
   "Record a query and its execution time for a `query` with `query-hash` that's not already present in the DB.
   `execution-time-ms` is used as a starting point."
   [query ^bytes query-hash ^Integer execution-time-ms]
-  (db/insert! Query
-    :query                  query
-    :query_hash             query-hash
-    :average_execution_time execution-time-ms))
+  (first (t2/insert-returning-instances! Query
+                                         :query                  query
+                                         :query_hash             query-hash
+                                         :average_execution_time execution-time-ms)))
 
 (defn save-query-and-update-average-execution-time!
   "Update the recorded average execution time (or insert a new record if needed) for `query` with `query-hash`."
@@ -91,7 +98,7 @@
     (= :native query-type)  {:database-id database-id, :table-id nil}
     (integer? source-table) {:database-id database-id, :table-id source-table}
     (string? source-table)  (let [[_ card-id] (re-find #"^card__(\d+)$" source-table)]
-                              (db/select-one ['Card [:table_id :table-id] [:database_id :database-id]]
+                              (t2/select-one ['Card [:table_id :table-id] [:database_id :database-id]]
                                 :id (Integer/parseInt card-id)))
     (map? source-query)     (query->database-and-table-ids {:database database-id
                                                             :type     query-type
@@ -122,7 +129,7 @@
     (seq ids)))
 
 (defn adhoc-query
-  "Wrap query map into a Query object (mostly to fascilitate type dispatch)."
+  "Wrap query map into a Query object (mostly to facilitate type dispatch)."
   [query]
   (->> query
        mbql.normalize/normalize

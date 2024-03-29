@@ -1,4 +1,6 @@
 import { t } from "ttag";
+
+import MetabaseSettings from "metabase/lib/settings";
 import {
   PLUGIN_APP_INIT_FUCTIONS,
   PLUGIN_LANDING_PAGE,
@@ -6,26 +8,30 @@ import {
   PLUGIN_ADMIN_SETTINGS_UPDATES,
   PLUGIN_SELECTORS,
 } from "metabase/plugins";
-
+import { Anchor } from "metabase/ui";
 import { hasPremiumFeature } from "metabase-enterprise/settings";
 import {
-  getHasCustomColors,
+  getApplicationName,
+  getIsWhiteLabeling,
   getLoadingMessage,
+  getShowMetabaseLinks,
 } from "metabase-enterprise/settings/selectors";
-import MetabaseSettings from "metabase/lib/settings";
 
 import ColorSettingsWidget from "./components/ColorSettingsWidget";
-import FontWidget from "./components/FontWidget";
 import FontFilesWidget from "./components/FontFilesWidget";
+import FontWidget from "./components/FontWidget";
+import { HelpLinkSettings } from "./components/HelpLinkSettings";
+import { LandingPageWidget } from "./components/LandingPageWidget";
 import LighthouseToggleWidget from "./components/LighthouseToggleWidget";
-import MetabotToggleWidget from "./components/MetabotToggleWidget";
-import LogoUpload from "./components/LogoUpload";
 import LogoIcon from "./components/LogoIcon";
+import LogoUpload from "./components/LogoUpload";
 import {
-  updateColors,
-  enabledApplicationNameReplacement,
-} from "./lib/whitelabel";
+  MetabaseLinksToggleDescription,
+  MetabaseLinksToggleWidget,
+} from "./components/MetabaseLinksToggleWidget";
+import MetabotToggleWidget from "./components/MetabotToggleWidget";
 import { getLoadingMessageOptions } from "./lib/loading-message";
+import { updateColors } from "./lib/whitelabel";
 
 if (hasPremiumFeature("whitelabel")) {
   PLUGIN_LANDING_PAGE.push(() => MetabaseSettings.get("landing-page"));
@@ -69,6 +75,7 @@ if (hasPremiumFeature("whitelabel")) {
           display_name: t`Landing Page`,
           type: "string",
           placeholder: "/",
+          widget: LandingPageWidget,
         },
         {
           key: "loading-message",
@@ -78,8 +85,21 @@ if (hasPremiumFeature("whitelabel")) {
           defaultValue: "doing-science",
         },
         {
+          key: "help-link",
+          display_name: t`Help Link in the Settings menu`,
+          description: (
+            <p>
+              {t`The Settings menu includes a Help link that goes to `}
+              <Anchor href="https://www.metabase.com/help">{t`this page`}</Anchor>
+              {t` by default.`}
+            </p>
+          ),
+          widget: HelpLinkSettings,
+          defaultValue: "metabase",
+        },
+        {
           key: "show-metabot",
-          display_name: t`Metabot`,
+          display_name: t`Metabot greeting`,
           description: null,
           type: "boolean",
           widget: MetabotToggleWidget,
@@ -93,6 +113,12 @@ if (hasPremiumFeature("whitelabel")) {
           widget: LighthouseToggleWidget,
           defaultValue: true,
         },
+        {
+          key: "show-metabase-links",
+          display_name: t`Documentation and references`,
+          description: <MetabaseLinksToggleDescription />,
+          widget: MetabaseLinksToggleWidget,
+        },
       ],
     },
     ...sections,
@@ -103,12 +129,12 @@ if (hasPremiumFeature("whitelabel")) {
     MetabaseSettings.on("application-colors", updateColors);
   });
 
-  enabledApplicationNameReplacement();
-
   PLUGIN_LOGO_ICON_COMPONENTS.push(LogoIcon);
   PLUGIN_SELECTORS.canWhitelabel = () => true;
-}
 
-// these selectors control whitelabeling UI
-PLUGIN_SELECTORS.getHasCustomColors = getHasCustomColors;
-PLUGIN_SELECTORS.getLoadingMessage = getLoadingMessage;
+  // these selectors control whitelabeling UI
+  PLUGIN_SELECTORS.getLoadingMessage = getLoadingMessage;
+  PLUGIN_SELECTORS.getIsWhiteLabeling = getIsWhiteLabeling;
+  PLUGIN_SELECTORS.getApplicationName = getApplicationName;
+  PLUGIN_SELECTORS.getShowMetabaseLinks = getShowMetabaseLinks;
+}

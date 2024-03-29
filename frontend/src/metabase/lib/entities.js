@@ -68,18 +68,14 @@
  *   )(BookContainer);
  */
 
-import createCachedSelector from "re-reselect";
-
-// NOTE: need to use inflection directly here due to circular dependency
-import inflection from "inflection";
-
-import { createSelector } from "reselect";
-import { normalize, denormalize, schema } from "normalizr";
+import { createSelector } from "@reduxjs/toolkit";
 import { getIn, merge } from "icepick";
+import inflection from "inflection"; // NOTE: need to use inflection directly here due to circular dependency
+import { normalize, denormalize, schema } from "normalizr";
+import createCachedSelector from "re-reselect";
 import _ from "underscore";
+
 import { GET, PUT, POST, DELETE } from "metabase/lib/api";
-import requestsReducer, { setRequestUnloaded } from "metabase/redux/requests";
-import { addUndo } from "metabase/redux/undo";
 import {
   combineReducers,
   handleEntities,
@@ -89,6 +85,8 @@ import {
   withRequestState,
   withCachedDataAndRequestState,
 } from "metabase/lib/redux";
+import requestsReducer, { setRequestUnloaded } from "metabase/redux/requests";
+import { addUndo } from "metabase/redux/undo";
 
 export function createEntity(def) {
   const entity = { ...def };
@@ -166,7 +164,7 @@ export function createEntity(def) {
 
   // normalize helpers
   entity.normalize = (object, schema = entity.schema) => ({
-    // include raw `object` (and alias under nameOne) for convienence
+    // include raw `object` (and alias under nameOne) for convenience
     object,
     [entity.nameOne]: object,
     // include standard normalizr properties, `result` and `entities`
@@ -174,7 +172,7 @@ export function createEntity(def) {
   });
 
   entity.normalizeList = (list, schema = entity.schema) => ({
-    // include raw `list` (and alias under nameMany) for convienence
+    // include raw `list` (and alias under nameMany) for convenience
     list,
     [entity.nameMany]: list,
     // include standard normalizr properties, `result` and `entities`
@@ -243,7 +241,7 @@ export function createEntity(def) {
       (entityObject, updatedObject = null, { notify } = {}) =>
         async (dispatch, getState) => {
           // save the original object for undo
-          const originalObject = entity.selectors.getObject(getState(), {
+          const originalObject = getObject(getState(), {
             entityId: entityObject.id,
           });
           // If a second object is provided just take the id from the first and
@@ -351,7 +349,7 @@ export function createEntity(def) {
   // HACK: the above actions return the normalizr results
   // (i.e. { entities, result }) rather than the loaded object(s), except
   // for fetch and fetchList when the data is cached, in which case it returns
-  // the noralized object.
+  // the normalized object.
   //
   // This is a problem when we use the result of one of the actions as though
   // though the action creator was an API client.
@@ -382,6 +380,7 @@ export function createEntity(def) {
   // SELECTORS
 
   const getEntities = state => state.entities;
+  const getSettings = state => state.settings;
 
   // OBJECT SELECTORS
 
@@ -425,12 +424,14 @@ export function createEntity(def) {
   );
 
   const getList = createCachedSelector(
-    [getEntities, getEntityIds],
+    [getEntities, getEntityIds, getSettings],
     // delegate to getObject
-    (entities, entityIds) =>
+    (entities, entityIds, settings) =>
       entityIds &&
       entityIds
-        .map(entityId => entity.selectors.getObject({ entities }, { entityId }))
+        .map(entityId =>
+          entity.selectors.getObject({ entities, settings }, { entityId }),
+        )
         .filter(e => e != null), // deleted entities might remain in lists,
   )((state, { entityQuery } = {}) =>
     entityQuery ? JSON.stringify(entityQuery) : "",
@@ -474,6 +475,7 @@ export function createEntity(def) {
   );
 
   const defaultSelectors = {
+    getEntityIds,
     getList,
     getObject,
     getFetched,
@@ -659,34 +661,3 @@ export const notify = (opts = {}, subject, verb) =>
 
 export const undo = (opts = {}, subject, verb) =>
   merge({ notify: { subject, verb, undo: true } }, opts || {});
-
-// decorator versions disabled due to incompatibility with current version of flow
-//
-// // merges in options to give an object action a notification
-// export function notify(subject: string, verb: string, undo: boolean = false) {
-//   return function(target: Object, name: string, descriptor: any) {
-//     // https://github.com/loganfsmyth/babel-plugin-transform-decorators-legacy/issues/34
-//     const original = descriptor.initializer
-//       ? descriptor.initializer()
-//       : descriptor.value;
-//     delete descriptor.initializer;
-//     descriptor.value = function(o, arg, opts = {}) {
-//       opts = merge(
-//         {
-//           notify: {
-//             subject: typeof subject === "function" ? subject(o, arg) : subject,
-//             verb: typeof verb === "function" ? verb(o, arg) : verb,
-//             undo,
-//           },
-//         },
-//         opts,
-//       );
-//       return original(o, arg, opts);
-//     };
-//   };
-// }
-//
-// // merges in options to give make object action undo-able
-// export function undo(subject: string, verb: string) {
-//   return notify(subject, verb, true);
-// }

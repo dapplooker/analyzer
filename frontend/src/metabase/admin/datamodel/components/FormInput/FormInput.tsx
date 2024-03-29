@@ -1,5 +1,7 @@
-import React, { forwardRef, InputHTMLAttributes, Ref } from "react";
 import cx from "classnames";
+import type { InputHTMLAttributes, Ref } from "react";
+import { forwardRef } from "react";
+
 import { FormInputRoot } from "./FormInput.styled";
 
 interface FormInputProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -14,6 +16,7 @@ const FormInput = forwardRef(function FormInput(
   return (
     <FormInputRoot
       {...props}
+      value={props.value ?? ""}
       ref={ref}
       className={cx("input", className)}
       type="text"
@@ -23,4 +26,5 @@ const FormInput = forwardRef(function FormInput(
   );
 });
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default FormInput;

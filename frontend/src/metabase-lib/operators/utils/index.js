@@ -1,6 +1,11 @@
 import _ from "underscore";
 
-import { getFieldType, isFieldType } from "metabase-lib/types/utils/isa";
+import {
+  FIELD_FILTER_OPERATORS,
+  FILTER_OPERATORS_BY_TYPE_ORDERED,
+  AGGREGATION_OPERATORS,
+  MORE_VERBOSE_NAMES,
+} from "metabase-lib/operators/constants";
 import {
   FOREIGN_KEY,
   PRIMARY_KEY,
@@ -8,12 +13,7 @@ import {
   STRING_LIKE,
   UNKNOWN,
 } from "metabase-lib/types/constants";
-import {
-  FIELD_FILTER_OPERATORS,
-  FILTER_OPERATORS_BY_TYPE_ORDERED,
-  AGGREGATION_OPERATORS,
-  MORE_VERBOSE_NAMES,
-} from "metabase-lib/operators/constants";
+import { getFieldType, isFieldType } from "metabase-lib/types/utils/isa";
 
 export function doesOperatorExist(operatorName) {
   return !!FIELD_FILTER_OPERATORS[operatorName];
@@ -82,14 +82,12 @@ export function getFilterOperators(field, table, selected) {
     });
 }
 
-export function getSupportedAggregationOperators(table) {
+export function getSupportedAggregationOperators(database) {
   return AGGREGATION_OPERATORS.filter(operator => {
     if (!operator.requiredDriverFeature) {
       return true;
     }
-    return (
-      table.db && table.db.features.includes(operator.requiredDriverFeature)
-    );
+    return database?.features.includes(operator.requiredDriverFeature);
   });
 }
 
@@ -102,18 +100,14 @@ function populateFields(aggregationOperator, fields) {
   };
 }
 
-export function getAggregationOperators(table, fields) {
-  return getSupportedAggregationOperators(table)
+export function getAggregationOperators(database, fields) {
+  return getSupportedAggregationOperators(database)
     .map(operator => populateFields(operator, fields))
     .filter(
       aggregation =>
         !aggregation.requiresField ||
         aggregation.fields.every(fields => fields.length > 0),
     );
-}
-
-export function getAggregationOperator(short) {
-  return _.findWhere(AGGREGATION_OPERATORS, { short: short });
 }
 
 export function isCompatibleAggregationOperatorForField(

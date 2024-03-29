@@ -11,16 +11,18 @@
     :refer [GroupTableAccessPolicy]]
    [metabase.api.common :as api :refer [*current-user* *current-user-id*]]
    [metabase.db.connection :as mdb.connection]
+   [metabase.lib.metadata :as lib.metadata]
+   [metabase.lib.metadata.protocols :as lib.metadata.protocols]
    [metabase.mbql.schema :as mbql.s]
    [metabase.mbql.util :as mbql.u]
    [metabase.models.card :refer [Card]]
-   [metabase.models.field :refer [Field]]
    [metabase.models.permissions :as perms]
    [metabase.models.permissions-group-membership
     :refer [PermissionsGroupMembership]]
    [metabase.models.query.permissions :as query-perms]
-   [metabase.models.table :refer [Table]]
+   [metabase.permissions.util :as perms.u]
    [metabase.plugins.classloader :as classloader]
+   [metabase.public-settings.premium-features :refer [defenterprise]]
    [metabase.query-processor.error-type :as qp.error-type]
    [metabase.query-processor.middleware.fetch-source-query
     :as fetch-source-query]
@@ -29,9 +31,10 @@
    [metabase.util :as u]
    [metabase.util.i18n :refer [trs tru]]
    [metabase.util.log :as log]
-   [metabase.util.schema :as su]
-   [schema.core :as s]
-   [toucan.db :as db]))
+   [metabase.util.malli :as mu]
+   [metabase.util.malli.schema :as ms]
+   #_{:clj-kondo/ignore [:discouraged-namespace]}
+   [toucan2.core :as t2]))
 
 (set! *warn-on-reflection* true)
 
@@ -42,18 +45,15 @@
 ;;; +----------------------------------------------------------------------------------------------------------------+
 
 (defn- all-table-ids [m]
-  (set
-   (reduce
-    concat
-    (mbql.u/match m
-      (_ :guard (every-pred map? :source-table (complement ::gtap?)))
-      (let [recursive-ids (all-table-ids (dissoc &match :source-table))]
-        (cons (:source-table &match) recursive-ids))))))
+  (into #{} cat (mbql.u/match m
+                  (_ :guard (every-pred map? :source-table (complement ::gtap?)))
+                  (let [recursive-ids (all-table-ids (dissoc &match :source-table))]
+                    (cons (:source-table &match) recursive-ids)))))
 
 (defn- query->all-table-ids [query]
   (let [ids (all-table-ids query)]
     (when (seq ids)
-      (qp.store/fetch-and-store-tables! ids)
+      (qp.store/bulk-metadata :metadata/table ids)
       (set ids))))
 
 (defn assert-one-gtap-per-table
@@ -72,9 +72,9 @@
 (defn- tables->sandboxes [table-ids]
   (qp.store/cached [*current-user-id* table-ids]
     (let [group-ids           (qp.store/cached *current-user-id*
-                                (db/select-field :group_id PermissionsGroupMembership :user_id *current-user-id*))
+                                (t2/select-fn-set :group_id PermissionsGroupMembership :user_id *current-user-id*))
           sandboxes           (when (seq group-ids)
-                               (db/select GroupTableAccessPolicy :group_id [:in group-ids]
+                               (t2/select GroupTableAccessPolicy :group_id [:in group-ids]
                                  :table_id [:in table-ids]))
           enforced-sandboxes (mt.api.u/enforced-sandboxes sandboxes group-ids)]
        (when (seq enforced-sandboxes)
@@ -92,14 +92,12 @@
 ;;; |                                                Applying a GTAP                                                 |
 ;;; +----------------------------------------------------------------------------------------------------------------+
 
-(s/defn ^:private target-field->base-type :- (s/maybe su/FieldType)
+(mu/defn ^:private target-field->base-type :- [:maybe ms/FieldType]
   "If the `:target` of a parameter contains a `:field` clause, return the base type corresponding to the Field it
   references. Otherwise returns `nil`."
   [[_ target-field-clause]]
   (when-let [field-id (mbql.u/match-one target-field-clause [:field (field-id :guard integer?) _] field-id)]
-    ;; TODO -- we should be using the QP store for this. But when trying to change this I ran into "QP Store is not
-    ;; initialized" errors. We should figure out why that's the case and then fix this
-    (db/select-one-field :base_type Field :id field-id)))
+    (:base-type (lib.metadata.protocols/field (qp.store/metadata-provider) field-id))))
 
 (defn- attr-value->param-value
   "Take an `attr-value` with a desired `target-type` and coerce to that type if need be. If not type is given or it's
@@ -109,10 +107,10 @@
     (cond
       ;; If the attr-value is a string and the target type is integer, parse it as a long
       (and attr-string? (isa? target-type :type/Integer))
-      (Long/parseLong attr-value)
+      (parse-long attr-value)
       ;; If the attr-value is a string and the target type is float, parse it as a double
       (and attr-string? (isa? target-type :type/Float))
-      (Double/parseDouble attr-value)
+      (parse-double attr-value)
       ;; No need to parse it if the type isn't numeric or if it's already a number
       :else
       attr-value)))
@@ -131,10 +129,10 @@
   (mapv (partial attr-remapping->parameter (:login_attributes @*current-user*))
         attribute-remappings))
 
-(s/defn ^:private preprocess-source-query :- mbql.s/SourceQuery
+(mu/defn ^:private preprocess-source-query :- mbql.s/SourceQuery
   [source-query :- mbql.s/SourceQuery]
   (try
-    (let [query        {:database (:id (qp.store/database))
+    (let [query        {:database (u/the-id (lib.metadata/database (qp.store/metadata-provider)))
                         :type     :query
                         :query    source-query}
           preprocessed (binding [*current-user-id* nil]
@@ -146,8 +144,8 @@
                       {:source-query source-query}
                       e)))))
 
-(s/defn ^:private card-gtap->source
-  [{card-id :card_id, :as gtap}]
+(defn- card-gtap->source
+  [{card-id :card_id :as gtap}]
   (update-in (fetch-source-query/card-id->source-query-and-metadata card-id)
              [:source-query :parameters]
              concat
@@ -156,11 +154,11 @@
 (defn- table-gtap->source [{table-id :table_id, :as gtap}]
   {:source-query {:source-table table-id, :parameters (gtap->parameters gtap)}})
 
-(s/defn ^:private mbql-query-metadata :- (su/non-empty [su/Map])
+(mu/defn ^:private mbql-query-metadata :- [:+ :map]
   [inner-query]
   (binding [*current-user-id* nil]
     ((requiring-resolve 'metabase.query-processor/query->expected-cols)
-     {:database (u/the-id (qp.store/database))
+     {:database (u/the-id (lib.metadata/database (qp.store/metadata-provider)))
       :type     :query
       :query    inner-query})))
 
@@ -173,9 +171,9 @@
      (mbql-query-metadata {:source-table table-id}))
    :ttl/threshold (u/minutes->ms 1)))
 
-(s/defn ^:private reconcile-metadata :- (su/non-empty [su/Map])
+(mu/defn ^:private reconcile-metadata :- [:+ :map]
   "Combine the metadata in `source-query-metadata` with the `table-metadata` from the Table being sandboxed."
-  [source-query-metadata :- (su/non-empty [su/Map]) table-metadata]
+  [source-query-metadata :- [:+ :map] table-metadata]
   (let [col-name->table-metadata (m/index-by :name table-metadata)]
     (vec
      (for [col   source-query-metadata
@@ -185,11 +183,11 @@
          (gtap/check-column-types-match col table-col)
          table-col)))))
 
-(s/defn ^:private native-query-metadata :- (su/non-empty [su/Map])
-  [source-query :- {:source-query s/Any, s/Keyword s/Any}]
+(mu/defn ^:private native-query-metadata :- [:+ :map]
+  [source-query :- [:map [:source-query :any]]]
   (let [result (binding [*current-user-id* nil]
                  ((requiring-resolve 'metabase.query-processor/process-query)
-                  {:database (u/the-id (qp.store/database))
+                  {:database (u/the-id (lib.metadata/database (qp.store/metadata-provider)))
                    :type     :query
                    :query    {:source-query source-query
                               :limit        0}}))]
@@ -198,71 +196,87 @@
                         {:source-query source-query
                          :result       result})))))
 
-(s/defn ^:private source-query-form-ensure-metadata :- {:source-query    s/Any
-                                                        :source-metadata (su/non-empty [su/Map])
-                                                        s/Keyword        s/Any}
+(mu/defn ^:private source-query-form-ensure-metadata :- [:and [:map-of :keyword :any]
+                                                         [:map
+                                                          [:source-query :any]
+                                                          [:source-metadata [:+ :map]]]]
   "Add `:source-metadata` to a `source-query` if needed. If the source metadata had to be resolved (because Card with
   `card-id`) didn't already have it, save it so we don't have to resolve it again next time around."
-  [{:keys [source-metadata], :as source-query} :- {:source-query s/Any, s/Keyword s/Any}
-   table-id                                    :- su/IntGreaterThanZero
-   card-id                                     :- (s/maybe su/IntGreaterThanZero)]
+  [{:keys [source-metadata], :as source-query} :- [:and [:map-of :keyword :any] [:map [:source-query :any]]]
+   table-id                                    :- ms/PositiveInt
+   card-id                                     :- [:maybe ms/PositiveInt]]
   (let [table-metadata   (original-table-metadata table-id)
         ;; make sure source query has `:source-metadata`; add it if needed
         [metadata save?] (cond
-                           ;; if it already has `:source-metadata`, we're good to go.
-                           (seq source-metadata)
-                           [source-metadata false]
+                          ;; if it already has `:source-metadata`, we're good to go.
+                          (seq source-metadata)
+                          [source-metadata false]
 
-                           ;; if it doesn't have source metadata, but it's an MBQL query, we can preprocess the query to
-                           ;; get the expected metadata.
-                           (not (get-in source-query [:source-query :native]))
-                           [(mbql-query-metadata source-query) true]
+                          ;; if it doesn't have source metadata, but it's an MBQL query, we can preprocess the query to
+                          ;; get the expected metadata.
+                          (not (get-in source-query [:source-query :native]))
+                          [(mbql-query-metadata source-query) true]
 
-                           ;; otherwise if it's a native query we'll have to run the query really quickly to get the
-                           ;; expected metadata.
-                           :else
-                           [(native-query-metadata source-query) true])
+                          ;; otherwise if it's a native query we'll have to run the query really quickly to get the
+                          ;; expected metadata.
+                          :else
+                          [(native-query-metadata source-query) true])
         metadata (reconcile-metadata metadata table-metadata)]
     (assert (seq metadata))
     ;; save the result metadata so we don't have to do it again next time if applicable
     (when (and card-id save?)
       (log/tracef "Saving results metadata for GTAP Card %s" card-id)
-      (db/update! Card card-id :result_metadata metadata))
+      (t2/update! Card card-id {:result_metadata metadata}))
     ;; make sure the fetched Fields are present the QP store
     (when-let [field-ids (not-empty (filter some? (map :id metadata)))]
-      (qp.store/fetch-and-store-fields! field-ids))
+      (qp.store/bulk-metadata :metadata/column field-ids))
     (assoc source-query :source-metadata metadata)))
 
 
-(s/defn ^:private gtap->source :- {:source-query                     s/Any
-                                   (s/optional-key :source-metadata) [mbql.s/SourceQueryMetadata]
-                                   s/Keyword                         s/Any}
+(mu/defn ^:private gtap->source :- [:map
+                                    [:source-query :any]
+                                    [:source-metadata {:optional true} [:sequential mbql.s/SourceQueryMetadata]]]
   "Get the source query associated with a `gtap`."
-  [{card-id :card_id, table-id :table_id, :as gtap} :- su/Map]
+  [{card-id :card_id, table-id :table_id, :as gtap} :- :map]
   (-> ((if card-id
          card-gtap->source
          table-gtap->source) gtap)
       preprocess-source-query
       (source-query-form-ensure-metadata table-id card-id)))
 
-(s/defn ^:private gtap->perms-set :- #{perms/PathSchema}
-  "Calculate the set of permissions needed to run the query associated with a GTAP; this set of permissions is excluded
+(defn- sandbox->table-ids
+  "Returns the set of table IDs which are used by the given sandbox. These are the sandboxed table itself, as well as
+  any linked tables referenced via fields in the attribute remappings. This is the set of tables which need to be
+  excluded from subsequent permission checks in order to run the sandboxed query."
+  [{table-id :table_id, attribute-remappings :attribute_remappings}]
+  (->>
+   (for [target-field-clause (vals attribute-remappings)]
+     (mbql.u/match-one target-field-clause
+       [:field (field-id :guard integer?) _]
+       (:table-id (lib.metadata.protocols/field (qp.store/metadata-provider) field-id))))
+   (cons table-id)
+   (remove nil?)
+   set))
+
+(mu/defn ^:private sandbox->perms-set :- [:set perms.u/PathSchema]
+  "Calculate the set of permissions needed to run the query associated with a sandbox; this set of permissions is excluded
   during the normal QP perms check.
 
-  Background: when applying GTAPs, we don't want the QP perms check middleware to throw an Exception if the Current
-  User doesn't have permissions to run the underlying GTAP query, which will likely be greater than what they actually
-  have. (For example, a User might have segmented query perms for Table 15, which is why we're applying a GTAP in the
-  first place; the actual perms required to normally run the underlying GTAP query is more likely something like
-  *full* query perms for Table 15.) The QP perms check middleware subtracts this set from the set of required
-  permissions, allowing the user to run their GTAPped query."
-  [{card-id :card_id, table-id :table_id}]
+  Background: when applying sandboxing, we don't want the QP perms check middleware to throw an Exception if the Current
+  User doesn't have permissions to run the underlying sandboxed query, which will likely be greater than what they
+  actually have. (For example, a User might have sandboxed query perms for Table 15, which is why we're applying a
+  sandbox in the first place; the actual perms required to normally run the underlying sandbox query is more likely
+  something like *full* query perms for Table 15.) The QP perms check middleware subtracts this set from the set of
+  required permissions, allowing the user to run their sandboxed query."
+  [{card-id :card_id :as sandbox}]
   (if card-id
     (qp.store/cached card-id
-      (query-perms/perms-set (db/select-one-field :dataset_query Card :id card-id), :throw-exceptions? true))
-    #{(perms/table-query-path (db/select-one Table :id table-id))}))
+      (query-perms/perms-set (:dataset-query (lib.metadata.protocols/card (qp.store/metadata-provider) card-id))
+                             :throw-exceptions? true))
+    (set (map perms/table-query-path (sandbox->table-ids sandbox)))))
 
-(defn- gtaps->perms-set [gtaps]
-  (set (mapcat gtap->perms-set gtaps)))
+(defn- sandboxes->perms-set [sandboxes]
+  (set (mapcat sandbox->perms-set sandboxes)))
 
 
 ;;; +----------------------------------------------------------------------------------------------------------------+
@@ -319,14 +333,15 @@
       original-query
       (-> sandboxed-query
           (assoc ::original-metadata (expected-cols original-query))
-          (update-in [::qp.perms/perms :gtaps] (fn [perms] (into (set perms) (gtaps->perms-set (vals table-id->gtap)))))))))
+          (update-in [::qp.perms/perms :gtaps] (fn [perms] (into (set perms) (sandboxes->perms-set (vals table-id->gtap)))))))))
 
 (def ^:private default-recursion-limit 20)
 (def ^:private ^:dynamic *recursion-limit* default-recursion-limit)
 
-(defn apply-sandboxing
+(defenterprise apply-sandboxing
   "Pre-processing middleware. Replaces source tables a User was querying against with source queries that (presumably)
   restrict the rows returned, based on presence of sandboxes."
+  :feature :sandboxes
   [query]
   (if-not api/*is-superuser?*
     (or (when-let [table-id->gtap (when *current-user-id*
@@ -360,10 +375,13 @@
                  (get col-name->expected-col (:name col))))))]
     (update metadata :cols merge-cols)))
 
-(defn merge-sandboxing-metadata
+(defenterprise merge-sandboxing-metadata
   "Post-processing middleware. Merges in column metadata from the original, unsandboxed version of the query."
-  [{::keys [original-metadata]} rff]
-  (if original-metadata
-    (fn merge-sandboxing-metadata-rff* [metadata]
-      (rff (merge-metadata original-metadata metadata)))
-    rff))
+  :feature :sandboxes
+  [{::keys [original-metadata] :as query} rff]
+  (fn merge-sandboxing-metadata-rff* [metadata]
+    (let [metadata (assoc metadata :is_sandboxed (some? (get-in query [::qp.perms/perms :gtaps])))
+          metadata (if original-metadata
+                     (merge-metadata original-metadata metadata)
+                     metadata)]
+      (rff metadata))))

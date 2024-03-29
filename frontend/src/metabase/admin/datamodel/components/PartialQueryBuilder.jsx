@@ -1,15 +1,14 @@
 /* eslint-disable react/prop-types */
-import React, { Component } from "react";
-import { connect } from "react-redux";
 import PropTypes from "prop-types";
+import { Component } from "react";
+import { connect } from "react-redux";
 import { t } from "ttag";
 import _ from "underscore";
 
 import Link from "metabase/core/components/Link";
-import { getMetadata } from "metabase/selectors/metadata";
 import Tables from "metabase/entities/tables";
-import GuiQueryEditor from "metabase/query_builder/components/GuiQueryEditor";
 import * as Urls from "metabase/lib/urls";
+import { getMetadata } from "metabase/selectors/metadata";
 import Query from "metabase-lib/queries/Query";
 import {
   getSegmentOrMetricQuestion,
@@ -18,10 +17,12 @@ import {
 
 import withTableMetadataLoaded from "../hoc/withTableMetadataLoaded";
 
+import { GuiQueryEditor } from "./GuiQueryEditor";
+
 class PartialQueryBuilder extends Component {
   static propTypes = {
     onChange: PropTypes.func.isRequired,
-    table: PropTypes.object.isRequired,
+    table: PropTypes.object,
     updatePreviewSummary: PropTypes.func.isRequired,
     previewSummary: PropTypes.string,
   };
@@ -56,7 +57,7 @@ class PartialQueryBuilder extends Component {
 
     // only set the query if it doesn't already have an aggregation or filter
     const question = getSegmentOrMetricQuestion(value, table, metadata);
-    if (!question.query().isRaw()) {
+    if (!question.legacyQuery({ useStructuredQuery: true }).isRaw()) {
       return;
     }
 
@@ -79,6 +80,7 @@ class PartialQueryBuilder extends Component {
     const { features, value, metadata, table, previewSummary } = this.props;
 
     const question = getSegmentOrMetricQuestion(value, table, metadata);
+    const legacyQuery = question.legacyQuery({ useStructuredQuery: true });
     const query = question.query();
     const previewUrl = Urls.serializedQuestion(question.card());
 
@@ -86,6 +88,7 @@ class PartialQueryBuilder extends Component {
       <div className="py1">
         <GuiQueryEditor
           features={features}
+          legacyQuery={legacyQuery}
           query={query}
           setDatasetQuery={this.setDatasetQuery}
           isShowingDataReference={false}
@@ -96,7 +99,6 @@ class PartialQueryBuilder extends Component {
             <span className="text-bold px3">{previewSummary}</span>
             <Link
               to={previewUrl}
-              data-metabase-event="Data Model;Preview Click"
               target={window.OSX ? null : "_blank"}
               rel="noopener noreferrer"
               className="Button Button--primary"

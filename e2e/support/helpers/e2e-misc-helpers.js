@@ -27,16 +27,26 @@ export function openNativeEditor({
   databaseName,
   alias = "editor",
   fromCurrentPage,
+  newMenuItemTitle = "SQL query",
 } = {}) {
   if (!fromCurrentPage) {
     cy.visit("/");
   }
   cy.findByText("New").click();
-  cy.findByText("SQL query").click();
+  cy.findByText(newMenuItemTitle).click();
 
   databaseName && cy.findByText(databaseName).click();
 
   return cy.findByTestId("native-query-editor").as(alias).should("be.visible");
+}
+
+export function focusNativeEditor() {
+  return cy
+    .findByTestId("native-query-editor")
+    .should("be.visible")
+    .should("have.class", "ace_editor")
+    .click()
+    .should("have.class", "ace_focus");
 }
 
 /**
@@ -45,7 +55,7 @@ export function openNativeEditor({
  */
 export function runNativeQuery({ wait = true } = {}) {
   cy.intercept("POST", "api/dataset").as("dataset");
-  cy.get(".NativeQueryEditor .Icon-play").click();
+  cy.findByTestId("native-query-editor-container").icon("play").click();
 
   if (wait) {
     cy.wait("@dataset");
@@ -133,24 +143,63 @@ export function visitQuestion(id) {
 }
 
 /**
+ * Visit a model and wait for its query to load.
+ *
+ * @param {number} id
+ */
+export function visitModel(id, { hasDataAccess = true } = {}) {
+  const alias = "modelQuery" + id;
+
+  if (hasDataAccess) {
+    cy.intercept("POST", `/api/dataset`).as(alias);
+  } else {
+    cy.intercept("POST", `/api/card/**/${id}/query`).as(alias);
+  }
+
+  cy.visit(`/model/${id}`);
+
+  cy.wait("@" + alias);
+}
+
+/**
  * Visit a dashboard and wait for the related queries to load.
  *
- * @param {number} dashboard_id
+ * @param {number|string} dashboardIdOrAlias
+ * @param {Object} config
  */
-export function visitDashboard(dashboard_id, { params = {} } = {}) {
+export function visitDashboard(dashboardIdOrAlias, { params = {} } = {}) {
+  if (typeof dashboardIdOrAlias === "number") {
+    visitDashboardById(dashboardIdOrAlias, { params });
+  }
+
+  if (typeof dashboardIdOrAlias === "string") {
+    visitDashboardByAlias(dashboardIdOrAlias, { params });
+  }
+}
+
+function visitDashboardById(dashboard_id, config) {
   // Some users will not have permissions for this request
   cy.request({
     method: "GET",
     url: `/api/dashboard/${dashboard_id}`,
     // That's why we have to ignore failures
     failOnStatusCode: false,
-  }).then(({ status, body: { ordered_cards } }) => {
+  }).then(({ status, body: { dashcards, tabs } }) => {
     const dashboardAlias = "getDashboard" + dashboard_id;
 
     cy.intercept("GET", `/api/dashboard/${dashboard_id}`).as(dashboardAlias);
 
     const canViewDashboard = hasAccess(status);
-    const validQuestions = dashboardHasQuestions(ordered_cards);
+
+    let validQuestions = dashboardHasQuestions(dashcards);
+
+    // if dashboard has tabs, only expect cards on the first tab
+    if (tabs?.length > 0 && validQuestions) {
+      const firstTab = tabs[0];
+      validQuestions = validQuestions.filter(
+        card => card.dashboard_tab_id === firstTab.id,
+      );
+    }
 
     if (canViewDashboard && validQuestions) {
       // If dashboard has valid questions (GUI or native),
@@ -174,7 +223,7 @@ export function visitDashboard(dashboard_id, { params = {} } = {}) {
 
       cy.visit({
         url: `/dashboard/${dashboard_id}`,
-        qs: params,
+        qs: config.params,
       });
 
       cy.wait(aliases);
@@ -188,6 +237,14 @@ export function visitDashboard(dashboard_id, { params = {} } = {}) {
       cy.wait(`@${dashboardAlias}`);
     }
   });
+}
+
+/**
+ * Visit a dashboard by using its previously saved dashboard id alias.
+ * @param {string} alias
+ */
+function visitDashboardByAlias(alias, config) {
+  cy.get(alias).then(id => visitDashboard(id, config));
 }
 
 function hasAccess(statusCode) {
@@ -232,7 +289,9 @@ export function saveQuestion(
   cy.findByText("Save").click();
 
   modal().within(() => {
-    cy.findByLabelText("Name").clear().type(name);
+    if (name) {
+      cy.findByLabelText("Name").clear().type(name);
+    }
     cy.button("Save").click();
   });
 
@@ -245,6 +304,16 @@ export function saveQuestion(
   modal().within(() => {
     cy.button("Not now").click();
   });
+}
+
+export function saveSavedQuestion() {
+  cy.intercept("PUT", "/api/card/**").as("updateQuestion");
+  cy.findByText("Save").click();
+
+  modal().within(() => {
+    cy.button("Save").click();
+  });
+  cy.wait("@updateQuestion");
 }
 
 export function visitPublicQuestion(id) {

@@ -1,7 +1,7 @@
 /* eslint-disable react/prop-types */
-import React, { Component } from "react";
-
+import { Component } from "react";
 import { t } from "ttag";
+
 import Modal from "metabase/components/Modal";
 import ModalContent from "metabase/components/ModalContent";
 
@@ -27,11 +27,7 @@ export default class SavedQuestionIntroModal extends Component {
             {t`You won't make any permanent changes to a saved chart unless you click Save and choose to replace the original chart.`}
           </div>
           <div className="Form-actions flex justify-center py1">
-            <button
-              data-metabase-event="QueryBuilder;IntroModal"
-              className="Button Button--primary"
-              onClick={onClose}
-            >
+            <button className="Button Button--primary" onClick={onClose}>
               {t`Okay`}
             </button>
           </div>

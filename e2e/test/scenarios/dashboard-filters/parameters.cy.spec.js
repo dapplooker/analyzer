@@ -1,3 +1,10 @@
+import { SAMPLE_DB_ID } from "e2e/support/cypress_data";
+import { SAMPLE_DATABASE } from "e2e/support/cypress_sample_database";
+import {
+  ORDERS_DASHBOARD_ID,
+  ORDERS_COUNT_QUESTION_ID,
+  ORDERS_BY_YEAR_QUESTION_ID,
+} from "e2e/support/cypress_sample_instance_data";
 import {
   popover,
   restore,
@@ -7,14 +14,42 @@ import {
   sidebar,
   getDashboardCard,
   selectDashboardFilter,
+  disconnectDashboardFilter,
   saveDashboard,
+  updateDashboardCards,
+  visitDashboardAndCreateTab,
+  goToTab,
+  createNewTab,
+  undoToast,
+  setFilter,
+  visitQuestion,
+  modal,
+  dashboardParametersContainer,
+  openQuestionActions,
+  spyRequestFinished,
 } from "e2e/support/helpers";
-import { SAMPLE_DATABASE } from "e2e/support/cypress_sample_database";
-import { SAMPLE_DB_ID } from "e2e/support/cypress_data";
 
-const { ORDERS_ID, ORDERS, PRODUCTS, PRODUCTS_ID } = SAMPLE_DATABASE;
+const { ORDERS_ID, ORDERS, PRODUCTS, PRODUCTS_ID, REVIEWS_ID } =
+  SAMPLE_DATABASE;
 
 describe("scenarios > dashboard > parameters", () => {
+  const cards = [
+    {
+      card_id: ORDERS_COUNT_QUESTION_ID,
+      row: 0,
+      col: 0,
+      size_x: 5,
+      size_y: 4,
+    },
+    {
+      card_id: ORDERS_COUNT_QUESTION_ID,
+      row: 0,
+      col: 5,
+      size_x: 5,
+      size_y: 4,
+    },
+  ];
+
   beforeEach(() => {
     restore();
     cy.signInAsAdmin();
@@ -25,20 +60,9 @@ describe("scenarios > dashboard > parameters", () => {
 
     cy.createDashboard({ name: "my dash" }).then(({ body: { id } }) => {
       // add the same question twice
-      cy.request("POST", `/api/dashboard/${id}/cards`, {
-        cardId: 2, // Orders, count
-        row: 0,
-        col: 0,
-        size_x: 4,
-        size_y: 4,
-      });
-
-      cy.request("POST", `/api/dashboard/${id}/cards`, {
-        cardId: 2,
-        row: 0,
-        col: 4,
-        size_x: 4,
-        size_y: 4,
+      updateDashboardCards({
+        dashboard_id: id,
+        cards,
       });
 
       visitDashboard(id);
@@ -48,20 +72,29 @@ describe("scenarios > dashboard > parameters", () => {
 
     // add a category filter
     cy.icon("filter").click();
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.contains("Text or Category").click();
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Is").click();
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("A single value").click();
 
     // connect it to people.name and product.category
     // (this doesn't make sense to do, but it illustrates the feature)
     selectDashboardFilter(getDashboardCard(0), "Name");
+
+    getDashboardCard(1).within(() => {
+      cy.findByLabelText("close icon").click();
+    });
     selectDashboardFilter(getDashboardCard(1), "Category");
 
     // finish editing filter and save dashboard
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.contains("Save").click();
 
     // wait for saving to finish
     cy.wait("@dashboard");
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.contains("You're editing this dashboard.").should("not.exist");
 
     // confirm that typing searches both fields
@@ -86,7 +119,7 @@ describe("scenarios > dashboard > parameters", () => {
     cy.get(".DashCard").last().should("contain", "4,939");
   });
 
-  it("should remove parameter name or the whole parameter (metabase#10829, metabase#17933)", () => {
+  it("should be able to remove parameter (metabase#17933)", () => {
     // Mirrored issue in metabase-enterprise#275
 
     const questionDetails = {
@@ -118,14 +151,14 @@ describe("scenarios > dashboard > parameters", () => {
 
     cy.createQuestionAndDashboard({ questionDetails, dashboardDetails }).then(
       ({ body: { id, card_id, dashboard_id } }) => {
-        cy.request("PUT", `/api/dashboard/${dashboard_id}/cards`, {
-          cards: [
+        cy.request("PUT", `/api/dashboard/${dashboard_id}`, {
+          dashcards: [
             {
               id,
               card_id,
               row: 0,
               col: 0,
-              size_x: 12,
+              size_x: 16,
               size_y: 8,
               series: [],
               visualization_settings: {},
@@ -168,55 +201,60 @@ describe("scenarios > dashboard > parameters", () => {
       },
     );
 
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText(startsWith.name).click();
     cy.findByPlaceholderText("Enter some text").type("G");
     // Make sure the dropdown list with values is not populated,
     // because it makes no sense for non-exact parameter string operators.
     // See: https://github.com/metabase/metabase/pull/15477
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Gizmo").should("not.exist");
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Gadget").should("not.exist");
 
     cy.button("Add filter").click();
 
-    const startsWithSlug = `${startsWith.slug}=G`;
-    cy.location("search").should("eq", `?${startsWithSlug}`);
+    cy.location("search").should(
+      "eq",
+      `?${startsWith.slug}=G&${endsWith.slug}=`,
+    );
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("37.65").should("not.exist");
 
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText(endsWith.name).click();
     cy.findByPlaceholderText("Enter some text").type("zmo");
     // Make sure the dropdown list with values is not populated,
     // because it makes no sense for non-exact parameter string operators.
     // See: https://github.com/metabase/metabase/pull/15477
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Gizmo").should("not.exist");
 
     cy.button("Add filter").click();
 
-    const endsWithSlug = `${endsWith.slug}=zmo`;
-    cy.location("search").should("eq", `?${startsWithSlug}&${endsWithSlug}`);
+    cy.location("search").should(
+      "eq",
+      `?${startsWith.slug}=G&${endsWith.slug}=zmo`,
+    );
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("52.72").should("not.exist");
 
     // Remove filter (metabase#17933)
     cy.icon("pencil").click();
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText(startsWith.name).find(".Icon-gear").click();
 
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Remove").click();
-    cy.location("search").should("eq", `?${endsWithSlug}`);
-
-    // Remove filter name (metabase#10829)
-    cy.findByText(endsWith.name).find(".Icon-gear").click();
-    cy.findByDisplayValue(endsWith.name).clear().blur();
-
-    cy.location("search").should("eq", "?unnamed=zmo");
-    cy.findByDisplayValue("unnamed");
+    cy.location("search").should("eq", `?${endsWith.slug}=zmo`);
 
     cy.button("Save").click();
 
-    cy.log("Filter name should be 'unnamed' and the value cleared");
-    filterWidget().contains(/unnamed/i);
+    cy.log("There should only be one filter remaining and its value cleared");
+    filterWidget().contains(new RegExp(`${endsWith.name}`, "i"));
+    cy.location("search").should("eq", `?${endsWith.slug}=`);
 
-    cy.log("URL should reset");
-    cy.location("search").should("eq", "");
-
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("37.65");
   });
 
@@ -257,14 +295,14 @@ describe("scenarios > dashboard > parameters", () => {
       questionDetails,
       dashboardDetails,
     }).then(({ body: { id, card_id, dashboard_id } }) => {
-      cy.request("PUT", `/api/dashboard/${dashboard_id}/cards`, {
-        cards: [
+      cy.request("PUT", `/api/dashboard/${dashboard_id}`, {
+        dashcards: [
           {
             id,
             card_id,
             row: 0,
             col: 0,
-            size_x: 8,
+            size_x: 11,
             size_y: 6,
             parameter_mappings: [
               {
@@ -288,7 +326,11 @@ describe("scenarios > dashboard > parameters", () => {
 
       // Confirm that the correct parameter type is connected to the native question's field filter
       cy.findByText(matchingFilterType.name).find(".Icon-gear").click();
-      cy.findByText("Column to filter on").parent().contains("Native Filter");
+
+      getDashboardCard().within(() => {
+        cy.findByText("Column to filter on");
+        cy.findByText("Native Filter");
+      });
 
       // Update the underlying question's query
       cy.request("PUT", `/api/card/${card_id}`, {
@@ -369,14 +411,14 @@ describe("scenarios > dashboard > parameters", () => {
     cy.createQuestionAndDashboard({ questionDetails, dashboardDetails }).then(
       ({ body: { id, card_id, dashboard_id } }) => {
         cy.log("Connect all filters to the card");
-        cy.request("PUT", `/api/dashboard/${dashboard_id}/cards`, {
-          cards: [
+        cy.request("PUT", `/api/dashboard/${dashboard_id}`, {
+          dashcards: [
             {
               id,
               card_id,
               row: 0,
               col: 0,
-              size_x: 14,
+              size_x: 19,
               size_y: 12,
               parameter_mappings: [
                 {
@@ -429,6 +471,7 @@ describe("scenarios > dashboard > parameters", () => {
     cy.get("@fetchAllCategories").should("have.been.calledOnce");
 
     cy.button("Update filter").click();
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("2 selections").click();
 
     // Even after we reopen the dropdown, it shouldn't send additional requests for values (metabase#16103)
@@ -441,6 +484,7 @@ describe("scenarios > dashboard > parameters", () => {
     });
 
     cy.button("Update filter").click();
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("2 selections").should("not.exist");
     filterWidget().contains("Widget");
 
@@ -448,6 +492,7 @@ describe("scenarios > dashboard > parameters", () => {
     // Do not limit number of results (metabase#15695)
     // Prior to the issue being fixed, the cap was 100 results
     cy.findByPlaceholderText("Search the list").type("Syner");
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Synergistic Wool Coat");
 
     cy.location("search").should(
@@ -458,7 +503,9 @@ describe("scenarios > dashboard > parameters", () => {
 
     // It should not reset previously defined filters when exiting 'edit' mode without making any changes (metabase#5332, metabase#17139)
     editDashboard();
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Cancel").click();
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("You're editing this dashboard.").should("not.exist");
 
     cy.location("search").should(
@@ -470,7 +517,7 @@ describe("scenarios > dashboard > parameters", () => {
 
   describe("when the user does not have self-service data permissions", () => {
     beforeEach(() => {
-      visitDashboard(1);
+      visitDashboard(ORDERS_DASHBOARD_ID);
       cy.findByTextEnsureVisible("Created At");
 
       cy.icon("pencil").click();
@@ -479,11 +526,13 @@ describe("scenarios > dashboard > parameters", () => {
 
       selectDashboardFilter(getDashboardCard(), "User ID");
 
+      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
       cy.findByText("Save").click();
+      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
       cy.findByText("You're editing this dashboard.").should("not.exist");
 
       cy.signIn("nodata");
-      visitDashboard(1);
+      visitDashboard(ORDERS_DASHBOARD_ID);
     });
 
     it("should not see mapping options", () => {
@@ -530,30 +579,553 @@ describe("scenarios > dashboard > parameters", () => {
     );
 
     editDashboard();
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText(parameter1Details.name).click();
     selectDashboardFilter(getDashboardCard(), "Category");
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText(parameter2Details.name).click();
     selectDashboardFilter(getDashboardCard(), "Vendor");
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Linked filters").click();
     sidebar().findByRole("switch").click();
     saveDashboard();
 
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText(parameter2Details.name).click();
     popover().within(() => {
       cy.findByText("Barrows-Johns").should("exist");
       cy.findByText("Balistreri-Ankunding").should("exist");
     });
 
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText(parameter1Details.name).click();
     popover().within(() => {
       cy.findByText("Gadget").click();
       cy.button("Add filter").click();
     });
 
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText(parameter2Details.name).click();
     popover().within(() => {
       cy.findByText("Barrows-Johns").should("exist");
       cy.findByText("Balistreri-Ankunding").should("not.exist");
+    });
+  });
+
+  describe("when parameters are (dis)connected to dashcards", () => {
+    beforeEach(() => {
+      createDashboardWithCards({ cards }).then(dashboardId =>
+        visitDashboard(dashboardId),
+      );
+
+      // create a disconnected filter + a default value
+      editDashboard();
+      setFilter("Time", "Relative Date");
+
+      sidebar().findByText("Default value").next().click();
+      popover().contains("Past 7 days").click({ force: true });
+      saveDashboard();
+
+      const { interceptor } = spyRequestFinished("dashcardRequestSpy");
+
+      cy.intercept(
+        "POST",
+        "/api/dashboard/*/dashcard/*/card/*/query",
+        interceptor,
+      );
+    });
+
+    it("should not fetch dashcard data when filter is disconnected", () => {
+      cy.get("@dashcardRequestSpy").should("not.have.been.called");
+    });
+
+    it("should fetch dashcard data after save when parameter is mapped", () => {
+      // Connect filter to 2 cards
+      editDashboard();
+      cy.icon("filter").click();
+
+      cy.findByTestId("edit-dashboard-parameters-widget-container")
+        .findByText("Relative Date")
+        .click();
+      selectDashboardFilter(getDashboardCard(0), "Created At");
+      saveDashboard();
+
+      cy.get("@dashcardRequestSpy").should("have.callCount", 2);
+    });
+
+    it("should fetch dashcard data when parameter mapping is removed", () => {
+      // Connect filter to 1 card only
+      editDashboard();
+      cy.findByTestId("edit-dashboard-parameters-widget-container")
+        .findByText("Relative Date")
+        .click();
+      selectDashboardFilter(getDashboardCard(0), "Created At");
+      disconnectDashboardFilter(getDashboardCard(1));
+      saveDashboard();
+
+      cy.get("@dashcardRequestSpy").should("have.callCount", 1);
+
+      // Disconnect filter from the 1st card
+      editDashboard();
+      cy.findByTestId("edit-dashboard-parameters-widget-container")
+        .findByText("Relative Date")
+        .click();
+      disconnectDashboardFilter(getDashboardCard(0));
+      saveDashboard();
+
+      cy.get("@dashcardRequestSpy").should("have.callCount", 2);
+    });
+
+    it("should not fetch dashcard data when nothing changed on save", () => {
+      editDashboard();
+      saveDashboard();
+
+      cy.get("@dashcardRequestSpy").should("have.callCount", 0);
+    });
+  });
+
+  describe("when auto-wiring parameters across cards with matching fields", () => {
+    beforeEach(() => {
+      cy.intercept("GET", "/api/dashboard/**").as("dashboard");
+    });
+
+    describe("when wiring parameter to all cards for a filter", () => {
+      it("should automatically wire parameters to cards with matching fields", () => {
+        createDashboardWithCards({ cards }).then(dashboardId => {
+          visitDashboard(dashboardId);
+        });
+
+        editDashboard();
+
+        setFilter("Text or Category", "Is");
+
+        selectDashboardFilter(getDashboardCard(0), "Name");
+
+        getDashboardCard(0).within(() => {
+          cy.findByText("User.Name").should("exist");
+        });
+
+        getDashboardCard(1).within(() => {
+          cy.findByText("User.Name").should("exist");
+        });
+
+        undoToast()
+          .findByText(
+            "This filter has been auto-connected with questions with the same field.",
+          )
+          .should("be.visible");
+      });
+
+      it("should not automatically wire parameters to cards that already have a parameter, despite matching fields", () => {
+        createDashboardWithCards({ cards }).then(dashboardId => {
+          visitDashboard(dashboardId);
+        });
+
+        editDashboard();
+
+        setFilter("Text or Category", "Is");
+
+        selectDashboardFilter(getDashboardCard(0), "Name");
+
+        getDashboardCard(0).within(() => {
+          cy.findByText("User.Name").should("exist");
+        });
+
+        undoToast()
+          .findByText(
+            "This filter has been auto-connected with questions with the same field.",
+          )
+          .should("be.visible");
+
+        getDashboardCard(1).within(() => {
+          cy.findByLabelText("close icon").click();
+        });
+
+        selectDashboardFilter(getDashboardCard(1), "Address");
+
+        getDashboardCard(0).within(() => {
+          cy.findByText("User.Name").should("exist");
+        });
+
+        getDashboardCard(1).within(() => {
+          cy.findByText("User.Address").should("exist");
+        });
+
+        undoToast().should("not.exist");
+      });
+
+      it("should not automatically wire parameters to cards that don't have a matching field", () => {
+        cy.createQuestion({
+          name: "Products Table",
+          query: { "source-table": PRODUCTS_ID, limit: 1 },
+        }).then(({ body: { id: questionId } }) => {
+          createDashboardWithCards({
+            cards: [
+              {
+                card_id: ORDERS_BY_YEAR_QUESTION_ID,
+                row: 0,
+                col: 0,
+                size_x: 5,
+                size_y: 4,
+              },
+              {
+                card_id: questionId,
+                row: 0,
+                col: 4,
+                size_x: 5,
+                size_y: 4,
+              },
+            ],
+          }).then(dashboardId => {
+            visitDashboard(dashboardId);
+          });
+        });
+
+        editDashboard();
+
+        setFilter("Text or Category", "Is");
+
+        selectDashboardFilter(getDashboardCard(0), "Name");
+
+        getDashboardCard(0).within(() => {
+          cy.findByText("User.Name").should("exist");
+        });
+
+        getDashboardCard(1).within(() => {
+          cy.findByText("Select…").should("exist");
+        });
+
+        undoToast().should("not.exist");
+      });
+
+      it("should autowire parameters to cards in different tabs", () => {
+        createDashboardWithCards({ cards }).then(dashboardId => {
+          visitDashboardAndCreateTab({
+            dashboardId,
+            save: false,
+          });
+        });
+
+        setFilter("Text or Category", "Is");
+
+        addCardToDashboard();
+        goToFilterMapping();
+
+        selectDashboardFilter(getDashboardCard(0), "Name");
+
+        getDashboardCard(0).findByText("User.Name").should("exist");
+
+        goToTab("Tab 1");
+
+        for (let i = 0; i < cards.length; i++) {
+          getDashboardCard(i).findByText("User.Name").should("exist");
+        }
+
+        undoToast()
+          .findByText(
+            "This filter has been auto-connected with questions with the same field.",
+          )
+          .should("be.visible");
+      });
+
+      it("should undo parameter wiring when 'Undo auto-connection' is clicked", () => {
+        createDashboardWithCards({ cards }).then(dashboardId => {
+          visitDashboard(dashboardId);
+        });
+
+        editDashboard();
+
+        setFilter("Text or Category", "Is");
+        addCardToDashboard();
+        goToFilterMapping();
+
+        selectDashboardFilter(getDashboardCard(0), "Name");
+
+        getDashboardCard(0).findByText("User.Name").should("exist");
+
+        for (let i = 0; i < cards.length; i++) {
+          getDashboardCard(i).findByText("User.Name").should("exist");
+        }
+
+        undoToast().findByText("Undo auto-connection").click();
+
+        getDashboardCard(0).findByText("User.Name").should("exist");
+        for (let i = 1; i < cards.length; i++) {
+          getDashboardCard(i).findByText("Select…").should("exist");
+        }
+      });
+
+      it("in case of two autowiring undo toast, the second one should last the default timeout of 5s", () => {
+        // The autowiring undo toasts use the same id, a bug in the undo logic caused the second toast to be dismissed by the
+        // timeout set by the first. See https://github.com/metabase/metabase/pull/35461#pullrequestreview-1731776862
+        const cardTemplate = {
+          card_id: ORDERS_BY_YEAR_QUESTION_ID,
+          row: 0,
+          col: 0,
+          size_x: 5,
+          size_y: 4,
+        };
+        const cards = [
+          {
+            ...cardTemplate,
+            col: 0,
+          },
+          {
+            ...cardTemplate,
+            col: 5,
+          },
+          {
+            ...cardTemplate,
+            col: 10,
+          },
+        ];
+
+        createDashboardWithCards({ cards }).then(dashboardId => {
+          visitDashboard(dashboardId);
+        });
+
+        editDashboard();
+
+        cy.clock();
+
+        setFilter("Text or Category", "Is");
+
+        selectDashboardFilter(getDashboardCard(0), "Name");
+
+        removeFilterFromDashCard(0);
+        removeFilterFromDashCard(1);
+
+        cy.tick(2000);
+
+        selectDashboardFilter(getDashboardCard(0), "Name");
+
+        // since we waited 2 seconds earlier, if the toast is still visible after this other delay of 4s,
+        // it means the first timeout of 5s was cleared correctly
+        cy.tick(4000);
+        undoToast().should("exist");
+
+        cy.tick(2000);
+
+        undoToast().should("not.exist");
+      });
+    });
+
+    describe("wiring parameters when adding a card", () => {
+      it("should automatically wire a parameters to cards that are added to the dashboard", () => {
+        createDashboardWithCards({ cards }).then(dashboardId => {
+          visitDashboard(dashboardId);
+        });
+
+        editDashboard();
+
+        setFilter("Text or Category", "Is");
+
+        selectDashboardFilter(getDashboardCard(0), "Name");
+
+        for (let i = 0; i < cards.length; i++) {
+          getDashboardCard(i).findByText("User.Name").should("exist");
+        }
+
+        addCardToDashboard();
+        goToFilterMapping();
+
+        for (let i = 0; i < cards.length + 1; i++) {
+          getDashboardCard(i).findByText("User.Name").should("exist");
+        }
+
+        undoToast()
+          .findByText(
+            "Orders Model has been auto-connected with filters with the same field.",
+          )
+          .should("be.visible");
+      });
+
+      it("should automatically wire parameters to cards that are added to the dashboard in a different tab", () => {
+        createDashboardWithCards({ cards }).then(dashboardId => {
+          visitDashboard(dashboardId);
+        });
+
+        editDashboard();
+
+        setFilter("Text or Category", "Is");
+
+        selectDashboardFilter(getDashboardCard(0), "Name");
+        for (let i = 0; i < cards.length; i++) {
+          getDashboardCard(i).findByText("User.Name").should("exist");
+        }
+
+        createNewTab();
+        addCardToDashboard();
+        goToFilterMapping();
+
+        getDashboardCard(0).findByText("User.Name").should("exist");
+
+        undoToast()
+          .findByText(
+            "Orders Model has been auto-connected with filters with the same field.",
+          )
+          .should("be.visible");
+      });
+
+      it("should undo parameter wiring when 'Undo auto-connection' is clicked", () => {
+        createDashboardWithCards({ cards }).then(dashboardId => {
+          visitDashboard(dashboardId);
+        });
+
+        editDashboard();
+
+        setFilter("Text or Category", "Is");
+
+        selectDashboardFilter(getDashboardCard(0), "Name");
+
+        for (let i = 0; i < cards.length; i++) {
+          getDashboardCard(i).findByText("User.Name").should("exist");
+        }
+
+        addCardToDashboard();
+        goToFilterMapping();
+
+        for (let i = 0; i < cards.length + 1; i++) {
+          getDashboardCard(i).findByText("User.Name").should("exist");
+        }
+
+        undoToast().findByText("Undo auto-connection").click();
+
+        getDashboardCard(0).findByText("User.Name").should("exist");
+        getDashboardCard(1).findByText("User.Name").should("exist");
+        getDashboardCard(2).findByText("Select…").should("exist");
+      });
+    });
+
+    describe("adding cards with foreign keys to the dashboard (metabase#36275)", () => {
+      beforeEach(() => {
+        cy.intercept(
+          "POST",
+          "/api/dashboard/*/dashcard/*/card/*/query",
+          cy.spy().as("cardQueryRequest"),
+        ).as("cardQuery");
+
+        cy.createQuestion({
+          name: "Products Question",
+          query: { "source-table": PRODUCTS_ID, limit: 1 },
+        }).then(({ body: { id } }) => {
+          createDashboardWithCards({
+            dashboardName: "36275",
+            cards: [
+              {
+                card_id: id,
+                row: 0,
+                col: 0,
+              },
+            ],
+          });
+          cy.wrap(id).as("productsQuestionId");
+        });
+
+        cy.createQuestion({
+          name: "Orders Question",
+          query: { "source-table": ORDERS_ID, limit: 1 },
+        }).then(({ body: { id } }) => {
+          cy.wrap(id).as("ordersQuestionId");
+        });
+
+        cy.createQuestion({
+          name: "Reviews Question",
+          query: { "source-table": REVIEWS_ID, limit: 1 },
+        }).then(({ body: { id } }) => {
+          cy.wrap(id).as("reviewsQuestionId");
+        });
+      });
+
+      it("should autowire and filter cards with foreign keys when added to the dashboard via the sidebar", () => {
+        visitDashboard("@dashboardId");
+        editDashboard();
+        setFilter("ID");
+        selectDashboardFilter(getDashboardCard(0), "ID");
+
+        addCardToDashboard(["Orders Question", "Reviews Question"]);
+
+        cy.wait("@cardQuery");
+
+        goToFilterMapping("ID");
+
+        getDashboardCard(0).findByText("Product.ID").should("exist");
+        getDashboardCard(1).findByText("Product.ID").should("exist");
+        getDashboardCard(2).findByText("Product.ID").should("exist");
+
+        saveDashboard();
+
+        dashboardParametersContainer().findByText("ID").click();
+
+        popover().within(() => {
+          cy.findByRole("textbox").type("1{enter}");
+          cy.button("Add filter").click();
+        });
+
+        cy.wait("@cardQuery");
+
+        getDashboardCard(0).within(() => {
+          getTableCell("ID", 0).should("contain", "1");
+        });
+
+        getDashboardCard(1).within(() => {
+          getTableCell("Product ID", 0).should("contain", "1");
+        });
+
+        getDashboardCard(2).within(() => {
+          getTableCell("Product ID", 0).should("contain", "1");
+        });
+      });
+
+      it("should autowire and filter cards with foreign keys when added to the dashboard via the query builder", () => {
+        visitDashboard("@dashboardId");
+        editDashboard();
+        setFilter("ID");
+        selectDashboardFilter(getDashboardCard(0), "ID");
+        saveDashboard();
+
+        cy.get("@ordersQuestionId").then(ordersQuestionId => {
+          addQuestionFromQueryBuilder({ questionId: ordersQuestionId });
+        });
+
+        cy.get("@reviewsQuestionId").then(reviewsQuestionId => {
+          addQuestionFromQueryBuilder({
+            questionId: reviewsQuestionId,
+            saveDashboardAfterAdd: false,
+          });
+        });
+
+        cy.wait("@cardQuery");
+
+        goToFilterMapping("ID");
+
+        getDashboardCard(0).findByText("Product.ID").should("exist");
+        getDashboardCard(1).findByText("Product.ID").should("exist");
+        getDashboardCard(2).findByText("Product.ID").should("exist");
+
+        saveDashboard();
+
+        dashboardParametersContainer().findByText("ID").click();
+
+        popover().within(() => {
+          cy.findByRole("textbox").type("1{enter}");
+          cy.button("Add filter").click();
+        });
+
+        cy.wait("@cardQuery");
+
+        getDashboardCard(0).within(() => {
+          getTableCell("ID", 0).should("contain", "1");
+        });
+
+        getDashboardCard(1).within(() => {
+          getTableCell("Product ID", 0).should("contain", "1");
+        });
+
+        getDashboardCard(2).within(() => {
+          getTableCell("Product ID", 0).should("contain", "1");
+        });
+      });
     });
   });
 });
@@ -564,4 +1136,67 @@ function isFilterSelected(filter, bool) {
       .findByRole("checkbox")
       .should(`${bool === false ? "not." : ""}be.checked`),
   );
+}
+
+function createDashboardWithCards({
+  dashboardName = "my dash",
+  cards = [],
+} = {}) {
+  return cy
+    .createDashboard({ name: dashboardName })
+    .then(({ body: { id } }) => {
+      updateDashboardCards({
+        dashboard_id: id,
+        cards,
+      });
+
+      cy.wrap(id).as("dashboardId");
+    });
+}
+
+function addCardToDashboard(dashcardNames = "Orders Model") {
+  const dashcardsToSelect =
+    typeof dashcardNames === "string" ? [dashcardNames] : dashcardNames;
+  cy.findByTestId("dashboard-header").icon("add").click();
+  for (const dashcardName of dashcardsToSelect) {
+    cy.findByTestId("add-card-sidebar").findByText(dashcardName).click();
+  }
+}
+
+function goToFilterMapping(name = "Text") {
+  cy.findByTestId("edit-dashboard-parameters-widget-container")
+    .findByText(name)
+    .click();
+}
+
+function removeFilterFromDashCard(dashcardIndex = 0) {
+  getDashboardCard(dashcardIndex).icon("close").click();
+}
+
+function getTableCell(columnName, rowIndex) {
+  cy.findAllByTestId("column-header").then($columnHeaders => {
+    const columnHeaderIndex = $columnHeaders
+      .toArray()
+      .findIndex($columnHeader => $columnHeader.textContent === columnName);
+    const row = cy.findAllByTestId("table-row").eq(rowIndex);
+    row.findAllByTestId("cell-data").eq(columnHeaderIndex).as("cellData");
+  });
+
+  return cy.get("@cellData");
+}
+
+function addQuestionFromQueryBuilder({
+  questionId,
+  saveDashboardAfterAdd = true,
+}) {
+  visitQuestion(questionId);
+
+  openQuestionActions();
+  popover().findByText("Add to dashboard").click();
+  modal().findByText("36275").click();
+
+  undoToast().should("be.visible");
+  if (saveDashboardAfterAdd) {
+    saveDashboard();
+  }
 }

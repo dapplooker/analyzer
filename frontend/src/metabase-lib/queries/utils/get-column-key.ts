@@ -1,8 +1,6 @@
-import { DatasetColumn } from "metabase-types/api";
 import {
   createFieldReference,
   getBaseDimensionReference,
-  getDimensionReferenceWithoutOptions,
   getNormalizedDimensionReference,
   hasStringFieldName,
   isAggregationReference,
@@ -10,6 +8,7 @@ import {
   isFieldReference,
   isValidDimensionReference,
 } from "metabase-lib/references";
+import type { DatasetColumn } from "metabase-types/api";
 
 export const getColumnKey = (
   column: Pick<DatasetColumn, "name" | "field_ref">,
@@ -33,10 +32,6 @@ export const getColumnKey = (
     isAggregationReference(fieldRef)
   ) {
     fieldRef = getBaseDimensionReference(fieldRef);
-  }
-
-  if (isFieldReference(fieldRef)) {
-    fieldRef = getDimensionReferenceWithoutOptions(fieldRef, ["join-alias"]);
   }
 
   const isLegacyRef =

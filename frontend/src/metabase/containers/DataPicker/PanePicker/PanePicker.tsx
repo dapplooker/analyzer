@@ -1,10 +1,9 @@
-import React from "react";
+import type * as React from "react";
 import { t } from "ttag";
 
-import Icon from "metabase/components/Icon";
 import { Tree } from "metabase/components/tree";
-
 import type { ITreeNodeItem } from "metabase/components/tree/types";
+import { Icon } from "metabase/ui";
 
 import {
   Root,
@@ -48,4 +47,5 @@ function PanePicker({
   );
 }
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default PanePicker;

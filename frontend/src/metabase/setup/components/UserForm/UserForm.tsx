@@ -1,12 +1,14 @@
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import { t } from "ttag";
-import * as Yup from "yup";
 import _ from "underscore";
-import FormProvider from "metabase/core/components/FormProvider";
+import * as Yup from "yup";
+
 import FormInput from "metabase/core/components/FormInput";
 import FormSubmitButton from "metabase/core/components/FormSubmitButton";
-import * as Errors from "metabase/core/utils/errors";
-import { UserInfo } from "metabase-types/store";
+import { FormProvider } from "metabase/forms";
+import * as Errors from "metabase/lib/errors";
+import type { UserInfo } from "metabase-types/store";
+
 import { UserFieldGroup, UserFormRoot } from "./UserForm.styled";
 
 const USER_SCHEMA = Yup.object({
@@ -33,7 +35,11 @@ interface UserFormProps {
   onSubmit: (user: UserInfo) => void;
 }
 
-const UserForm = ({ user, onValidatePassword, onSubmit }: UserFormProps) => {
+export const UserForm = ({
+  user,
+  onValidatePassword,
+  onSubmit,
+}: UserFormProps) => {
   const initialValues = useMemo(() => {
     return user ?? USER_SCHEMA.getDefault();
   }, [user]);
@@ -96,5 +102,3 @@ const UserForm = ({ user, onValidatePassword, onSubmit }: UserFormProps) => {
     </FormProvider>
   );
 };
-
-export default UserForm;

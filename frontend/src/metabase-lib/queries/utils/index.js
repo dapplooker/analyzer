@@ -1,53 +1,13 @@
 import _ from "underscore";
-import Utils from "metabase/lib/utils";
 
-import * as QUERY from "./query";
 import * as FieldRef from "./field-ref";
+import * as QUERY from "./query";
 export * from "./query";
 export * from "./field-ref";
 
 // The backend won't return more than 2,000 rows so in cases where we
 // need to communicate or use that, use this constant
 export const HARD_ROW_LIMIT = 2000;
-
-export const NEW_QUERY_TEMPLATES = {
-  query: {
-    database: null,
-    type: "query",
-    query: {
-      "source-table": null,
-    },
-  },
-  native: {
-    database: null,
-    type: "native",
-    native: {
-      query: "",
-    },
-  },
-};
-
-export function createQuery(type = "query", databaseId, tableId) {
-  const dataset_query = Utils.copy(NEW_QUERY_TEMPLATES[type]);
-
-  if (databaseId) {
-    dataset_query.database = databaseId;
-  }
-
-  if (type === "query" && databaseId && tableId) {
-    dataset_query.query["source-table"] = tableId;
-  }
-
-  return dataset_query;
-}
-
-export function isStructured(dataset_query) {
-  return dataset_query && dataset_query.type === "query";
-}
-
-export function isNative(dataset_query) {
-  return dataset_query && dataset_query.type === "native";
-}
 
 export function cleanQuery(query) {
   if (!query) {
@@ -74,7 +34,7 @@ export function cleanQuery(query) {
     _.all(filter, a => a != null),
   );
   if (filters.length > 0) {
-    query.filter = ["and", ...filters];
+    query.filter = QUERY.getFilterClause(filters);
   } else {
     delete query.filter;
   }

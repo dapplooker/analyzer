@@ -1,7 +1,8 @@
-import React from "react";
 import { t, ngettext, msgid } from "ttag";
-import { getSemanticTypeIcon } from "metabase/lib/schema_metadata";
-import Field from "metabase-lib/metadata/Field";
+
+import type { IconName } from "metabase/ui";
+import type Field from "metabase-lib/metadata/Field";
+
 import {
   NodeListItemLink,
   NodeListItemName,
@@ -30,14 +31,14 @@ const FieldList = ({ fields, onFieldClick }: FieldListProps) => (
       </NodeListTitleText>
     </NodeListTitle>
     {fields.map(field => {
-      const tooltip = field.semantic_type ? null : t`Unknown type`;
+      // field.icon() cannot be annotated to return IconName
+      // because metabase-lib cannot import from metabase.
+      const iconName = field.icon() as IconName;
+      const tooltip = iconName === "unknown" ? t`Unknown type` : null;
       return (
         <li key={field.getUniqueId()}>
           <NodeListItemLink onClick={() => onFieldClick(field)}>
-            <NodeListItemIcon
-              name={getSemanticTypeIcon(field.semantic_type, "warning")}
-              tooltip={tooltip}
-            />
+            <NodeListItemIcon name={iconName} tooltip={tooltip} />
             <NodeListItemName>{field.name}</NodeListItemName>
           </NodeListItemLink>
         </li>
@@ -46,4 +47,5 @@ const FieldList = ({ fields, onFieldClick }: FieldListProps) => (
   </NodeListContainer>
 );
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default FieldList;

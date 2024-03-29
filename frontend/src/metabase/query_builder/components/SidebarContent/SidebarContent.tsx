@@ -1,6 +1,10 @@
-import React, { ReactNode } from "react";
+import type { ReactNode } from "react";
 import { t } from "ttag";
+
+import type { IconName } from "metabase/ui";
+
 import SidebarHeader from "../SidebarHeader";
+
 import {
   SidebarContentRoot,
   SidebarContentMain,
@@ -10,7 +14,7 @@ import {
 type Props = {
   className?: string;
   title?: string;
-  icon?: string;
+  icon?: IconName;
   color?: string;
   onBack?: () => void;
   onClose?: () => void;
@@ -55,6 +59,7 @@ function SidebarContent({
   );
 }
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default Object.assign(SidebarContent, {
   Root: SidebarContentRoot,
   Header: SidebarHeader,

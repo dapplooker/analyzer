@@ -1,9 +1,8 @@
-import styled from "@emotion/styled";
 import { css } from "@emotion/react";
-
-import Icon from "metabase/components/Icon";
+import styled from "@emotion/styled";
 
 import { color } from "metabase/lib/colors";
+import { Icon } from "metabase/ui";
 
 import SidebarLink from "./SidebarLink";
 
@@ -30,6 +29,7 @@ export const StyledSidebarLink = styled(SidebarLink)<{ isDragging: boolean }>`
   ${props =>
     props.isDragging &&
     css`
+      pointer-events: none;
       &:hover {
         background: ${color("bg-white")};
 

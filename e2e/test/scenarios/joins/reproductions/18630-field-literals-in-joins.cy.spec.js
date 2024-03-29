@@ -1,5 +1,5 @@
-import { restore } from "e2e/support/helpers";
 import { SAMPLE_DATABASE } from "e2e/support/cypress_sample_database";
+import { restore } from "e2e/support/helpers";
 
 const { ORDERS, ORDERS_ID, PEOPLE, PEOPLE_ID } = SAMPLE_DATABASE;
 
@@ -61,6 +61,6 @@ describe("issue 18630", () => {
     // which was caused by an infinite loop and a stack overflow.
     cy.findByDisplayValue(questionDetails.name);
     cy.get(".cellData").contains("29494 Anderson Drive");
-    cy.findByText("Showing 3 rows");
+    cy.findByTestId("question-row-count").should("have.text", "Showing 3 rows");
   });
 });

@@ -1,9 +1,7 @@
 import userEvent from "@testing-library/user-event";
 
-import { screen, waitForElementToBeRemoved } from "__support__/ui";
-
+import { screen, waitForLoaderToBeRemoved } from "__support__/ui";
 import { ROOT_COLLECTION } from "metabase/entities/collections";
-
 import {
   getCollectionVirtualSchemaId,
   getQuestionVirtualTableId,
@@ -11,12 +9,13 @@ import {
 } from "metabase-lib/metadata/utils/saved-questions";
 
 import {
-  setup,
   EMPTY_COLLECTION,
   SAMPLE_COLLECTION,
+  SAMPLE_MODEL,
   SAMPLE_QUESTION,
   SAMPLE_QUESTION_2,
   SAMPLE_QUESTION_3,
+  setup,
 } from "./common";
 
 const ROOT_COLLECTION_QUESTIONS_VIRTUAL_SCHEMA_ID =
@@ -118,9 +117,7 @@ describe("DataPicker — picking questions", () => {
     await setup();
 
     userEvent.click(screen.getByText(/Saved Questions/i));
-    await waitForElementToBeRemoved(() =>
-      screen.queryByTestId("loading-spinner"),
-    );
+    await waitForLoaderToBeRemoved();
     userEvent.click(screen.getByRole("button", { name: /Back/i }));
 
     expect(screen.getByText(/Models/i)).toBeInTheDocument();
@@ -137,9 +134,7 @@ describe("DataPicker — picking questions", () => {
     const { onChange } = await setup();
 
     userEvent.click(screen.getByText(/Saved Questions/i));
-    await waitForElementToBeRemoved(() =>
-      screen.queryByTestId("loading-spinner"),
-    );
+    await waitForLoaderToBeRemoved();
     userEvent.click(screen.getByText(SAMPLE_COLLECTION.name));
 
     expect(onChange).toHaveBeenLastCalledWith({
@@ -165,6 +160,54 @@ describe("DataPicker — picking questions", () => {
       schemaId: undefined,
       collectionId: undefined,
       tableIds: [],
+    });
+  });
+
+  it("should be able to search for a question", async () => {
+    const { onChange } = await setup({
+      filters: {
+        types: type => type === "questions",
+      },
+    });
+
+    userEvent.type(screen.getByRole("textbox"), SAMPLE_QUESTION.name);
+    expect(await screen.findByText(SAMPLE_QUESTION.name)).toBeInTheDocument();
+    expect(screen.queryByText(SAMPLE_MODEL.name)).not.toBeInTheDocument();
+
+    userEvent.click(screen.getByText(SAMPLE_QUESTION.name));
+    expect(onChange).toHaveBeenLastCalledWith({
+      type: "questions",
+      databaseId: SAVED_QUESTIONS_VIRTUAL_DB_ID,
+      schemaId: getCollectionVirtualSchemaId(SAMPLE_COLLECTION),
+      collectionId: SAMPLE_QUESTION.collection_id,
+      tableIds: [getQuestionVirtualTableId(SAMPLE_QUESTION.id)],
+    });
+  });
+
+  it("should be able to search for a question when a model was selected", async () => {
+    const { onChange } = await setup({
+      initialValue: {
+        type: "questions",
+        databaseId: SAVED_QUESTIONS_VIRTUAL_DB_ID,
+        schemaId: getCollectionVirtualSchemaId(SAMPLE_COLLECTION, {
+          isDatasets: true,
+        }),
+        collectionId: "root",
+        tableIds: [getQuestionVirtualTableId(SAMPLE_MODEL.id)],
+      },
+    });
+
+    userEvent.type(screen.getByRole("textbox"), "Sample");
+    expect(await screen.findByText(SAMPLE_QUESTION.name)).toBeInTheDocument();
+    expect(screen.getByText(SAMPLE_MODEL.name)).toBeInTheDocument();
+
+    userEvent.click(screen.getByText(SAMPLE_QUESTION.name));
+    expect(onChange).toHaveBeenLastCalledWith({
+      type: "questions",
+      databaseId: SAVED_QUESTIONS_VIRTUAL_DB_ID,
+      schemaId: getCollectionVirtualSchemaId(SAMPLE_COLLECTION),
+      collectionId: SAMPLE_QUESTION.collection_id,
+      tableIds: [getQuestionVirtualTableId(SAMPLE_QUESTION.id)],
     });
   });
 });

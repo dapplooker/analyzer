@@ -1,11 +1,10 @@
-import React, { useCallback, useRef } from "react";
+import { useCallback, useRef } from "react";
 import { t } from "ttag";
 
-import { SchemaTableAndFieldDataSelector } from "metabase/query_builder/components/DataSelector";
-
 import Fields from "metabase/entities/fields";
+import { SchemaTableAndFieldDataSelector } from "metabase/query_builder/components/DataSelector";
+import type Field from "metabase-lib/metadata/Field";
 import { isVirtualCardId } from "metabase-lib/metadata/utils/saved-questions";
-import Field from "metabase-lib/metadata/Field";
 
 import { StyledSelectButton } from "./MappedFieldPicker.styled";
 
@@ -90,7 +89,7 @@ function MappedFieldPicker({
 
   return (
     <SchemaTableAndFieldDataSelector
-      className="flex flex-full justify-center align-center"
+      className="flex flex-full flex-basis-none justify-center align-center"
       selectedDatabaseId={databaseId}
       selectedTableId={selectedTableId}
       selectedSchemaId={fieldObject?.table?.schema?.id}
@@ -103,4 +102,5 @@ function MappedFieldPicker({
     />
   );
 }
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default Fields.load(query)(MappedFieldPicker);

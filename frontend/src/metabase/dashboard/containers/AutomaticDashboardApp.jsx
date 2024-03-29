@@ -1,41 +1,38 @@
 /* eslint-disable react/prop-types */
-import React from "react";
-import { t } from "ttag";
-import { connect } from "react-redux";
 import cx from "classnames";
+import { dissoc } from "icepick";
+import { Component } from "react";
+import { connect } from "react-redux";
+import { t } from "ttag";
 import _ from "underscore";
 
-import { dissoc } from "icepick";
-import title from "metabase/hoc/Title";
-import withToast from "metabase/hoc/Toast";
-import DashboardData from "metabase/dashboard/hoc/DashboardData";
-
 import ActionButton from "metabase/components/ActionButton";
-import Button from "metabase/core/components/Button";
 import Card from "metabase/components/Card";
-import Icon from "metabase/components/Icon";
-import Filter from "metabase/query_builder/components/Filter";
+import Button from "metabase/core/components/Button";
 import Link from "metabase/core/components/Link";
 import Tooltip from "metabase/core/components/Tooltip";
-
 import { Dashboard } from "metabase/dashboard/containers/Dashboard";
-import SyncedParametersList from "metabase/parameters/components/SyncedParametersList/SyncedParametersList";
-
-import { getMetadata } from "metabase/selectors/metadata";
-import { getIsHeaderVisible } from "metabase/dashboard/selectors";
-
+import { DashboardData } from "metabase/dashboard/hoc/DashboardData";
+import { getIsHeaderVisible, getTabs } from "metabase/dashboard/selectors";
 import Collections from "metabase/entities/collections";
 import Dashboards from "metabase/entities/dashboards";
-import * as Urls from "metabase/lib/urls";
+import title from "metabase/hoc/Title";
+import withToast from "metabase/hoc/Toast";
 import * as MetabaseAnalytics from "metabase/lib/analytics";
 import { color } from "metabase/lib/colors";
+import * as Urls from "metabase/lib/urls";
+import SyncedParametersList from "metabase/parameters/components/SyncedParametersList/SyncedParametersList";
+import { getMetadata } from "metabase/selectors/metadata";
+import { Icon } from "metabase/ui";
 import { getValuePopulatedParameters } from "metabase-lib/parameters/utils/parameter-values";
-import * as Q from "metabase-lib/queries/utils/query";
-import { getFilterDimension } from "metabase-lib/queries/utils/dimension";
+
+import { FixedWidthContainer } from "../components/Dashboard/Dashboard.styled";
+import { DashboardTabs } from "../components/DashboardTabs";
 
 import {
   ItemContent,
   ItemDescription,
+  ItemLink,
   ListRoot,
   SidebarHeader,
   SidebarRoot,
@@ -49,6 +46,7 @@ const mapStateToProps = (state, props) => ({
   metadata: getMetadata(state),
   dashboardId: getDashboardId(state, props),
   isHeaderVisible: getIsHeaderVisible(state),
+  tabs: getTabs(state),
 });
 
 const mapDispatchToProps = {
@@ -56,7 +54,7 @@ const mapDispatchToProps = {
   invalidateCollections: Collections.actions.invalidateLists,
 };
 
-class AutomaticDashboardAppInner extends React.Component {
+class AutomaticDashboardAppInner extends Component {
   state = {
     savedDashboardId: null,
   };
@@ -120,32 +118,41 @@ class AutomaticDashboardAppInner extends React.Component {
       >
         <div className="" style={{ marginRight: hasSidebar ? 346 : undefined }}>
           {isHeaderVisible && (
-            <div className="bg-white border-bottom py2">
-              <div className="wrapper flex align-center">
-                <XrayIcon name="bolt" size={24} />
-                <div>
-                  <h2 className="text-wrap mr2">
-                    {dashboard && <TransientTitle dashboard={dashboard} />}
-                  </h2>
-                  {dashboard && dashboard.transient_filters && (
-                    <TransientFilters
-                      filter={dashboard.transient_filters}
-                      metadata={this.props.metadata}
-                    />
+            <div
+              className="bg-white border-bottom"
+              data-testid="automatic-dashboard-header"
+            >
+              <div className="wrapper">
+                <FixedWidthContainer
+                  data-testid="fixed-width-dashboard-header"
+                  isFixedWidth={dashboard?.width === "fixed"}
+                >
+                  <div className="flex align-center py2">
+                    <XrayIcon name="bolt" size={24} />
+                    <div>
+                      <h2 className="text-wrap mr2">
+                        {dashboard && <TransientTitle dashboard={dashboard} />}
+                      </h2>
+                    </div>
+                    {savedDashboardId != null ? (
+                      <Button className="ml-auto" disabled>{t`Saved`}</Button>
+                    ) : (
+                      <ActionButton
+                        className="ml-auto text-nowrap"
+                        success
+                        borderless
+                        actionFn={this.save}
+                      >
+                        {t`Save this`}
+                      </ActionButton>
+                    )}
+                  </div>
+                  {this.props.tabs.length > 1 && (
+                    <div className="wrapper flex align-center">
+                      <DashboardTabs location={this.props.location} />
+                    </div>
                   )}
-                </div>
-                {savedDashboardId != null ? (
-                  <Button className="ml-auto" disabled>{t`Saved`}</Button>
-                ) : (
-                  <ActionButton
-                    className="ml-auto text-nowrap"
-                    success
-                    borderless
-                    actionFn={this.save}
-                  >
-                    {t`Save this`}
-                  </ActionButton>
-                )}
+                </FixedWidthContainer>
               </div>
             </div>
           )}
@@ -153,17 +160,22 @@ class AutomaticDashboardAppInner extends React.Component {
           <div className="wrapper pb4">
             {parameters && parameters.length > 0 && (
               <div className="px1 pt1">
-                <SyncedParametersList
-                  className="mt1"
-                  parameters={getValuePopulatedParameters(
-                    parameters,
-                    parameterValues,
-                  )}
-                  setParameterValue={setParameterValue}
-                />
+                <FixedWidthContainer
+                  data-testid="fixed-width-filters"
+                  isFixedWidth={dashboard?.width === "fixed"}
+                >
+                  <SyncedParametersList
+                    className="mt1"
+                    parameters={getValuePopulatedParameters({
+                      parameters,
+                      values: parameterValues,
+                    })}
+                    setParameterValue={setParameterValue}
+                  />
+                </FixedWidthContainer>
               </div>
             )}
-            <Dashboard {...this.props} />
+            <Dashboard isXray {...this.props} />
           </div>
           {more && (
             <div className="flex justify-end px4 pb4">
@@ -192,7 +204,7 @@ class AutomaticDashboardAppInner extends React.Component {
   }
 }
 
-const AutomaticDashboardApp = _.compose(
+export const AutomaticDashboardAppConnected = _.compose(
   connect(mapStateToProps, mapDispatchToProps),
   DashboardData,
   withToast,
@@ -205,39 +217,6 @@ const TransientTitle = ({ dashboard }) =>
   ) : dashboard.name ? (
     <span>{dashboard.name}</span>
   ) : null;
-
-const TransientFilters = ({ filter, metadata }) => (
-  <div className="mt1 flex align-center text-medium text-bold">
-    {Q.getFilters({ filter }).map((f, index) => (
-      <TransientFilter key={index} filter={f} metadata={metadata} />
-    ))}
-  </div>
-);
-
-const TransientFilter = ({ filter, metadata }) => {
-  const dimension = getFilterDimension(filter, metadata);
-
-  return (
-    <div className="mr3">
-      <Icon
-        size={12}
-        name={getIconForFilter(dimension.field())}
-        className="mr1"
-      />
-      <Filter filter={filter} metadata={metadata} />
-    </div>
-  );
-};
-
-const getIconForFilter = field => {
-  if (field.isDate()) {
-    return "calendar";
-  } else if (field.isLocation()) {
-    return "location";
-  } else {
-    return "label";
-  }
-};
 
 const RELATED_CONTENT = {
   compare: {
@@ -267,31 +246,27 @@ const SuggestionsList = ({ suggestions, section }) => (
         </SuggestionSectionHeading>
         {suggestions[s].length > 0 &&
           suggestions[s].map((item, itemIndex) => (
-            <Link
-              hover={{ color: color("brand") }}
+            <ItemLink
               key={itemIndex}
               to={item.url}
-              className="block hover-parent hover--visibility"
-              data-metabase-event={`Auto Dashboard;Click Related;${s}`}
-              mb={1}
+              className="hover-parent hover--visibility"
             >
-              <Card p={2} hoverable>
+              <Card className="p2" hoverable>
                 <ItemContent>
                   <Icon
                     name={RELATED_CONTENT[s].icon}
                     color={color("accent4")}
-                    mr={1}
-                    size={22}
+                    className="mr1"
                   />
                   <h4 className="text-wrap">{item.title}</h4>
                   <ItemDescription className="hover-child">
                     <Tooltip tooltip={item.description}>
-                      <Icon name="question" color={color("bg-dark")} />
+                      <Icon name="info_outline" color={color("bg-dark")} />
                     </Tooltip>
                   </ItemDescription>
                 </ItemContent>
               </Card>
-            </Link>
+            </ItemLink>
           ))}
       </li>
     ))}
@@ -316,5 +291,3 @@ const SuggestionsSidebar = ({ related }) => (
     <SuggestionsList suggestions={related} />
   </SidebarRoot>
 );
-
-export default AutomaticDashboardApp;

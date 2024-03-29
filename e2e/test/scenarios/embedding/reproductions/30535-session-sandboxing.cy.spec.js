@@ -1,5 +1,11 @@
-import { restore, visitQuestion, describeEE } from "e2e/support/helpers";
 import { SAMPLE_DATABASE } from "e2e/support/cypress_sample_database";
+import {
+  restore,
+  visitQuestion,
+  describeEE,
+  setTokenFeatures,
+  openStaticEmbeddingModal,
+} from "e2e/support/helpers";
 
 const { PRODUCTS, PRODUCTS_ID } = SAMPLE_DATABASE;
 
@@ -15,6 +21,7 @@ describeEE("issue 30535", () => {
   beforeEach(() => {
     restore();
     cy.signInAsAdmin();
+    setTokenFeatures("all");
 
     cy.sandboxTable({
       table_id: PRODUCTS_ID,
@@ -31,8 +38,11 @@ describeEE("issue 30535", () => {
   });
 
   it("user session should not apply sandboxing to a signed embedded question (metabase#30535)", () => {
-    cy.icon("share").click();
-    cy.findByText("Embed in your application").click();
+    openStaticEmbeddingModal({
+      activeTab: "parameters",
+      previewMode: "preview",
+      acceptTerms: false,
+    });
 
     cy.document().then(doc => {
       const iframe = doc.querySelector("iframe");

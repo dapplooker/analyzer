@@ -84,6 +84,7 @@
       (update :fields (partial map-indexed (fn [idx field]
                                              (assoc field :database-position idx))))))
 
+#_{:clj-kondo/ignore [:deprecated-var]}
 (defmethod driver/describe-table-fks ::moviedb [_ _ table]
   (-> (get moviedb-tables (:name table))
       :fks
@@ -95,4 +96,4 @@
      {:keypath "movies.description", :value "A cinematic adventure."}
      {:keypath "description", :value "Information about movies"}]))
 
-(defmethod driver/supports? [::moviedb :foreign-keys] [_ _] true)
+(defmethod driver/database-supports? [::moviedb :foreign-keys] [_driver _feature _db] true)

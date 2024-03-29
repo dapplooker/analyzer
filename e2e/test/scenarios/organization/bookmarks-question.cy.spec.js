@@ -1,3 +1,4 @@
+import { ORDERS_QUESTION_ID } from "e2e/support/cypress_sample_instance_data";
 import {
   restore,
   navigationSidebar,
@@ -15,7 +16,7 @@ describe("scenarios > question > bookmarks", () => {
   });
 
   it("should add, update bookmark name when question name is updated, then remove bookmark from question page", () => {
-    visitQuestion(1);
+    visitQuestion(ORDERS_QUESTION_ID);
     toggleBookmark();
 
     openNavigationSidebar();
@@ -33,7 +34,9 @@ describe("scenarios > question > bookmarks", () => {
 
     // Convert to model
     openQuestionActions();
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Turn into a model").click();
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Turn this into a model").click();
 
     navigationSidebar().within(() => {
@@ -42,6 +45,7 @@ describe("scenarios > question > bookmarks", () => {
 
     // Convert back to question
     openQuestionActions();
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Turn back to saved question").click();
 
     navigationSidebar().within(() => {
@@ -49,7 +53,7 @@ describe("scenarios > question > bookmarks", () => {
     });
 
     // Remove bookmark
-    toggleBookmark();
+    toggleBookmark({ wasSelected: true });
 
     navigationSidebar().within(() => {
       getSectionTitle(/Bookmarks/).should("not.exist");
@@ -58,9 +62,10 @@ describe("scenarios > question > bookmarks", () => {
   });
 });
 
-function toggleBookmark() {
+function toggleBookmark({ wasSelected = false } = {}) {
+  const iconName = wasSelected ? "bookmark_filled" : "bookmark";
   cy.findByTestId("qb-header-action-panel").within(() => {
-    cy.icon("bookmark").click();
+    cy.icon(iconName).click();
   });
   cy.wait("@toggleBookmark");
 }

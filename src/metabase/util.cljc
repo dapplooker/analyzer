@@ -1,8 +1,8 @@
 (ns metabase.util
   "Common utility functions useful throughout the codebase."
   (:require
-   [camel-snake-kebab.core :as csk]
    [camel-snake-kebab.internals.macros :as csk.macros]
+   [clojure.data :refer [diff]]
    [clojure.pprint :as pprint]
    [clojure.set :as set]
    [clojure.string :as str]
@@ -13,24 +13,28 @@
    [metabase.shared.util.namespaces :as u.ns]
    [metabase.util.format :as u.format]
    [metabase.util.log :as log]
+   [metabase.util.memoize :as memoize]
    [net.cgrand.macrovich :as macros]
    [weavejester.dependency :as dep]
-   #?@(:clj  [[clojure.math.numeric-tower :as math]
+   #?@(:clj  ([clojure.math.numeric-tower :as math]
+              [me.flowthing.pp :as pp]
               [metabase.config :as config]
               #_{:clj-kondo/ignore [:discouraged-namespace]}
               [metabase.util.jvm :as u.jvm]
+              [metabase.util.string :as u.str]
               [potemkin :as p]
-              [ring.util.codec :as codec]]))
+              [ring.util.codec :as codec])))
   #?(:clj (:import
            (java.text Normalizer Normalizer$Form)
            (java.util Locale)
            (org.apache.commons.validator.routines RegexValidator UrlValidator)))
-  #?(:cljs (:require-macros [metabase.util])))
+  #?(:cljs (:require-macros [camel-snake-kebab.internals.macros :as csk.macros]
+                            [metabase.util])))
 
 (u.ns/import-fns
   [u.format colorize format-bytes format-color format-milliseconds format-nanoseconds format-seconds])
 
-#?(:clj (p/import-vars [metabase.util.jvm
+#?(:clj (p/import-vars [u.jvm
                         all-ex-data
                         auto-retry
                         decode-base64
@@ -47,7 +51,9 @@
                         sorted-take
                         varargs
                         with-timeout
-                        with-us-locale]))
+                        with-us-locale]
+                       [u.str
+                        build-sentence]))
 
 (defmacro or-with
   "Like or, but determines truthiness with `pred`."
@@ -126,30 +132,6 @@
   [m]
   (m/filter-vals some? m))
 
-(defn normalize-map
-  "Given any map-like object, return it as a Clojure map with :kebab-case keyword keys.
-  The input map can be a:
-  - Clojure map with string or keyword keys,
-  - JS object (with string keys)
-  The keys are converted to `kebab-case` from `camelCase` or `snake_case` as necessary, and turned into keywords.
-  Namespaces keywords are rejected with an exception.
-
-  Returns an empty map if nil is input (like [[update-keys]])."
-  [m]
-  (let [base #?(:clj  m
-                ;; If we're running in CLJS, convert to a ClojureScript map as needed.
-                :cljs (if (object? m)
-                        (js->clj m)
-                        m))]
-    (update-keys base csk/->kebab-case-keyword)))
-
-(defn snake-key
-  "Convert a keyword or string `k` from `lisp-case` to `snake-case`."
-  [k]
-  (if (keyword? k)
-    (keyword (snake-key (name k)))
-    (str/replace k #"-" "_")))
-
 (defn recursive-map-keys
   "Recursively replace the keys in a map with the value of `(f key)`."
   [f m]
@@ -158,11 +140,6 @@
       (m/map-keys f %)
       %)
    m))
-
-(defn snake-keys
-  "Convert the keys in a map from `lisp-case` to `snake_case`."
-  [m]
-  (recursive-map-keys snake-key m))
 
 (defn add-period
   "Fixes strings that don't terminate in a period; also accounts for strings
@@ -177,40 +154,44 @@
         (str text ".")))))
 
 (defn lower-case-en
-  "Locale-agnostic version of `clojure.string/lower-case`.
-  `clojure.string/lower-case` uses the default locale in conversions, turning
-  `ID` into `ıd`, in the Turkish locale. This function always uses the
-  `en-US` locale."
-  [^CharSequence s]
-  #?(:clj  (.. s toString (toLowerCase (Locale/US)))
-     :cljs (.toLowerCase s)))
+  "Locale-agnostic version of [[clojure.string/lower-case]]. [[clojure.string/lower-case]] uses the default locale in
+  conversions, turning `ID` into `ıd`, in the Turkish locale. This function always uses the `en-US` locale."
+  ^String [s]
+  (when s
+    #?(:clj  (.toLowerCase (str s) (Locale/US))
+       :cljs (.toLowerCase (str s)))))
 
 (defn upper-case-en
   "Locale-agnostic version of `clojure.string/upper-case`.
   `clojure.string/upper-case` uses the default locale in conversions, turning
   `id` into `İD`, in the Turkish locale. This function always uses the
   `en-US` locale."
-  [^CharSequence s]
-  #?(:clj  (.. s toString (toUpperCase (Locale/US)))
-     :cljs (.toUpperCase s)))
+  ^String [s]
+  (when s
+    #?(:clj  (.toUpperCase (str s) (Locale/US))
+       :cljs (.toUpperCase (str s)))))
 
-(defn screaming-snake-case
-  "Turns `strings-that-look-like-deafening-vipers` into `STRINGS_THAT_LOOK_LIKE_DEAFENING_VIPERS`."
-  [s]
-  (upper-case-en (str/replace s "-" "_")))
+(defn capitalize-en
+  "Locale-agnostic version of [[clojure.string/capitalize]]."
+  ^String [^CharSequence s]
+  (when-let [s (some-> s str)]
+    (if (< (count s) 2)
+      (upper-case-en s)
+      (str (upper-case-en (subs s 0 1))
+           (lower-case-en (subs s 1))))))
 
-(defn capitalize-first-char
-  "Like string/capitalize, only it ignores the rest of the string
-  to retain case-sensitive capitalization, e.g., PostgreSQL."
-  [s]
-  (if (< (count s) 2)
-    (upper-case-en s)
-    (str (upper-case-en (subs s 0 1))
-         (subs s 1))))
+;;; define custom CSK conversion functions so we don't run into problems if the system locale is Turkish
 
+;; so Kondo doesn't complain
 (declare ^:private ->kebab-case-en*)
+(declare ^:private ->camelCaseEn*)
+(declare ^:private ->snake_case_en*)
+(declare ^:private ->SCREAMING_SNAKE_CASE_EN*)
 
-(csk.macros/defconversion "kebab-case-en*" lower-case-en lower-case-en "-")
+(csk.macros/defconversion "kebab-case-en*"           lower-case-en lower-case-en "-")
+(csk.macros/defconversion "camelCaseEn*"             lower-case-en capitalize-en "")
+(csk.macros/defconversion "snake_case_en*"           lower-case-en lower-case-en "_")
+(csk.macros/defconversion "SCREAMING_SNAKE_CASE_EN*" upper-case-en upper-case-en "_")
 
 (defn- wrap-csk-conversion-fn-to-handle-nil-and-namespaced-keywords
   "Wrap a CSK defconversion function so that it handles nil and namespaced keywords, which it doesn't support out of the
@@ -225,7 +206,54 @@
 (def ^{:arglists '([x])} ->kebab-case-en
   "Like [[camel-snake-kebab.core/->kebab-case]], but always uses English for lower-casing, supports keywords with
   namespaces, and returns `nil` when passed `nil` (rather than throwing an exception)."
-  (wrap-csk-conversion-fn-to-handle-nil-and-namespaced-keywords ->kebab-case-en*))
+  (memoize/lru (wrap-csk-conversion-fn-to-handle-nil-and-namespaced-keywords ->kebab-case-en*) :lru/threshold 256))
+
+(def ^{:arglists '([x])} ->snake_case_en
+  "Like [[camel-snake-kebab.core/->snake_case]], but always uses English for lower-casing, supports keywords with
+  namespaces, and returns `nil` when passed `nil` (rather than throwing an exception)."
+  (memoize/lru (wrap-csk-conversion-fn-to-handle-nil-and-namespaced-keywords ->snake_case_en*) :lru/threshold 256))
+
+(def ^{:arglists '([x])} ->camelCaseEn
+  "Like [[camel-snake-kebab.core/->camelCase]], but always uses English for upper- and lower-casing, supports keywords
+  with namespaces, and returns `nil` when passed `nil` (rather than throwing an exception)."
+  (memoize/lru (wrap-csk-conversion-fn-to-handle-nil-and-namespaced-keywords ->camelCaseEn*) :lru/threshold 256))
+
+
+(def ^{:arglists '([x])} ->SCREAMING_SNAKE_CASE_EN
+  "Like [[camel-snake-kebab.core/->SCREAMING_SNAKE_CASE]], but always uses English for upper- and lower-casing, supports
+  keywords with namespaces, and returns `nil` when passed `nil` (rather than throwing an exception)."
+  (memoize/lru (wrap-csk-conversion-fn-to-handle-nil-and-namespaced-keywords ->SCREAMING_SNAKE_CASE_EN*)
+               :lru/threshold 256))
+
+(defn capitalize-first-char
+  "Like string/capitalize, only it ignores the rest of the string
+  to retain case-sensitive capitalization, e.g., PostgreSQL."
+  [s]
+  (if (< (count s) 2)
+    (upper-case-en s)
+    (str (upper-case-en (subs s 0 1))
+         (subs s 1))))
+
+(defn snake-keys
+  "Convert the keys in a map from `kebab-case` to `snake_case`."
+  [m]
+  (recursive-map-keys ->snake_case_en m))
+
+(defn normalize-map
+  "Given any map-like object, return it as a Clojure map with :kebab-case keyword keys.
+  The input map can be a:
+  - Clojure map with string or keyword keys,
+  - JS object (with string keys)
+  The keys are converted to `kebab-case` from `camelCase` or `snake_case` as necessary, and turned into keywords.
+
+  Returns an empty map if nil is input (like [[update-keys]])."
+  [m]
+  (let [base #?(:clj  m
+                ;; If we're running in CLJS, convert to a ClojureScript map as needed.
+                :cljs (if (object? m)
+                        (js->clj m)
+                        m))]
+    (update-keys base (comp keyword ->kebab-case-en))))
 
 ;; Log the maximum memory available to the JVM at launch time as well since it is very handy for debugging things
 #?(:clj
@@ -319,7 +347,7 @@
   ^Double [^Integer decimal-place, ^Number number]
   {:pre [(integer? decimal-place) (number? number)]}
   #?(:clj  (double (.setScale (bigdec number) decimal-place BigDecimal/ROUND_HALF_UP))
-     :cljs (double (.toPrecision number decimal-place))))
+     :cljs (parse-double (.toFixed number decimal-place))))
 
 (defn real-number?
   "Is `x` a real number (i.e. not a `NaN` or an `Infinity`)?"
@@ -425,6 +453,13 @@
   (if ((some-fn sequential? set? nil?) arg)
     arg
     [arg]))
+
+(defn many-or-one
+  "Returns coll if it has multiple elements, or else returns its only element"
+  [coll]
+  (if (next coll)
+    coll
+    (first coll)))
 
 (defn select-nested-keys
   "Like `select-keys`, but can also handle nested keypaths:
@@ -575,8 +610,7 @@
 (defn lower-case-map-keys
   "Changes the keys of a given map to lower case."
   [m]
-  (into {} (for [[k v] m]
-             [(-> k name lower-case-en keyword) v])))
+  (update-keys m #(-> % name lower-case-en keyword)))
 
 (defn pprint-to-str
   "Returns the output of pretty-printing `x` as a string.
@@ -584,9 +618,19 @@
 
      (pprint-to-str 'green some-obj)"
   (^String [x]
-   (with-out-str
-     #_{:clj-kondo/ignore [:discouraged-var]}
-     (pprint/pprint x)))
+   (#?@
+    (:clj
+     (with-out-str
+       #_{:clj-kondo/ignore [:discouraged-var]}
+       (pp/pprint x {:max-width 120}))
+
+     :cljs
+     ;; we try to set this permanently above, but it doesn't seem to work in Cljs, so just bind it every time. The
+     ;; default value wastes too much space, 120 is a little easier to read actually.
+     (binding [pprint/*print-right-margin* 120]
+       (with-out-str
+         #_{:clj-kondo/ignore [:discouraged-var]}
+         (pprint/pprint x))))))
 
   (^String [color-symb x]
    (u.format/colorize color-symb (pprint-to-str x))))
@@ -714,3 +758,124 @@
       (if (pred x)
         [x (concat prefix xs)]
         (recur xs (conj prefix x))))))
+
+;;; Clj doesn't have `regexp?`, but Cljs does
+#?(:clj (defn- regexp? [x]
+          (instance? java.util.regex.Pattern x)))
+
+(derive :dispatch-type/nil        :dispatch-type/*)
+(derive :dispatch-type/boolean    :dispatch-type/*)
+(derive :dispatch-type/string     :dispatch-type/*)
+(derive :dispatch-type/keyword    :dispatch-type/*)
+(derive :dispatch-type/number     :dispatch-type/*)
+(derive :dispatch-type/integer    :dispatch-type/number)
+(derive :dispatch-type/map        :dispatch-type/*)
+(derive :dispatch-type/sequential :dispatch-type/*)
+(derive :dispatch-type/set        :dispatch-type/*)
+(derive :dispatch-type/symbol     :dispatch-type/*)
+(derive :dispatch-type/fn         :dispatch-type/*)
+(derive :dispatch-type/regex      :dispatch-type/*)
+
+(defn dispatch-type-keyword
+  "In Cljs `(type 1) is `js/Number`, but `(isa? 1 js/Number)` isn't truthy, so dispatching off of [[clojure.core/type]]
+  doesn't really work the way we'd want. Also, type names are different between Clojure and ClojureScript.
+
+  This function exists as a workaround: use it as a multimethod dispatch function for Cljc multimethods that would
+  have dispatched on `type` if they were written in pure Clojure.
+
+  Returns `:dispatch-type/*` if there is no mapping for the current type, but you can add more as needed if
+  appropriate. All type keywords returned by this method also derive from `:dispatch-type/*`, meaning you can write an
+  implementation for `:dispatch-type/*` and use it as a fallback method.
+
+  Think of `:dispatch-type/*` as similar to how you would use `Object` if you were dispatching
+  off of `type` in pure Clojure."
+  [x]
+  (cond
+    (nil? x)        :dispatch-type/nil
+    (boolean? x)    :dispatch-type/boolean
+    (string? x)     :dispatch-type/string
+    (keyword? x)    :dispatch-type/keyword
+    (integer? x)    :dispatch-type/integer
+    (number? x)     :dispatch-type/number
+    (map? x)        :dispatch-type/map
+    (sequential? x) :dispatch-type/sequential
+    (set? x)        :dispatch-type/set
+    (symbol? x)     :dispatch-type/symbol
+    (fn? x)         :dispatch-type/fn
+    (regexp? x)     :dispatch-type/regex
+    ;; we should add more mappings here as needed
+    :else           :dispatch-type/*))
+
+(defn assoc-dissoc
+  "Called like `(assoc m k v)`, this does [[assoc]] if `(some? v)`, and [[dissoc]] if not.
+
+  Put another way: `k` will either be set to `v`, or removed.
+
+  Note that if `v` is `false`, it will be handled with [[assoc]]; only `nil` causes a [[dissoc]]."
+  [m k v]
+  (if (some? v)
+    (assoc m k v)
+    (dissoc m k)))
+
+(defn assoc-default
+  "Called like `(assoc m k v)`, this does [[assoc]] iff `m` does not contain `k`
+  and `v` is not nil. Can be called with multiple key value pairs. If a key occurs
+  more than once, only the first occurrence with a non-nil value is used."
+  ([m k v]
+   (if (or (nil? v) (contains? m k))
+     m
+     (assoc m k v)))
+  ([m k v & kvs]
+   (let [ret (assoc-default m k v)]
+     (if kvs
+       (if (next kvs)
+         (recur ret (first kvs) (second kvs) (nnext kvs))
+         (throw (ex-info "assoc-default expects an even number of key-values"
+                         {:kvs kvs})))
+       ret))))
+
+(defn classify-changes
+  "Given 2 lists of seq maps of changes, where each map an has an `id` key,
+  return a map of 3 keys: `:to-create`, `:to-update`, `:to-delete`.
+
+  Where:
+  :to-create is a list of maps that ids in `new-items`
+  :to-update is a list of maps that has ids in both `current-items` and `new-items`
+  :to delete is a list of maps that has ids only in `current-items`"
+  [current-items new-items]
+  (let [[delete-ids create-ids update-ids] (diff (set (map :id current-items))
+                                                 (set (map :id new-items)))]
+    {:to-create (when (seq create-ids) (filter #(create-ids (:id %)) new-items))
+     :to-delete (when (seq delete-ids) (filter #(delete-ids (:id %)) current-items))
+     :to-update (when (seq update-ids) (filter #(update-ids (:id %)) new-items))}))
+
+(defn empty-or-distinct?
+  "True if collection `xs` is either [[empty?]] or all values are [[distinct?]]."
+  [xs]
+  (or (empty? xs)
+      (apply distinct? xs)))
+
+(defn traverse
+  "Traverses a graph of nodes using a user-defined function.
+
+  `nodes`: A collection of initial nodes to start the traversal from.
+  `traverse-fn`: A function that, given a node, returns its directly connected nodes.
+
+  The function performs a breadth-first traversal starting from the initial nodes, applying
+  `traverse-fn` to each node to find connected nodes, and continues until all reachable nodes
+  have been visited. Returns a set of all traversed nodes."
+  [nodes traverse-fn]
+  (loop [to-traverse (set nodes)
+         traversed   #{}]
+    (let [item        (first to-traverse)
+          found       (traverse-fn item)
+          traversed   (conj traversed item)
+          to-traverse (set/union (disj to-traverse item) (set/difference found traversed))]
+      (if (empty? to-traverse)
+        traversed
+        (recur to-traverse traversed)))))
+
+(defn reverse-compare
+  "A reversed java.util.Comparator, useful for sorting elements in descending in order"
+  [x y]
+  (compare y x))

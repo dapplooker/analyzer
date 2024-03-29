@@ -1,25 +1,23 @@
-import { TemplateTag } from "metabase-types/types/Query";
-import {
+import * as Lib from "metabase-lib";
+import type Question from "metabase-lib/Question";
+import type Database from "metabase-lib/metadata/Database";
+import { getQuestionVirtualTableId } from "metabase-lib/metadata/utils/saved-questions";
+import type NativeQuery from "metabase-lib/queries/NativeQuery";
+import { isNative } from "metabase-lib/queries/utils/card";
+import { isSameField } from "metabase-lib/queries/utils/field-ref";
+import type {
+  Card,
   DatasetColumn,
-  Field,
   FieldReference,
   ModelCacheRefreshStatus,
   TableColumnOrderSetting,
-} from "metabase-types/api";
-import {
-  Card as CardObject,
-  CardId,
+  TemplateTag,
   StructuredDatasetQuery,
-} from "metabase-types/types/Card";
-import { getQuestionVirtualTableId } from "metabase-lib/metadata/utils/saved-questions";
-import Database from "metabase-lib/metadata/Database";
-import Question from "metabase-lib/Question";
-import NativeQuery from "metabase-lib/queries/NativeQuery";
-import { isSameField } from "metabase-lib/queries/utils/field-ref";
-import { isStructured } from "metabase-lib/queries/utils";
+  FieldId,
+} from "metabase-types/api";
 
-export type FieldMetadata = {
-  id?: number;
+type FieldMetadata = {
+  id?: FieldId | FieldReference;
   name: string;
   display_name: string;
   description?: string | null;
@@ -87,11 +85,11 @@ export function getDatasetMetadataCompletenessPercentage(
   return Math.round(percent * 100) / 100;
 }
 
-export function isSupportedTemplateTagForModel(tag: TemplateTag) {
+function isSupportedTemplateTagForModel(tag: TemplateTag) {
   return ["card", "snippet"].includes(tag.type);
 }
 
-export function checkDatabaseSupportsModels(database?: Database | null) {
+function checkDatabaseSupportsModels(database?: Database | null) {
   return database && database.hasFeature("nested-queries");
 }
 
@@ -100,28 +98,23 @@ export function checkDatabaseCanPersistDatasets(database?: Database | null) {
 }
 
 export function checkCanBeModel(question: Question) {
-  const query = question.query();
-
-  if (!checkDatabaseSupportsModels(query.database())) {
+  if (!checkDatabaseSupportsModels(question.database())) {
     return false;
   }
 
-  if (!question.isNative()) {
+  const { isNative } = Lib.queryDisplayInfo(question.query());
+
+  if (!isNative) {
     return true;
   }
 
-  return (query as NativeQuery)
+  return (question.legacyQuery() as NativeQuery)
     .templateTags()
     .every(isSupportedTemplateTagForModel);
 }
 
-export type Card = CardObject & {
-  id?: CardId;
-  dataset?: boolean;
-};
-
 export function isAdHocModelQuestionCard(card: Card, originalCard?: Card) {
-  if (!originalCard || !isStructured(card.dataset_query)) {
+  if (!originalCard || isNative(card)) {
     return false;
   }
 
@@ -164,7 +157,7 @@ export function getModelCacheSchemaName(databaseId: number, siteUUID: string) {
   return `metabase_cache_${firstLetters}_${databaseId}`;
 }
 
-type QueryField = Field & { field_ref: FieldReference };
+type QueryField = FieldReference & { field_ref: FieldReference };
 
 function getFieldFromColumnVizSetting(
   columnVizSetting: TableColumnOrderSetting,

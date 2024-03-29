@@ -1,14 +1,13 @@
-import React from "react";
 import PropTypes from "prop-types";
+import { t } from "ttag";
 
 import Question from "metabase/entities/questions";
 import * as Urls from "metabase/lib/urls";
+
 import AuditContent from "../components/AuditContent";
+import OpenInMetabase from "../components/OpenInMetabase";
 import AuditDashboard from "../containers/AuditDashboard";
 import AuditTable from "../containers/AuditTable";
-
-import OpenInMetabase from "../components/OpenInMetabase";
-
 import * as QuestionDetailCards from "../lib/cards/question_detail";
 
 const pagePropTypes = {
@@ -76,14 +75,14 @@ function AuditQuestionAuditLogTab({ questionId }) {
 AuditQuestionAuditLogTab.propTypes = tabPropTypes;
 
 AuditQuestionDetail.tabs = [
-  { path: "activity", title: "Activity", component: AuditActivityTab },
+  { path: "activity", title: t`Activity`, component: AuditQuestionActivityTab },
   { path: "details", title: "Details" },
   {
     path: "revisions",
-    title: "Revision history",
+    title: t`Revision history`,
     component: AuditQuestionRevisionsTab,
   },
-  { path: "log", title: "Audit log", component: AuditQuestionAuditLogTab },
+  { path: "log", title: t`Audit log`, component: AuditQuestionAuditLogTab },
 ];
 
 export default AuditQuestionDetail;

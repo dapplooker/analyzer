@@ -1,8 +1,10 @@
-import { TemplateTag } from "metabase-types/types/Query";
-import Variable from "metabase-lib/variables/Variable";
 import NativeQuery from "metabase-lib/queries/NativeQuery";
+import Variable from "metabase-lib/variables/Variable";
+import type { TemplateTag, VariableTarget } from "metabase-types/api";
+
 import { VARIABLE_ICONS } from "./constants";
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default class TemplateTagVariable extends Variable {
   tag(): TemplateTag | null | undefined {
     if (this._query instanceof NativeQuery) {
@@ -20,7 +22,7 @@ export default class TemplateTagVariable extends Variable {
     return tag && VARIABLE_ICONS[tag.type];
   }
 
-  mbql() {
+  mbql(): VariableTarget {
     return ["template-tag", this._args[0]];
   }
 }

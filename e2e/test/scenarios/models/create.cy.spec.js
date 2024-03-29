@@ -1,10 +1,5 @@
-import {
-  getCollectionIdFromSlug,
-  modal,
-  popover,
-  restore,
-  visitCollection,
-} from "e2e/support/helpers";
+import { THIRD_COLLECTION_ID } from "e2e/support/cypress_sample_instance_data";
+import { modal, popover, restore, visitCollection } from "e2e/support/helpers";
 
 const modelName = "A name";
 
@@ -21,8 +16,8 @@ describe("scenarios > models > create", () => {
     navigateToNewModelPage();
 
     // Cancel creation with confirmation modal
-    cy.findByText("Cancel").click();
-    cy.findByText("Discard").click();
+    cy.findByTestId("dataset-edit-bar").button("Cancel").click();
+    modal().button("Discard changes").click();
 
     // Now we will create a model
     navigateToNewModelPage();
@@ -32,48 +27,48 @@ describe("scenarios > models > create", () => {
 
     cy.get(".ace_editor").should("be.visible").type("select * from ORDERS");
 
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Save").click();
 
     cy.findByPlaceholderText("What is the name of your model?").type(modelName);
 
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Save").click();
 
-    cy.findByText("Saved");
-
     // After saving, we land on view mode for the model
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Summarize");
 
     checkIfPinned();
   });
 
   it("suggest the currently viewed collection when saving a new native query", () => {
-    getCollectionIdFromSlug("third_collection", THIRD_COLLECTION_ID => {
-      visitCollection(THIRD_COLLECTION_ID);
-    });
+    visitCollection(THIRD_COLLECTION_ID);
 
     navigateToNewModelPage();
     cy.get(".ace_editor").should("be.visible").type("select * from ORDERS");
 
-    cy.findByRole("button", { name: "Save" }).click();
-
+    cy.findByTestId("dataset-edit-bar").within(() => {
+      cy.contains("button", "Save").click();
+    });
     modal().within(() => {
       cy.findByTestId("select-button").should("have.text", "Third collection");
     });
   });
 
   it("suggest the currently viewed collection when saving a new structured query", () => {
-    getCollectionIdFromSlug("third_collection", THIRD_COLLECTION_ID => {
-      visitCollection(THIRD_COLLECTION_ID);
-    });
+    visitCollection(THIRD_COLLECTION_ID);
 
     navigateToNewModelPage("structured");
 
     popover().within(() => {
-      cy.findByText("Sample Database").click();
+      cy.findByText("Raw Data").click();
       cy.findByText("Orders").click();
     });
 
-    cy.findByRole("button", { name: "Save" }).click();
+    cy.findByTestId("dataset-edit-bar").within(() => {
+      cy.contains("button", "Save").click();
+    });
 
     modal().within(() => {
       cy.findByTestId("select-button").should("have.text", "Third collection");

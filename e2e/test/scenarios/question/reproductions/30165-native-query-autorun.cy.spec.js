@@ -1,4 +1,9 @@
-import { modal, openNativeEditor, restore } from "e2e/support/helpers";
+import {
+  modal,
+  openNativeEditor,
+  queryBuilderHeader,
+  restore,
+} from "e2e/support/helpers";
 
 describe("issue 30165", () => {
   beforeEach(() => {
@@ -13,7 +18,7 @@ describe("issue 30165", () => {
   it("should not autorun native queries after updating a question (metabase#30165)", () => {
     openNativeEditor();
     cy.findByTestId("native-query-editor").type("SELECT * FROM ORDERS");
-    cy.findByTestId("qb-header").findByText("Save").click();
+    queryBuilderHeader().findByText("Save").click();
     modal().within(() => {
       cy.findByLabelText("Name").clear().type("Q1");
       cy.button("Save").click();
@@ -22,12 +27,12 @@ describe("issue 30165", () => {
     modal().button("Not now").click();
 
     cy.findByTestId("native-query-editor").type(" WHERE TOTAL < 20");
-    cy.findByTestId("qb-header").findByText("Save").click();
+    queryBuilderHeader().findByText("Save").click();
     modal().button("Save").click();
     cy.wait("@updateQuestion");
 
     cy.findByTestId("native-query-editor").type(" LIMIT 10");
-    cy.findByTestId("qb-header").findByText("Save").click();
+    queryBuilderHeader().findByText("Save").click();
     modal().button("Save").click();
     cy.wait("@updateQuestion");
 

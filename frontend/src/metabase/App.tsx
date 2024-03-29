@@ -1,32 +1,30 @@
-import React, { ReactNode, useEffect, useState } from "react";
+import type { Location } from "history";
+import type { ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { connect } from "react-redux";
-import { Location } from "history";
 
-import ScrollToTop from "metabase/hoc/ScrollToTop";
+import { AppBanner } from "metabase/components/AppBanner";
 import {
   Archived,
   GenericError,
   NotFound,
   Unauthorized,
 } from "metabase/containers/ErrorPages";
-import UndoListing from "metabase/containers/UndoListing";
-
+import { UndoListing } from "metabase/containers/UndoListing";
+import { ContentViewportContext } from "metabase/core/context/ContentViewportContext";
+import ScrollToTop from "metabase/hoc/ScrollToTop";
+import { initializeIframeResizer } from "metabase/lib/dom";
+import AppBar from "metabase/nav/containers/AppBar";
+import Navbar from "metabase/nav/containers/Navbar";
+import { setErrorPage } from "metabase/redux/app";
 import {
   getErrorPage,
   getIsAdminApp,
   getIsAppBarVisible,
   getIsNavBarEnabled,
 } from "metabase/selectors/app";
-import { setErrorPage } from "metabase/redux/app";
-import { initializeIframeResizer } from "metabase/lib/dom";
-
-import AppBanner from "metabase/components/AppBanner";
-import AppBar from "metabase/nav/containers/AppBar";
-import Navbar from "metabase/nav/containers/Navbar";
-import StatusListing from "metabase/status/containers/StatusListing";
-import { ContentViewportContext } from "metabase/core/context/ContentViewportContext";
-
-import { AppErrorDescriptor, State } from "metabase-types/store";
+import StatusListing from "metabase/status/components/StatusListing";
+import type { AppErrorDescriptor, State } from "metabase-types/store";
 
 import { AppContainer, AppContent, AppContentContainer } from "./App.styled";
 import ErrorBoundary from "./ErrorBoundary";
@@ -87,6 +85,7 @@ function App({
   isNavBarEnabled,
   children,
   onError,
+  location,
 }: AppProps) {
   const [viewportElement, setViewportElement] = useState<HTMLElement | null>();
 
@@ -98,7 +97,7 @@ function App({
     <ErrorBoundary onError={onError}>
       <ScrollToTop>
         <AppContainer className="spread">
-          <AppBanner />
+          <AppBanner location={location} />
           {isAppBarVisible && <AppBar />}
           <AppContentContainer isAdminApp={isAdminApp}>
             {isNavBarEnabled && <Navbar />}
@@ -116,6 +115,7 @@ function App({
   );
 }
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default connect<AppStateProps, unknown, AppRouterOwnProps, State>(
   mapStateToProps,
   mapDispatchToProps,

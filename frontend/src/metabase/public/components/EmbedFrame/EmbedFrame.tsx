@@ -1,25 +1,40 @@
-import React, { useEffect, useState } from "react";
-import { withRouter } from "react-router";
+import type { ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { connect } from "react-redux";
-import cx from "classnames";
+import { withRouter } from "react-router";
+import { useMount } from "react-use";
 import _ from "underscore";
+import cx from "classnames";
 import type { Location } from "history";
 
 import { useLocation, useMount } from "react-use";
+
 import TitleAndDescription from "metabase/components/TitleAndDescription";
-
-import { getSetting } from "metabase/selectors/settings";
-import { isWithinIframe, initializeIframeResizer } from "metabase/lib/dom";
+import {
+  FixedWidthContainer,
+  ParametersFixedWidthContainer,
+} from "metabase/dashboard/components/Dashboard/Dashboard.styled";
 import { parseHashOptions } from "metabase/lib/browser";
-
+import {
+  isWithinIframe,
+  initializeIframeResizer,
+  isSmallScreen,
+} from "metabase/lib/dom";
+import { useDispatch } from "metabase/lib/redux";
+import { FilterApplyButton } from "metabase/parameters/components/FilterApplyButton";
 import SyncedParametersList from "metabase/parameters/components/SyncedParametersList/SyncedParametersList";
-
-import type { Dashboard, Parameter, ParameterId } from "metabase-types/api";
-import type { ParameterValueOrArray } from "metabase-types/types/Parameter";
-import type { State } from "metabase-types/store";
-
-import Question from "metabase-lib/Question";
+import { getVisibleParameters } from "metabase/parameters/utils/ui";
+import { setOptions } from "metabase/redux/embed";
+import { getSetting } from "metabase/selectors/settings";
+import type Question from "metabase-lib/Question";
 import { getValuePopulatedParameters } from "metabase-lib/parameters/utils/parameter-values";
+import type {
+  Dashboard,
+  Parameter,
+  ParameterId,
+  ParameterValueOrArray,
+} from "metabase-types/api";
+import type { State } from "metabase-types/store";
 
 import type { FooterVariant } from "./EmbedFrame.styled";
 import {
@@ -27,9 +42,17 @@ import {
   ContentContainer,
   Header,
   Body,
+  ParametersWidgetContainer,
   Footer,
+  ActionButtonsContainer,
+  TitleAndDescriptionContainer,
+  Separator,
+  DashboardTabsContainer,
 } from "./EmbedFrame.styled";
+import LogoBadge from "./LogoBadge";
 import "./EmbedFrame.css";
+
+type ParameterValues = Record<ParameterId, ParameterValueOrArray>;
 
 interface OwnProps {
   className?: string;
@@ -40,9 +63,14 @@ interface OwnProps {
   actionButtons?: JSX.Element[];
   footerVariant?: FooterVariant;
   parameters?: Parameter[];
-  parameterValues?: Record<ParameterId, ParameterValueOrArray>;
+  parameterValues?: ParameterValues;
+  draftParameterValues?: ParameterValues;
+  hiddenParameterSlugs?: string;
+  enableParameterRequiredBehavior?: boolean;
   setParameterValue?: (parameterId: ParameterId, value: any) => void;
-  children: React.ReactNode;
+  setParameterValueToDefault: (id: ParameterId) => void;
+  children: ReactNode;
+  dashboardTabs?: ReactNode;
 }
 
 interface StateProps {
@@ -76,14 +104,22 @@ function EmbedFrame({
   question,
   dashboard,
   actionButtons,
+  dashboardTabs = null,
   footerVariant = "default",
   location,
   hasEmbedBranding,
   parameters,
   parameterValues,
+  draftParameterValues,
+  hiddenParameterSlugs,
   setParameterValue,
+  setParameterValueToDefault,
+  enableParameterRequiredBehavior,
 }: Props) {
-  const [hasInnerScroll, setInnerScroll] = useState(true);
+  const [hasFrameScroll, setHasFrameScroll] = useState(true);
+  const [hasInnerScroll, setHasInnerScroll] = useState(
+    document.documentElement.scrollTop > 0,
+  );
   const browserLocation = useLocation();
 
   useEffect(() => {
@@ -92,8 +128,26 @@ function EmbedFrame({
   }, [browserLocation]);
 
   useMount(() => {
-    initializeIframeResizer(() => setInnerScroll(false));
+    initializeIframeResizer(() => setHasFrameScroll(false));
   });
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setHasInnerScroll(document.documentElement.scrollTop > 0);
+    };
+
+    document.addEventListener("scroll", handleScroll, {
+      capture: false,
+      passive: true,
+    });
+
+    return () => document.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const dispatch = useDispatch();
+  useEffect(() => {
+    dispatch(setOptions(location));
+  }, [dispatch, location]);
 
   const {
     bordered = isWithinIframe(),
@@ -103,20 +157,32 @@ function EmbedFrame({
     hide_download_button,
   } = parseHashOptions(location.hash) as HashOptions;
 
+  const hideParameters = [hide_parameters, hiddenParameterSlugs]
+    .filter(Boolean)
+    .join(",");
+
   const showFooter =
     hasEmbedBranding || (!hide_download_button && actionButtons);
 
   const finalName = titled ? name : null;
 
   const hasParameters = Array.isArray(parameters) && parameters.length > 0;
+  const visibleParameters = hasParameters
+    ? getVisibleParameters(parameters, hideParameters)
+    : [];
+  const hasVisibleParameters = visibleParameters.length > 0;
 
   const hasHeader = Boolean(finalName || hasParameters);
+  const isParameterPanelSticky =
+    !!dashboard &&
+    theme !== "transparent" && // https://github.com/metabase/metabase/pull/38766#discussion_r1491549200
+    isParametersWidgetContainersSticky(visibleParameters.length);
 
   const isNotInIframe = !isWithinIframe();
 
   return (
     <Root
-      hasScroll={hasInnerScroll}
+      hasScroll={hasFrameScroll}
       isBordered={bordered}
       className={cx("EmbedFrame", className, {
         [`Theme--${theme}`]: !!theme,
@@ -124,32 +190,66 @@ function EmbedFrame({
       data-testid="embed-frame"
       fullPageView={isNotInIframe === false}
     >
-      <ContentContainer hasScroll={hasInnerScroll}>
+      <ContentContainer>
         {hasHeader && (
           <Header className="EmbedFrame-header" isNotInIframe={isNotInIframe}>
             {finalName && isNotInIframe && (
-              <TitleAndDescription
-                title={finalName}
-                description={description}
-                className="my2"
-              />
+              <TitleAndDescriptionContainer>
+                <FixedWidthContainer
+                  data-testid="fixed-width-dashboard-header"
+                  isFixedWidth={dashboard?.width === "fixed"}
+                >
+                  <TitleAndDescription
+                    title={finalName}
+                    description={description}
+                    className="my2"
+                  />
+                </FixedWidthContainer>
+              </TitleAndDescriptionContainer>
             )}
-            {hasParameters && (
-              <div className="flex">
-                <SyncedParametersList
-                  className="mt1"
-                  question={question}
-                  dashboard={dashboard}
-                  parameters={getValuePopulatedParameters(
-                    parameters,
-                    parameterValues,
-                  )}
-                  setParameterValue={setParameterValue}
-                  hideParameters={hide_parameters}
-                />
-              </div>
+            {dashboardTabs && (
+              <DashboardTabsContainer>
+                <FixedWidthContainer
+                  data-testid="fixed-width-dashboard-tabs"
+                  isFixedWidth={dashboard?.width === "fixed"}
+                >
+                  {dashboardTabs}
+                </FixedWidthContainer>
+              </DashboardTabsContainer>
             )}
+            <Separator />
           </Header>
+        )}
+        {hasVisibleParameters && (
+          <ParametersWidgetContainer
+            embedFrameTheme={theme}
+            hasScroll={hasInnerScroll}
+            isSticky={isParameterPanelSticky}
+            data-testid="dashboard-parameters-widget-container"
+          >
+            <ParametersFixedWidthContainer
+              data-testid="fixed-width-filters"
+              isFixedWidth={dashboard?.width === "fixed"}
+            >
+              <SyncedParametersList
+                question={question}
+                dashboard={dashboard}
+                parameters={getValuePopulatedParameters({
+                  parameters,
+                  values: _.isEmpty(draftParameterValues)
+                    ? parameterValues
+                    : draftParameterValues,
+                })}
+                setParameterValue={setParameterValue}
+                hideParameters={hideParameters}
+                setParameterValueToDefault={setParameterValueToDefault}
+                enableParameterRequiredBehavior={
+                  enableParameterRequiredBehavior
+                }
+              />
+              {dashboard && <FilterApplyButton />}
+            </ParametersFixedWidthContainer>
+          </ParametersWidgetContainer>
         )}
         <Body isNightTheme={theme === "night"}>{children}</Body>
       </ContentContainer>
@@ -171,4 +271,15 @@ function EmbedFrame({
   );
 }
 
+function isParametersWidgetContainersSticky(parameterCount: number) {
+  if (!isSmallScreen()) {
+    return true;
+  }
+
+  // Sticky header with more than 5 parameters
+  // takes too much space on small screens
+  return parameterCount <= 5;
+}
+
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default _.compose(connect(mapStateToProps), withRouter)(EmbedFrame);

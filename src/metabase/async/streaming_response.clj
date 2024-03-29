@@ -11,7 +11,7 @@
    [metabase.util.log :as log]
    [potemkin.types :as p.types]
    [pretty.core :as pretty]
-   [ring.adapter.jetty9.common :as common]
+   [ring.util.jakarta.servlet :as servlet]
    [ring.util.response :as response])
   (:import
    (java.io BufferedWriter OutputStream OutputStreamWriter)
@@ -189,7 +189,7 @@
       (let [gzip?   (should-gzip-response? request-map)
             headers (cond-> (assoc (merge headers (:headers response-map)) "Content-Type" content-type)
                       gzip? (assoc "Content-Encoding" "gzip"))]
-        (#'common/set-headers response headers)
+        (#'servlet/set-headers response headers)
         (let [output-stream-delay (output-stream-delay gzip? response)
               delay-os            (delay-output-stream output-stream-delay)]
           (start-async-cancel-loop! request finished-chan canceled-chan)
@@ -226,7 +226,6 @@
   (send* [this request respond* _]
     (respond* (compojure.response/render this request))))
 
-;; TODO -- don't think any of this is needed any mo
 (defn- render [^StreamingResponse streaming-response gzip?]
   (let [{:keys [headers content-type], :as options} (.options streaming-response)]
     (assoc (response/response (if gzip?
@@ -236,7 +235,7 @@
                                 streaming-response))
            :headers      (cond-> (assoc headers "Content-Type" content-type)
                            gzip? (assoc "Content-Encoding" "gzip"))
-           :status       202)))
+           :status       (or (:status options) 202))))
 
 (defn finished-chan
   "Fetch a promise channel that will get a message when a `StreamingResponse` is completely finished. Provided primarily

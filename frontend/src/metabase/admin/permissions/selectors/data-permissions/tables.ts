@@ -1,5 +1,6 @@
 import { push } from "react-router-redux";
 
+import { getNativePermissionDisabledTooltip } from "metabase/admin/permissions/selectors/data-permissions/shared";
 import {
   getNativePermission,
   getTablesPermission,
@@ -8,19 +9,17 @@ import {
   PLUGIN_ADVANCED_PERMISSIONS,
   PLUGIN_FEATURE_LEVEL_PERMISSIONS,
 } from "metabase/plugins";
-import { Group, GroupsPermissions } from "metabase-types/api";
+import type { Group, GroupsPermissions } from "metabase-types/api";
+
 import { DATA_PERMISSION_OPTIONS } from "../../constants/data-permissions";
+import { UNABLE_TO_CHANGE_ADMIN_PERMISSIONS } from "../../constants/messages";
+import type { PermissionSectionConfig, SchemaEntityId } from "../../types";
+import { getGroupFocusPermissionsUrl } from "../../utils/urls";
 import {
-  NATIVE_PERMISSION_REQUIRES_DATA_ACCESS,
-  UNABLE_TO_CHANGE_ADMIN_PERMISSIONS,
-} from "../../constants/messages";
-import {
+  getControlledDatabaseWarningModal,
   getPermissionWarning,
   getPermissionWarningModal,
-  getControlledDatabaseWarningModal,
 } from "../confirmations";
-import { SchemaEntityId } from "../../types";
-import { getGroupFocusPermissionsUrl } from "../../utils/urls";
 
 const buildAccessPermission = (
   entityId: SchemaEntityId,
@@ -59,7 +58,9 @@ const buildAccessPermission = (
   return {
     permission: "data",
     type: "access",
-    isDisabled: isAdmin || PLUGIN_ADVANCED_PERMISSIONS.isBlockPermission(value),
+    isDisabled:
+      isAdmin ||
+      PLUGIN_ADVANCED_PERMISSIONS.isAccessPermissionDisabled(value, "tables"),
     isHighlighted: isAdmin,
     disabledTooltip: isAdmin ? UNABLE_TO_CHANGE_ADMIN_PERMISSIONS : null,
     value,
@@ -84,14 +85,16 @@ const buildNativePermission = (
   groupId: number,
   isAdmin: boolean,
   permissions: GroupsPermissions,
+  accessPermissionValue: string,
 ) => {
   return {
     permission: "data",
     type: "native",
     isDisabled: true,
-    disabledTooltip: isAdmin
-      ? UNABLE_TO_CHANGE_ADMIN_PERMISSIONS
-      : NATIVE_PERMISSION_REQUIRES_DATA_ACCESS,
+    disabledTooltip: getNativePermissionDisabledTooltip(
+      isAdmin,
+      accessPermissionValue,
+    ),
     isHighlighted: isAdmin,
     value: getNativePermission(permissions, groupId, entityId),
     options: [DATA_PERMISSION_OPTIONS.write, DATA_PERMISSION_OPTIONS.none],
@@ -104,7 +107,7 @@ export const buildTablesPermissions = (
   isAdmin: boolean,
   permissions: GroupsPermissions,
   defaultGroup: Group,
-) => {
+): PermissionSectionConfig[] => {
   const accessPermission = buildAccessPermission(
     entityId,
     groupId,
@@ -118,6 +121,7 @@ export const buildTablesPermissions = (
     groupId,
     isAdmin,
     permissions,
+    accessPermission.value,
   );
 
   return [

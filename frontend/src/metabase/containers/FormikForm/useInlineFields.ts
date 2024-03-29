@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import _ from "underscore";
-import { FormFieldDefinition } from "metabase-types/forms";
+
+import type { FormFieldDefinition } from "metabase-types/forms";
 
 type FieldsMap = Record<string, FormFieldDefinition>;
 
@@ -22,4 +23,5 @@ function useInlineFields() {
   };
 }
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default useInlineFields;

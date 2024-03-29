@@ -1,6 +1,7 @@
 import * as Yup from "yup";
-import * as Errors from "metabase/core/utils/errors";
-import { SettingDefinition } from "metabase-types/api";
+
+import * as Errors from "metabase/lib/errors";
+import type { SettingDefinition } from "metabase-types/api";
 
 const REQUIRED_SCHEMA = {
   is: (isEnabled: boolean, setting?: SettingDefinition) =>
@@ -21,6 +22,7 @@ export const GOOGLE_SCHEMA = Yup.object({
 
 export const LDAP_SCHEMA = Yup.object({
   "ldap-enabled": Yup.boolean().nullable().default(false),
+  "ldap-user-provisioning-enabled?": Yup.boolean().default(null),
   "ldap-host": Yup.string().nullable().default(null),
   "ldap-port": Yup.number().nullable().default(null),
   "ldap-security": Yup.string().nullable().default("none"),

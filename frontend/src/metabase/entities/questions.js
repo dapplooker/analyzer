@@ -1,20 +1,23 @@
-import { t } from "ttag";
 import { updateIn } from "icepick";
+import { t } from "ttag";
 
-import { createEntity, undo } from "metabase/lib/entities";
-import * as Urls from "metabase/lib/urls";
-import { color } from "metabase/lib/colors";
-
+import { canonicalCollectionId } from "metabase/collections/utils";
 import Collections, {
   getCollectionType,
   normalizedCollection,
 } from "metabase/entities/collections";
-
+import { color } from "metabase/lib/colors";
+import { createEntity, undo } from "metabase/lib/entities";
+import * as Urls from "metabase/lib/urls";
+import { PLUGIN_MODERATION } from "metabase/plugins";
 import {
   API_UPDATE_QUESTION,
   SOFT_RELOAD_CARD,
 } from "metabase/query_builder/actions";
-import { canonicalCollectionId } from "metabase/collections/utils";
+import {
+  getMetadata,
+  getMetadataUnfiltered,
+} from "metabase/selectors/metadata";
 
 import forms from "./questions/forms";
 
@@ -62,7 +65,7 @@ const Questions = createEntity({
 
         const card = result?.payload?.question;
         if (card) {
-          dispatch.action(API_UPDATE_QUESTION, card);
+          dispatch({ type: API_UPDATE_QUESTION, payload: card });
         }
 
         return result;
@@ -81,6 +84,19 @@ const Questions = createEntity({
 
     setCollectionPreview: ({ id }, collection_preview, opts) =>
       Questions.actions.update({ id }, { collection_preview }, opts),
+  },
+
+  selectors: {
+    getObject: (state, { entityId }) => getMetadata(state).question(entityId),
+    getObjectUnfiltered: (state, { entityId }) =>
+      getMetadataUnfiltered(state).question(entityId),
+    getListUnfiltered: (state, { entityQuery }) => {
+      const entityIds =
+        Questions.selectors.getEntityIds(state, { entityQuery }) ?? [];
+      return entityIds.map(entityId =>
+        Questions.selectors.getObjectUnfiltered(state, { entityId }),
+      );
+    },
   },
 
   objectSelectors: {
@@ -112,6 +128,7 @@ const Questions = createEntity({
     "name",
     "cache_ttl",
     "dataset",
+    "type",
     "dataset_query",
     "display",
     "description",
@@ -136,9 +153,20 @@ const Questions = createEntity({
 });
 
 export function getIcon(question) {
+  const type = PLUGIN_MODERATION.getQuestionIcon(question);
+
+  if (type) {
+    return {
+      name: type.icon,
+      color: type.color ? color(type.color) : undefined,
+      tooltip: type.tooltip,
+    };
+  }
+
   if (question.dataset || question.model === "dataset") {
     return { name: "model" };
   }
+
   const visualization = require("metabase/visualizations").default.get(
     question.display,
   );

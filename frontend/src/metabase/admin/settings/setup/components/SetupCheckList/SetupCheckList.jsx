@@ -1,17 +1,22 @@
 /* eslint-disable react/prop-types */
-import React, { Component } from "react";
-import { Link } from "react-router";
+import { Component } from "react";
+import { connect } from "react-redux";
 import { t } from "ttag";
-import { SetupApi } from "metabase/services";
-import { color } from "metabase/lib/colors";
-import MetabaseSettings from "metabase/lib/settings";
-import { isSameOrSiteUrlOrigin } from "metabase/lib/dom";
 
-import Icon from "metabase/components/Icon";
-import ExternalLink from "metabase/core/components/ExternalLink";
-import LoadingAndErrorWrapper from "metabase/components/LoadingAndErrorWrapper";
 import MarginHostingCTA from "metabase/admin/settings/components/widgets/MarginHostingCTA";
-import { SetupListRoot } from "./SetupCheckList.styled";
+import LoadingAndErrorWrapper from "metabase/components/LoadingAndErrorWrapper";
+import { color } from "metabase/lib/colors";
+import { isSameOrSiteUrlOrigin } from "metabase/lib/dom";
+import MetabaseSettings from "metabase/lib/settings";
+import { getIsPaidPlan } from "metabase/selectors/settings";
+import { SetupApi } from "metabase/services";
+import { Icon } from "metabase/ui";
+
+import {
+  SetupListRoot,
+  TaskRegularLink,
+  TaskExternalLink,
+} from "./SetupCheckList.styled";
 
 const TaskList = ({ tasks }) => (
   <ol>
@@ -60,10 +65,7 @@ const CompletionBadge = ({ completed }) => (
 );
 
 const Task = ({ title, description, completed, link }) => (
-  <TaskLink
-    link={link}
-    className="bordered border-brand-hover rounded transition-border flex align-center p2 no-decoration"
-  >
+  <TaskLink link={link}>
     <CompletionBadge completed={completed} />
     <div>
       <TaskTitle
@@ -75,18 +77,14 @@ const Task = ({ title, description, completed, link }) => (
   </TaskLink>
 );
 
-const TaskLink = ({ className, link, children }) =>
+const TaskLink = ({ link, children }) =>
   isSameOrSiteUrlOrigin(link) ? (
-    <Link className={className} to={link}>
-      {children}
-    </Link>
+    <TaskRegularLink to={link}>{children}</TaskRegularLink>
   ) : (
-    <ExternalLink className={className} href={link}>
-      {children}
-    </ExternalLink>
+    <TaskExternalLink href={link}>{children}</TaskExternalLink>
   );
 
-export default class SetupCheckList extends Component {
+class SetupCheckList extends Component {
   constructor(props, context) {
     super(props, context);
     this.state = {
@@ -105,6 +103,8 @@ export default class SetupCheckList extends Component {
   }
 
   render() {
+    const { isPaidPlan } = this.props;
+
     let tasks, nextTask;
     if (this.state.tasks) {
       tasks = this.state.tasks.map(section => ({
@@ -143,10 +143,16 @@ export default class SetupCheckList extends Component {
           </LoadingAndErrorWrapper>
         </div>
 
-        {!MetabaseSettings.isHosted() && !MetabaseSettings.isEnterprise() && (
+        {!MetabaseSettings.isHosted() && !isPaidPlan && (
           <MarginHostingCTA tagline={t`Have your server maintained for you.`} />
         )}
       </SetupListRoot>
     );
   }
 }
+
+const mapStateToProps = state => ({
+  isPaidPlan: getIsPaidPlan(state),
+});
+
+export default connect(mapStateToProps)(SetupCheckList);

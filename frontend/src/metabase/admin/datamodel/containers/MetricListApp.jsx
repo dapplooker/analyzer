@@ -1,18 +1,18 @@
 /* eslint-disable react/prop-types */
-import React from "react";
+import { Component } from "react";
+import { connect } from "react-redux";
 import { t } from "ttag";
 import _ from "underscore";
 
-import Metrics from "metabase/entities/metrics";
 import MetricItem from "metabase/admin/datamodel/components/MetricItem";
 import FilteredToUrlTable from "metabase/admin/datamodel/hoc/FilteredToUrlTable";
-
 import Button from "metabase/core/components/Button";
 import Link from "metabase/core/components/Link";
+import Metrics from "metabase/entities/metrics";
 
-class MetricListAppInner extends React.Component {
+class MetricListAppInner extends Component {
   render() {
-    const { metrics, tableSelector } = this.props;
+    const { metrics, tableSelector, setArchived } = this.props;
 
     return (
       <div className="px3 pb2">
@@ -34,7 +34,7 @@ class MetricListAppInner extends React.Component {
             {metrics.map(metric => (
               <MetricItem
                 key={metric.id}
-                onRetire={() => metric.setArchived(true)}
+                onRetire={() => setArchived(metric, true)}
                 metric={metric}
               />
             ))}
@@ -51,8 +51,9 @@ class MetricListAppInner extends React.Component {
 }
 
 const MetricListApp = _.compose(
-  Metrics.loadList({ wrapped: true }),
+  Metrics.loadList(),
   FilteredToUrlTable("metrics"),
+  connect(null, { setArchived: Metrics.actions.setArchived }),
 )(MetricListAppInner);
 
 export default MetricListApp;

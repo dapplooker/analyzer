@@ -1,9 +1,8 @@
-import React from "react";
+import type { LocationDescriptor } from "history";
 import { connect } from "react-redux";
 import { replace } from "react-router-redux";
-import { LocationDescriptor } from "history";
-
 import { useMount } from "react-use";
+
 import { refreshCurrentUser } from "metabase/redux/user";
 
 import { NotFound } from "./ErrorPages";
@@ -38,4 +37,5 @@ const NotFoundFallbackPage = ({
   return <NotFound />;
 };
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default connect(null, mapDispatchToProps)(NotFoundFallbackPage);

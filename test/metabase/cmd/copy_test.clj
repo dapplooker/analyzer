@@ -1,45 +1,51 @@
 (ns metabase.cmd.copy-test
   (:require
+   [clojure.java.classpath :as classpath]
+   [clojure.string :as str]
    [clojure.test :refer :all]
+   [clojure.tools.namespace.find :as ns.find]
    [metabase.cmd.copy :as copy]
-   [metabase.models :refer [Database]]
-   [metabase.plugins.classloader :as classloader]
-   [metabase.test :as mt]
-   [metabase.util :as u]
-   [toucan.models :as models]
-   [toucan2.core :as t2]))
+   [metabase.plugins.classloader :as classloader]))
 
 (deftest ^:parallel sql-for-selecting-instances-from-source-db-test
-  (are [table-name] (re-find #"(?i)SELECT \* FROM METABASE_DATABASE WHERE engine <> 'h2'"
-                             (#'copy/sql-for-selecting-instances-from-source-db table-name))
-    (t2/table-name Database)
-    :METABASE_DATABASE
-    "metabase_database")
-  ;; make sure the H2 `test-data` DB is loaded
-  (mt/db)
-  (let [sql              (#'copy/sql-for-selecting-instances-from-source-db (t2/table-name Database))
-        selected-drivers (t2/select-fn-set :engine Database sql)]
-    (is (not (contains? selected-drivers :h2)))))
+  (is (= "SELECT * FROM metabase_field ORDER BY id ASC"
+         (#'copy/sql-for-selecting-instances-from-source-db :model/Field))))
 
-(deftest ^:parallel allow-loading-h2-databases-test
-  (testing `copy/*allow-loading-h2-databases*
-    (binding [copy/*allow-loading-h2-databases* true]
-      (is (= "SELECT * FROM metabase_database"
-             (#'copy/sql-for-selecting-instances-from-source-db (t2/table-name Database)))))))
+(deftest ^:parallel copy-h2-database-details-test
+  (doseq [copy-h2-database-details? [true false]]
+    (testing (str `copy/*copy-h2-database-details* " = " copy-h2-database-details?)
+      (binding [copy/*copy-h2-database-details* copy-h2-database-details?]
+        (is (= [{:id 1, :engine "h2", :details (if copy-h2-database-details? "{:db \"metabase.db\"}" "{}")}
+                {:id 2, :engine "postgres", :details "{:db \"metabase\"}"}]
+               (into
+                []
+                (#'copy/model-results-xform :model/Database)
+                [{:id 1, :engine "h2", :details "{:db \"metabase.db\"}"}
+                 {:id 2, :engine "postgres", :details "{:db \"metabase\"}"}])))))))
+
+(def ^:private models-to-exclude
+  "Models that should *not* be migrated in `load-from-h2`."
+  #{:model/ApiKey
+    :model/TaskHistory
+    :model/Query
+    :model/QueryCache
+    :model/QueryExecution
+    :model/CardFavorite
+    :model/DashboardFavorite})
+
+(defn- all-model-names []
+  (into (sorted-set)
+        (comp (filter #(= (namespace %) "model"))
+              (remove models-to-exclude))
+        (descendants :metabase/model)))
 
 (deftest ^:paralell all-models-accounted-for-test
-  ;; This fetches the `metabase.cmd.load-from-h2/entities` and compares it all existing entities
-  (let [migrated-model-names (set (map :name copy/entities))
-        ;; Models that should *not* be migrated in `load-from-h2`.
-        models-to-exclude    #{"TaskHistory" "Query" "QueryCache" "QueryExecution" "CardFavorite" "DashboardFavorite"}
-        all-model-names      (set (for [ns       u/metabase-namespace-symbols
-                                        :when    (or (re-find #"^metabase\.models\." (name ns))
-                                                     (= (name ns) "metabase.db.data-migrations"))
-                                        :when    (not (re-find #"test" (name ns)))
-                                        [_ varr] (do (classloader/require ns)
-                                                     (ns-interns ns))
-                                        :let     [{model-name :name, :as model} (var-get varr)]
-                                        :when    (and (models/model? model)
-                                                      (not (contains? models-to-exclude model-name)))]
-                                    model-name))]
-    (is (= all-model-names migrated-model-names))))
+  ;; make sure the entire system is loaded before running this test, to make sure we account for all the models.
+  (doseq [ns-symb (ns.find/find-namespaces (classpath/system-classpath))
+          :when   (and (str/starts-with? ns-symb "metabase")
+                       (not (str/includes? ns-symb "test")))]
+    (classloader/require ns-symb))
+  (doseq [model (all-model-names)
+          :let  [copy-models (set copy/entities)]]
+    (is (contains? copy-models model)
+        (format "%s should be added to %s, or to %s" model `copy/entities `models-to-exclude))))

@@ -1,14 +1,12 @@
 import { assocIn } from "icepick";
 
 import * as MetabaseAnalytics from "metabase/lib/analytics";
-import MetabaseSettings from "metabase/lib/settings";
-
+import { GET } from "metabase/lib/api";
 import { createEntity } from "metabase/lib/entities";
-
-import { UserApi, SessionApi } from "metabase/services";
 import { generatePassword } from "metabase/lib/security";
-
-import forms from "./users/forms";
+import MetabaseSettings from "metabase/lib/settings";
+import { UserSchema } from "metabase/schema";
+import { UserApi, SessionApi } from "metabase/services";
 
 export const DEACTIVATE = "metabase/entities/users/DEACTIVATE";
 export const REACTIVATE = "metabase/entities/users/REACTIVATE";
@@ -23,11 +21,20 @@ function loadMemberships() {
   return require("metabase/admin/people/people").loadMemberships();
 }
 
+const getUserList = GET("/api/user");
+const getRecipientsList = GET("/api/user/recipients");
+
 const Users = createEntity({
   name: "users",
   nameOne: "user",
+  schema: UserSchema,
 
   path: "/api/user",
+
+  api: {
+    list: ({ recipients = false, ...args }) =>
+      recipients ? getRecipientsList() : getUserList(args),
+  },
 
   objectSelectors: {
     getName: user => user.common_name,
@@ -115,8 +122,6 @@ const Users = createEntity({
     }
     return state;
   },
-
-  forms,
 });
 
 export default Users;

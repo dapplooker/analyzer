@@ -1,13 +1,14 @@
 /* eslint-disable react/prop-types */
-import React from "react";
-import { t } from "ttag";
+import { Component } from "react";
 import { connect } from "react-redux";
+import { t } from "ttag";
 
-import LoadingAndErrorWrapper from "metabase/components/LoadingAndErrorWrapper";
 import AdminHeader from "metabase/components/AdminHeader";
+import LoadingAndErrorWrapper from "metabase/components/LoadingAndErrorWrapper";
 import Link from "metabase/core/components/Link";
 
 import { fetchJobInfo } from "../jobInfo";
+
 import {
   JobInfoHeader,
   JobInfoRoot,
@@ -60,7 +61,7 @@ const renderJobsTable = jobs => {
   );
 };
 
-class JobInfoApp extends React.Component {
+class JobInfoApp extends Component {
   async componentDidMount() {
     try {
       const info = (await this.props.fetchJobInfo()).payload;

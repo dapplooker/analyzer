@@ -1,6 +1,11 @@
-import React from "react";
 import { push } from "react-router-redux";
 import { t } from "ttag";
+
+import {
+  getDatabaseFocusPermissionsUrl,
+  getGroupFocusPermissionsUrl,
+} from "metabase/admin/permissions/utils/urls";
+import { ModalRoute } from "metabase/hoc/ModalRoute";
 import {
   PLUGIN_REDUCERS,
   PLUGIN_DATA_PERMISSIONS,
@@ -12,17 +17,11 @@ import {
   PLUGIN_ADMIN_PERMISSIONS_TABLE_FIELDS_POST_ACTION,
   PLUGIN_ADMIN_PERMISSIONS_TABLE_FIELDS_PERMISSION_VALUE,
 } from "metabase/plugins";
-
 import { hasPremiumFeature } from "metabase-enterprise/settings";
-import {
-  getDatabaseFocusPermissionsUrl,
-  getGroupFocusPermissionsUrl,
-} from "metabase/admin/permissions/utils/urls";
-import { ModalRoute } from "metabase/hoc/ModalRoute";
 
-import LoginAttributesWidget from "./components/LoginAttributesWidget";
-import EditSandboxingModal from "./containers/EditSandboxingModal";
 import sandboxingReducer from "./actions";
+import { LoginAttributesWidget } from "./components/LoginAttributesWidget";
+import EditSandboxingModal from "./containers/EditSandboxingModal";
 import { getDraftPolicies, hasPolicyChanges } from "./selectors";
 
 const OPTION_SEGMENTED = {
@@ -54,11 +53,8 @@ const getEditSegmentedAccessPostAction = (entityId, groupId, view) =>
   push(getEditSegementedAccessUrl(entityId, groupId, view));
 
 if (hasPremiumFeature("sandboxes")) {
-  PLUGIN_ADMIN_USER_FORM_FIELDS.push({
-    name: "login_attributes",
-    title: "Attributes",
-    type: LoginAttributesWidget,
-  });
+  PLUGIN_ADMIN_USER_FORM_FIELDS.FormLoginAttributes = LoginAttributesWidget;
+
   PLUGIN_ADMIN_PERMISSIONS_TABLE_ROUTES.push(
     <ModalRoute
       key=":tableId/segmented"
@@ -88,13 +84,13 @@ if (hasPremiumFeature("sandboxes")) {
     query: "segmented",
   };
 
-  PLUGIN_DATA_PERMISSIONS.getPermissionsPayloadExtraData = state => {
+  PLUGIN_DATA_PERMISSIONS.permissionsPayloadExtraSelectors.push(state => {
     const sandboxes = getDraftPolicies(state);
     return {
       sandboxes,
     };
-  };
+  });
 
-  PLUGIN_DATA_PERMISSIONS.hasChanges = hasPolicyChanges;
+  PLUGIN_DATA_PERMISSIONS.hasChanges.push(hasPolicyChanges);
   PLUGIN_REDUCERS.sandboxingPlugin = sandboxingReducer;
 }

@@ -1,5 +1,6 @@
-import React from "react";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+
 import ModalHeader from "./ModalHeader";
 
 describe("ModalHeader", () => {
@@ -20,6 +21,10 @@ describe("ModalHeader", () => {
 
     render(<ModalHeader title="Events" onClose={onClose} />);
 
-    expect(screen.getByLabelText("close icon")).toBeInTheDocument();
+    const closeButton = screen.getByLabelText("close icon");
+    expect(closeButton).toBeInTheDocument();
+
+    userEvent.click(closeButton);
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,15 +1,13 @@
-import React from "react";
-import { Route } from "react-router";
-import fetchMock from "fetch-mock";
 import userEvent from "@testing-library/user-event";
+import fetchMock from "fetch-mock";
+import { Route } from "react-router";
 
 import {
   renderWithProviders,
   screen,
   waitFor,
-  waitForElementToBeRemoved,
+  waitForLoaderToBeRemoved,
 } from "__support__/ui";
-
 import type {
   ParametersForActionExecution,
   PublicWritebackAction,
@@ -20,6 +18,7 @@ import {
 } from "metabase-types/api/mocks";
 
 import PublicApp from "../PublicApp";
+
 import PublicAction from "./PublicActionLoader";
 
 const TEST_PUBLIC_ID = "test-public-id";
@@ -91,9 +90,7 @@ async function setup({
     },
   );
 
-  await waitForElementToBeRemoved(() =>
-    screen.queryByTestId("loading-spinner"),
-  );
+  await waitForLoaderToBeRemoved();
 }
 
 describe("PublicAction", () => {

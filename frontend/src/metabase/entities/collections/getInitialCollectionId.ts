@@ -1,12 +1,9 @@
-import { createSelector } from "reselect";
+import { createSelector } from "@reduxjs/toolkit";
 import type { Location } from "history";
 
-import * as Urls from "metabase/lib/urls";
-
-import { getUserPersonalCollectionId } from "metabase/selectors/user";
-
 import { canonicalCollectionId } from "metabase/collections/utils";
-
+import * as Urls from "metabase/lib/urls/collections";
+import { getUserPersonalCollectionId } from "metabase/selectors/user";
 import type { Collection, CollectionId } from "metabase-types/api";
 import type { State } from "metabase-types/store";
 
@@ -79,4 +76,5 @@ const getInitialCollectionId = createSelector(
   },
 );
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default getInitialCollectionId;

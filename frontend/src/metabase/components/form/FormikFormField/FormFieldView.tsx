@@ -1,11 +1,9 @@
-import React from "react";
 import cx from "classnames";
+import type * as React from "react";
 
 import Tooltip from "metabase/core/components/Tooltip";
+import type { BaseFieldDefinition } from "metabase-types/forms";
 
-import { BaseFieldDefinition } from "metabase-types/forms";
-
-import { FormFieldDescription } from "./FormFieldDescription";
 import {
   FieldRow,
   Label,
@@ -14,6 +12,7 @@ import {
   FieldContainer,
   InfoLabel,
 } from "./FormField.styled";
+import { FormFieldDescription } from "./FormFieldDescription";
 
 interface FormFieldViewProps extends BaseFieldDefinition {
   fieldId: string;
@@ -85,4 +84,5 @@ function FormFieldView({
   );
 }
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default FormFieldView;

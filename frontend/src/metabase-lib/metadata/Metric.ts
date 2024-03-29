@@ -1,31 +1,40 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-nocheck
-import Filter from "metabase-lib/queries/structured/Filter";
-import Base from "./Base";
-/**
- * @typedef { import("./Metadata").Aggregation } Aggregation
- */
+import type Filter from "metabase-lib/queries/structured/Filter";
+import type { Aggregation, NormalizedMetric } from "metabase-types/api";
 
-/**
- * Wrapper class for a metric. Belongs to a {@link Database} and possibly a {@link Table}
- */
+import type Metadata from "./Metadata";
+import type Table from "./Table";
 
-export default class Metric extends Base {
+interface Metric extends Omit<NormalizedMetric, "table"> {
+  table?: Table;
+  metadata?: Metadata;
+}
+
+class Metric {
+  private readonly _plainObject: NormalizedMetric;
+
+  constructor(metric: NormalizedMetric) {
+    this._plainObject = metric;
+    Object.assign(this, metric);
+  }
+
+  getPlainObject() {
+    return this._plainObject;
+  }
+
   displayName() {
     return this.name;
   }
 
-  /**
-   * @returns {Aggregation}
-   */
-  aggregationClause() {
+  aggregationClause(): Aggregation {
     return ["metric", this.id];
   }
 
   /** Underlying query for this metric */
   definitionQuery() {
-    return this.definition
-      ? this.table.query().setQuery(this.definition)
+    return this.table && this.definition
+      ? this.table
+          .legacyQuery({ useStructuredQuery: true })
+          .setQuery(this.definition)
       : null;
   }
 
@@ -42,7 +51,7 @@ export default class Metric extends Base {
   }
 
   /** Column name when this metric is used in a query */
-  columnName() {
+  columnName(): string | null {
     const aggregation = this.aggregation();
 
     if (aggregation) {
@@ -58,26 +67,7 @@ export default class Metric extends Base {
   isActive() {
     return !this.archived;
   }
-
-  /**
-   * @private
-   * @param {string} name
-   * @param {string} description
-   * @param {Database} database
-   * @param {Table} table
-   * @param {number} id
-   * @param {StructuredQuery} definition
-   * @param {boolean} archived
-   */
-
-  /* istanbul ignore next */
-  _constructor(name, description, database, table, id, definition, archived) {
-    this.name = name;
-    this.description = description;
-    this.database = database;
-    this.table = table;
-    this.id = id;
-    this.definition = definition;
-    this.archived = archived;
-  }
 }
+
+// eslint-disable-next-line import/no-default-export -- deprecated usage
+export default Metric;

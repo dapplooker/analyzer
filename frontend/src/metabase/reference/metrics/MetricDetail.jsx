@@ -1,24 +1,21 @@
 /* eslint "react/prop-types": "warn" */
-import React from "react";
+import { useFormik } from "formik";
 import PropTypes from "prop-types";
 import { connect } from "react-redux";
-import { useFormik } from "formik";
 import { push } from "react-router-redux";
 import { t } from "ttag";
 import _ from "underscore";
 
 import List from "metabase/components/List";
 import LoadingAndErrorWrapper from "metabase/components/LoadingAndErrorWrapper";
-
+import * as metadataActions from "metabase/redux/metadata";
+import Detail from "metabase/reference/components/Detail";
 import EditHeader from "metabase/reference/components/EditHeader";
 import EditableReferenceHeader from "metabase/reference/components/EditableReferenceHeader";
-import Detail from "metabase/reference/components/Detail";
 import FieldsToGroupBy from "metabase/reference/components/FieldsToGroupBy";
 import Formula from "metabase/reference/components/Formula";
-
-import * as metadataActions from "metabase/redux/metadata";
 import * as actions from "metabase/reference/reference";
-import { getQuestionUrl } from "../utils";
+import { getMetadata } from "metabase/selectors/metadata";
 
 import {
   getMetric,
@@ -30,6 +27,7 @@ import {
   getIsFormulaExpanded,
   getForeignKeys,
 } from "../selectors";
+import { getQuestionUrl } from "../utils";
 
 const mapStateToProps = (state, props) => {
   const entity = getMetric(state, props) || {};
@@ -39,6 +37,7 @@ const mapStateToProps = (state, props) => {
     entity,
     table: getTable(state, props),
     metadataFields: fields,
+    metadata: getMetadata(state),
     loading: getLoading(state, props),
     // naming this 'error' will conflict with redux form
     loadingError: getError(state, props),
@@ -82,6 +81,7 @@ const propTypes = {
   isFormulaExpanded: PropTypes.bool,
   loading: PropTypes.bool,
   loadingError: PropTypes.object,
+  metadata: PropTypes.object.isRequired,
   onSubmit: PropTypes.func.isRequired,
   onChangeLocation: PropTypes.func.isRequired,
 };
@@ -101,6 +101,7 @@ const MetricDetail = props => {
     expandFormula,
     collapseFormula,
     isFormulaExpanded,
+    metadata,
     onSubmit,
     onChangeLocation,
   } = props;
@@ -145,6 +146,7 @@ const MetricDetail = props => {
           dbId: table && table.db_id,
           tableId: entity.table_id,
           metricId: entity.id,
+          metadata,
         })}
         name={t`Details`}
         user={user}

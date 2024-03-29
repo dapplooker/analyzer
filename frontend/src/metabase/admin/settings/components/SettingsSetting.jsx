@@ -1,18 +1,12 @@
 /* eslint-disable react/prop-types */
-import React, { Component } from "react";
 import PropTypes from "prop-types";
+import { Component } from "react";
 import { jt } from "ttag";
-import MetabaseSettings from "metabase/lib/settings";
+
 import ExternalLink from "metabase/core/components/ExternalLink";
+
+import { settingToFormFieldId, getEnvVarDocsUrl } from "./../../settings/utils";
 import SettingHeader from "./SettingHeader";
-import SettingInput from "./widgets/SettingInput";
-import SettingNumber from "./widgets/SettingNumber";
-import SettingPassword from "./widgets/SettingPassword";
-import SettingRadio from "./widgets/SettingRadio";
-import SettingToggle from "./widgets/SettingToggle";
-import SettingSelect from "./widgets/SettingSelect";
-import SettingText from "./widgets/SettingText";
-import { settingToFormFieldId } from "./../../settings/utils";
 import {
   SettingContent,
   SettingEnvVarMessage,
@@ -20,6 +14,13 @@ import {
   SettingRoot,
   SettingWarningMessage,
 } from "./SettingsSetting.styled";
+import { SettingInput } from "./widgets/SettingInput";
+import SettingNumber from "./widgets/SettingNumber";
+import SettingPassword from "./widgets/SettingPassword";
+import SettingRadio from "./widgets/SettingRadio";
+import SettingSelect from "./widgets/SettingSelect";
+import SettingText from "./widgets/SettingText";
+import SettingToggle from "./widgets/SettingToggle";
 
 const SETTING_WIDGET_MAP = {
   string: SettingInput,
@@ -68,7 +69,7 @@ export default class SettingsSetting extends Component {
           <SettingHeader id={settingId} setting={setting} />
         )}
         <SettingContent>
-          {setting.is_env_setting ? (
+          {setting.is_env_setting && !setting.forceRenderWidget ? (
             <SettingEnvVarMessage>
               {jt`This has been set by the ${(
                 <ExternalLink href={getEnvVarDocsUrl(setting.env_name)}>
@@ -90,10 +91,3 @@ export default class SettingsSetting extends Component {
     );
   }
 }
-
-const getEnvVarDocsUrl = envName => {
-  return MetabaseSettings.docsUrl(
-    "configuring-metabase/environment-variables",
-    envName?.toLowerCase(),
-  );
-};

@@ -1,24 +1,22 @@
 /* eslint-disable react/prop-types */
-import React from "react";
-
 import { connect } from "react-redux";
 import { push } from "react-router-redux";
-import { getMetadata } from "metabase/selectors/metadata";
 
 import { Dashboard } from "metabase/dashboard/containers/Dashboard";
-import DashboardData from "metabase/dashboard/hoc/DashboardData";
+import { DashboardData } from "metabase/dashboard/hoc/DashboardData";
+import { getAccentColors } from "metabase/lib/colors/groups";
+import { getMetadata } from "metabase/selectors/metadata";
+
+import { AuditMode } from "../lib/mode";
 
 const DashboardWithData = DashboardData(Dashboard);
-
-import { getAccentColors } from "metabase/lib/colors/groups";
-import { AuditMode } from "../lib/mode";
 
 const AuditDashboard = ({ cards, ...props }) => (
   <DashboardWithData
     style={{ backgroundColor: "transparent", padding: 0 }}
     // HACK: to get inline dashboards working quickly
     dashboardId={{
-      ordered_cards: cards.map(([{ x, y, w, h }, dc]) => ({
+      dashcards: cards.map(([{ x, y, w, h }, dc]) => ({
         col: x,
         row: y,
         size_x: w,

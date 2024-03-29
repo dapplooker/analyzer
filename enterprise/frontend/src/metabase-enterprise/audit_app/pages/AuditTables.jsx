@@ -1,15 +1,12 @@
-/* eslint-disable react/prop-types */
-import React from "react";
 import { t } from "ttag";
 
 import AuditContent from "../components/AuditContent";
 import AuditDashboard from "../containers/AuditDashboard";
 import AuditTableWithSearch from "../containers/AuditTableWithSearch";
-
 import * as TablesCards from "../lib/cards/tables";
 
 const AuditTables = props => (
-  <AuditContent {...props} title="Tables" tabs={AuditTables.tabs} />
+  <AuditContent {...props} title={t`Tables`} tabs={AuditTables.tabs} />
 );
 
 const AuditTablesOverviewTab = () => (

@@ -1,4 +1,5 @@
 import { t } from "ttag";
+
 import { TYPE } from "metabase-lib/types/constants";
 
 export const field_semantic_types = [
@@ -146,13 +147,19 @@ export const field_semantic_types = [
     section: t`Numeric`,
     icon: "int",
   },
+  {
+    id: TYPE.Percentage,
+    name: t`Percentage`,
+    section: t`Numeric`,
+    icon: "int",
+  },
 
   /* Profile */
   {
     id: TYPE.Birthdate,
     name: t`Birthday`,
     section: t`Profile`,
-    icon: "balloons",
+    icon: "birthday",
   },
   {
     id: TYPE.Company,

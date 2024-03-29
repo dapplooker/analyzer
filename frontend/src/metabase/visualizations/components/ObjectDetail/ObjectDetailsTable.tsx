@@ -1,24 +1,29 @@
-import React, { useMemo } from "react";
 import cx from "classnames";
+import type { MouseEvent } from "react";
+import { Fragment, useMemo } from "react";
 import { t } from "ttag";
 
-import type { ColumnSettings, DatasetData } from "metabase-types/types/Dataset";
-import type { VisualizationSettings } from "metabase-types/api";
-
-import ExpandableString from "metabase/query_builder/components/ExpandableString";
 import EmptyState from "metabase/components/EmptyState";
-
+import { Ellipsified } from "metabase/core/components/Ellipsified";
 import { formatValue, formatColumn } from "metabase/lib/formatting";
-import { isa, isID } from "metabase-lib/types/utils/isa";
+import ExpandableString from "metabase/query_builder/components/ExpandableString";
+import { findColumnIndexesForColumnSettings } from "metabase-lib/queries/utils/dataset";
 import { TYPE } from "metabase-lib/types/constants";
-import { findColumnIndexForColumnSetting } from "metabase-lib/queries/utils/dataset";
+import {
+  isa,
+  isID,
+  isImageURL,
+  isAvatarURL,
+} from "metabase-lib/types/utils/isa";
+import type { DatasetData, VisualizationSettings } from "metabase-types/api";
 
-import type { OnVisualizationClickType } from "./types";
 import {
   ObjectDetailsTable,
   GridContainer,
   GridCell,
-} from "./ObjectDetail.styled";
+  FitImage,
+} from "./ObjectDetailsTable.styled";
+import type { OnVisualizationClickType } from "./types";
 
 export interface DetailsTableCellProps {
   column: any;
@@ -48,7 +53,8 @@ export function DetailsTableCell({
     columnSettings?.["_column_title_full"] || formatColumn(column);
 
   if (isColumnName) {
-    cellValue = column !== null ? columnTitle : null;
+    const title = column !== null ? columnTitle : null;
+    cellValue = <Ellipsified lines={8}>{title}</Ellipsified>;
     clicked.column = column;
     isLink = false;
   } else {
@@ -80,28 +86,39 @@ export function DetailsTableCell({
     isLink = isID(column);
   }
 
-  const isClickable = onVisualizationClick && visualizationIsClickable(clicked);
+  const isClickable = onVisualizationClick != null;
+
+  const isImage =
+    !isColumnName &&
+    (isImageURL(column) || isAvatarURL(column)) &&
+    typeof value === "string" &&
+    value.startsWith("http");
+
+  const handleClick = (e: MouseEvent<HTMLSpanElement>) => {
+    if (onVisualizationClick && visualizationIsClickable(clicked)) {
+      onVisualizationClick({ ...clicked, element: e.currentTarget });
+    }
+  };
 
   return (
     <div>
       <span
         className={cx(
           {
-            "cursor-pointer": isClickable,
+            "cursor-pointer": onVisualizationClick,
             link: isClickable && isLink,
           },
           className,
         )}
-        onClick={
-          isClickable
-            ? e => {
-                onVisualizationClick({ ...clicked, element: e.currentTarget });
-              }
-            : undefined
-        }
+        onClick={handleClick}
       >
         {cellValue}
       </span>
+      {isImage && (
+        <div>
+          <FitImage src={value} alt={value} />
+        </div>
+      )}
     </div>
   );
 }
@@ -128,21 +145,16 @@ export function DetailsTable({
     if (!columnSettings) {
       return { cols: columns, row: zoomedRow };
     }
-    const columnIndexes = columnSettings
-      .filter((columnSetting: ColumnSettings) => columnSetting.enabled)
-      .map((columnSetting: ColumnSettings) =>
-        findColumnIndexForColumnSetting(columns, columnSetting),
-      )
-      .filter(
-        (columnIndex: number) =>
-          columnIndex >= 0 && columnIndex < columns.length,
-      );
+    const columnIndexes = findColumnIndexesForColumnSettings(
+      columns,
+      columnSettings.filter(({ enabled }) => enabled),
+    ).filter((columnIndex: number) => columnIndex >= 0);
 
     return {
-      cols: columnIndexes.map((i: number) => columns[i]) as any[],
+      cols: columnIndexes.map((i: number) => columns[i]),
       row: columnIndexes.map((i: number) => zoomedRow[i]),
     };
-  }, [columns, zoomedRow, columnSettings]);
+  }, [columnSettings, columns, zoomedRow]);
 
   if (!cols?.length) {
     return (
@@ -157,32 +169,36 @@ export function DetailsTable({
   return (
     <ObjectDetailsTable>
       <GridContainer cols={3}>
-        {cols.map((column, columnIndex) => (
-          <React.Fragment key={columnIndex}>
-            <GridCell>
-              <DetailsTableCell
-                column={column}
-                value={row[columnIndex] ?? t`Empty`}
-                isColumnName
-                settings={settings}
-                className="text-bold text-medium"
-                onVisualizationClick={onVisualizationClick}
-                visualizationIsClickable={visualizationIsClickable}
-              />
-            </GridCell>
-            <GridCell colSpan={2}>
-              <DetailsTableCell
-                column={column}
-                value={row[columnIndex]}
-                isColumnName={false}
-                settings={settings}
-                className="text-bold text-dark text-spaced text-wrap"
-                onVisualizationClick={onVisualizationClick}
-                visualizationIsClickable={visualizationIsClickable}
-              />
-            </GridCell>
-          </React.Fragment>
-        ))}
+        {cols.map((column, columnIndex) => {
+          const columnValue = row[columnIndex];
+
+          return (
+            <Fragment key={columnIndex}>
+              <GridCell>
+                <DetailsTableCell
+                  column={column}
+                  value={row[columnIndex] ?? t`Empty`}
+                  isColumnName
+                  settings={settings}
+                  className="text-bold text-medium"
+                  onVisualizationClick={onVisualizationClick}
+                  visualizationIsClickable={visualizationIsClickable}
+                />
+              </GridCell>
+              <GridCell colSpan={2}>
+                <DetailsTableCell
+                  column={column}
+                  value={columnValue}
+                  isColumnName={false}
+                  settings={settings}
+                  className="text-bold text-dark text-spaced text-wrap"
+                  onVisualizationClick={onVisualizationClick}
+                  visualizationIsClickable={visualizationIsClickable}
+                />
+              </GridCell>
+            </Fragment>
+          );
+        })}
       </GridContainer>
     </ObjectDetailsTable>
   );

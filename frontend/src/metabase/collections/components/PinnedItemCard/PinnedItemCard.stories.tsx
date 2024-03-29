@@ -1,7 +1,6 @@
-import React from "react";
-
 import { action } from "@storybook/addon-actions";
 import type { ComponentStory } from "@storybook/react";
+
 import PinnedItemCard from "./PinnedItemCard";
 
 export default {

@@ -1,15 +1,17 @@
-import _ from "underscore";
 import { assocIn } from "icepick";
+import _ from "underscore";
 
 import { loadMetadataForCard } from "metabase/questions/actions";
-
-import { Dataset } from "metabase-types/api";
-import { Series } from "metabase-types/types/Visualization";
-import { Dispatch, GetState, QueryBuilderMode } from "metabase-types/store";
-import Question from "metabase-lib/Question";
-import NativeQuery from "metabase-lib/queries/NativeQuery";
-import StructuredQuery from "metabase-lib/queries/StructuredQuery";
+import * as Lib from "metabase-lib";
+import type Question from "metabase-lib/Question";
 import { getTemplateTagParametersFromCard } from "metabase-lib/parameters/utils/template-tags";
+import type NativeQuery from "metabase-lib/queries/NativeQuery";
+import type { Series } from "metabase-types/api";
+import type {
+  Dispatch,
+  GetState,
+  QueryBuilderMode,
+} from "metabase-types/store";
 
 import {
   getFirstQueryResult,
@@ -18,24 +20,12 @@ import {
   getQuestion,
   getRawSeries,
 } from "../../selectors";
-
-import { updateUrl } from "../navigation";
 import { setIsShowingTemplateTagsEditor } from "../native";
+import { updateUrl } from "../navigation";
 import { runQuestionQuery } from "../querying";
 import { onCloseQuestionInfo, setQueryBuilderMode } from "../ui";
 
 import { getQuestionWithDefaultVisualizationSettings } from "./utils";
-
-function hasNewColumns(question: Question, queryResult: Dataset) {
-  // NOTE: this assume column names will change
-  // technically this is wrong because you could add and remove two columns with the same name
-  const query = question.query();
-  const previousColumns =
-    (queryResult && queryResult.data.cols.map(col => col.name)) || [];
-  const nextColumns =
-    query instanceof StructuredQuery ? query.columnNames() : [];
-  return _.difference(nextColumns, previousColumns).length > 0;
-}
 
 function checkShouldRerunPivotTableQuestion({
   isPivot,
@@ -82,11 +72,17 @@ function shouldTemplateTagEditorBeVisible({
   if (queryBuilderMode === "dataset") {
     return isVisible;
   }
-  const previousTags = currentQuestion?.isNative()
-    ? (currentQuestion.query() as NativeQuery).variableTemplateTags()
+  const isCurrentQuestionNative =
+    currentQuestion && Lib.queryDisplayInfo(currentQuestion.query()).isNative;
+  const isNewQuestionNative = Lib.queryDisplayInfo(
+    newQuestion.query(),
+  ).isNative;
+
+  const previousTags = isCurrentQuestionNative
+    ? (currentQuestion.legacyQuery() as NativeQuery).variableTemplateTags()
     : [];
-  const nextTags = newQuestion.isNative()
-    ? (newQuestion.query() as NativeQuery).variableTemplateTags()
+  const nextTags = isNewQuestionNative
+    ? (newQuestion.legacyQuery() as NativeQuery).variableTemplateTags()
     : [];
   if (nextTags.length > previousTags.length) {
     return true;
@@ -97,8 +93,8 @@ function shouldTemplateTagEditorBeVisible({
   }
 }
 
-type UpdateQuestionOpts = {
-  run?: boolean | "auto";
+export type UpdateQuestionOpts = {
+  run?: boolean;
   shouldUpdateUrl?: boolean;
   shouldStartAdHocQuestion?: boolean;
 };
@@ -118,20 +114,21 @@ export const updateQuestion = (
   return async (dispatch: Dispatch, getState: GetState) => {
     const currentQuestion = getQuestion(getState());
     const queryBuilderMode = getQueryBuilderMode(getState());
+    const { isEditable } = Lib.queryDisplayInfo(newQuestion.query());
 
     const shouldTurnIntoAdHoc =
       shouldStartAdHocQuestion &&
       newQuestion.isSaved() &&
-      newQuestion.query().isEditable() &&
+      isEditable &&
       queryBuilderMode !== "dataset";
 
     if (shouldTurnIntoAdHoc) {
       newQuestion = newQuestion.withoutNameAndId();
 
-      // When the dataset query changes, we should loose the dataset flag,
+      // When the dataset query changes, we should change the question type,
       // to start building a new ad-hoc question based on a dataset
       if (newQuestion.isDataset()) {
-        newQuestion = newQuestion.setDataset(false);
+        newQuestion = newQuestion.setType("question");
         dispatch(onCloseQuestionInfo());
       }
     }
@@ -140,18 +137,11 @@ export const updateQuestion = (
     // so that its query is shown properly in the notebook editor. Various child components of the notebook editor have access to
     // this `updateQuestion` action, so they end up triggering the action with the altered question.
     if (queryBuilderMode === "dataset" && !newQuestion.isDataset()) {
-      newQuestion = newQuestion.setDataset(true);
+      newQuestion = newQuestion.setType("model");
     }
 
     const queryResult = getFirstQueryResult(getState());
-    newQuestion = newQuestion.syncColumnsAndSettings(
-      currentQuestion,
-      queryResult,
-    );
-
-    if (run === "auto") {
-      run = hasNewColumns(newQuestion, queryResult);
-    }
+    newQuestion = newQuestion.syncColumnsAndSettings(queryResult);
 
     if (!newQuestion.canAutoRun()) {
       run = false;
@@ -160,10 +150,16 @@ export const updateQuestion = (
     const isPivot = newQuestion.display() === "pivot";
     const wasPivot = currentQuestion?.display() === "pivot";
 
+    const isCurrentQuestionNative =
+      currentQuestion && Lib.queryDisplayInfo(currentQuestion.query()).isNative;
+    const isNewQuestionNative = Lib.queryDisplayInfo(
+      newQuestion.query(),
+    ).isNative;
+
     if (wasPivot || isPivot) {
       const hasBreakouts =
-        newQuestion.isStructured() &&
-        (newQuestion.query() as StructuredQuery).hasBreakouts();
+        !isNewQuestionNative &&
+        Lib.breakouts(newQuestion.query(), -1).length > 0;
 
       // compute the pivot setting now so we can query the appropriate data
       if (isPivot && hasBreakouts) {
@@ -190,7 +186,7 @@ export const updateQuestion = (
     }
 
     // Native query should never be in notebook mode (metabase#12651)
-    if (queryBuilderMode === "notebook" && newQuestion.isNative()) {
+    if (queryBuilderMode === "notebook" && isNewQuestionNative) {
       await dispatch(
         setQueryBuilderMode("view", {
           shouldUpdateUrl: false,
@@ -198,9 +194,8 @@ export const updateQuestion = (
       );
     }
 
-    const newDatasetQuery = newQuestion.query().datasetQuery();
     // Sync card's parameters with the template tags;
-    if (newDatasetQuery.type === "native") {
+    if (isNewQuestionNative) {
       const parameters = getTemplateTagParametersFromCard(newQuestion.card());
       newQuestion = newQuestion.setParameters(parameters);
     }
@@ -214,7 +209,7 @@ export const updateQuestion = (
       dispatch(updateUrl(null, { dirty: true }));
     }
 
-    if (currentQuestion?.isNative?.() || newQuestion.isNative()) {
+    if (isCurrentQuestionNative || isNewQuestionNative) {
       const isVisible = getIsShowingTemplateTagsEditor(getState());
       const shouldBeVisible = shouldTemplateTagEditorBeVisible({
         currentQuestion,
@@ -230,12 +225,16 @@ export const updateQuestion = (
     const currentDependencies = currentQuestion
       ? [
           ...currentQuestion.dependentMetadata(),
-          ...currentQuestion.query().dependentMetadata(),
+          ...currentQuestion
+            .legacyQuery({ useStructuredQuery: true })
+            .dependentMetadata(),
         ]
       : [];
     const nextDependencies = [
       ...newQuestion.dependentMetadata(),
-      ...newQuestion.query().dependentMetadata(),
+      ...newQuestion
+        .legacyQuery({ useStructuredQuery: true })
+        .dependentMetadata(),
     ];
     try {
       if (!_.isEqual(currentDependencies, nextDependencies)) {

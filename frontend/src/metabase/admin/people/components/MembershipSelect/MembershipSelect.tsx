@@ -1,17 +1,19 @@
-import React from "react";
+import { Fragment } from "react";
 import { t } from "ttag";
 
-import Icon from "metabase/components/Icon";
 import PopoverWithTrigger from "metabase/components/PopoverWithTrigger";
-import { PLUGIN_GROUP_MANAGERS } from "metabase/plugins";
 import {
   isDefaultGroup,
   isAdminGroup,
   getGroupNameLocalized,
 } from "metabase/lib/groups";
-import { Group, Member } from "metabase-types/api";
-import { isNotNull } from "metabase/core/utils/types";
+import { isNotNull } from "metabase/lib/types";
+import { PLUGIN_GROUP_MANAGERS } from "metabase/plugins";
+import { Icon } from "metabase/ui";
+import type { Group, GroupListQuery, Member } from "metabase-types/api";
+
 import GroupSummary from "../GroupSummary";
+
 import {
   MembershipActionsContainer,
   MembershipSelectContainer,
@@ -19,7 +21,7 @@ import {
   MembershipSelectItem,
 } from "./MembershipSelect.styled";
 
-const getGroupSections = (groups: Group[]) => {
+const getGroupSections = (groups: GroupListQuery[]) => {
   const defaultGroup = groups.find(isDefaultGroup);
   const adminGroup = groups.find(isAdminGroup);
   const pinnedGroups = [defaultGroup, adminGroup].filter(isNotNull);
@@ -42,9 +44,9 @@ const getGroupSections = (groups: Group[]) => {
 type Memberships = Map<Group["id"], Partial<Member>>;
 
 interface MembershipSelectProps {
-  groups: Group[];
+  groups: GroupListQuery[];
   memberships: Memberships;
-  isCurrentUser: boolean;
+  isCurrentUser?: boolean;
   isUserAdmin: boolean;
   emptyListMessage?: string;
   onAdd: (groupId: number, membershipData: Partial<Member>) => void;
@@ -64,7 +66,7 @@ export const MembershipSelect = ({
 }: MembershipSelectProps) => {
   const selectedGroupIds = Array.from(memberships.keys());
   const triggerElement = (
-    <div className="flex align-center">
+    <div className="flex align-center" aria-label="group-summary">
       <span className="mr1 text-medium">
         <GroupSummary groups={groups} selectedGroupIds={selectedGroupIds} />
       </span>
@@ -101,7 +103,7 @@ export const MembershipSelect = ({
     <PopoverWithTrigger triggerElement={triggerElement}>
       <MembershipSelectContainer>
         {groupSections.map((section, index) => (
-          <React.Fragment key={index}>
+          <Fragment key={index}>
             {section.header && (
               <MembershipSelectHeader>{section.header}</MembershipSelectHeader>
             )}
@@ -116,6 +118,7 @@ export const MembershipSelect = ({
                 <MembershipSelectItem
                   isDisabled={isDisabled}
                   key={group.id}
+                  aria-label={group.name}
                   onClick={() =>
                     isDisabled ? undefined : handleToggleMembership(group.id)
                   }
@@ -140,11 +143,12 @@ export const MembershipSelect = ({
                 </MembershipSelectItem>
               );
             })}
-          </React.Fragment>
+          </Fragment>
         ))}
       </MembershipSelectContainer>
     </PopoverWithTrigger>
   );
 };
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default MembershipSelect;

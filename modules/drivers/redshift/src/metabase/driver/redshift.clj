@@ -3,21 +3,26 @@
   (:require
    [cheshire.core :as json]
    [clojure.java.jdbc :as jdbc]
-   [java-time :as t]
+   [clojure.string :as str]
+   [honey.sql :as sql]
+   [java-time.api :as t]
    [metabase.driver :as driver]
-   [metabase.driver.common :as driver.common]
+   [metabase.driver.sql :as driver.sql]
    [metabase.driver.sql-jdbc.common :as sql-jdbc.common]
    [metabase.driver.sql-jdbc.connection :as sql-jdbc.conn]
    [metabase.driver.sql-jdbc.execute :as sql-jdbc.execute]
    [metabase.driver.sql-jdbc.execute.legacy-impl :as sql-jdbc.legacy]
    [metabase.driver.sql-jdbc.sync :as sql-jdbc.sync]
-   [metabase.driver.sql-jdbc.sync.describe-table
-    :as sql-jdbc.describe-table]
+   [metabase.driver.sql-jdbc.sync.describe-table :as sql-jdbc.describe-table]
    [metabase.driver.sql.query-processor :as sql.qp]
+   [metabase.lib.metadata :as lib.metadata]
    [metabase.mbql.util :as mbql.u]
    [metabase.public-settings :as public-settings]
    [metabase.query-processor.store :as qp.store]
    [metabase.query-processor.util :as qp.util]
+   [metabase.query-processor.util.relative-datetime :as qp.relative-datetime]
+   [metabase.upload :as upload]
+   [metabase.util :as u]
    [metabase.util.honey-sql-2 :as h2x]
    [metabase.util.i18n :refer [trs]]
    [metabase.util.log :as log])
@@ -30,9 +35,11 @@
 
 (driver/register! :redshift, :parent #{:postgres ::sql-jdbc.legacy/use-legacy-classes-for-read-and-set})
 
-(defmethod driver/database-supports? [:redshift :test/jvm-timezone-setting]
-  [_driver _feature _database]
-  false)
+(doseq [[feature supported?] {:test/jvm-timezone-setting false
+                              :nested-field-columns      false
+                              :describe-fks              true
+                              :connection-impersonation  true}]
+  (defmethod driver/database-supports? [:redshift feature] [_driver _feat _db] supported?))
 
 ;;; +----------------------------------------------------------------------------------------------------------------+
 ;;; |                                             metabase.driver impls                                              |
@@ -44,51 +51,30 @@
   [& args]
   (apply (get-method driver/describe-table :sql-jdbc) args))
 
-;; The Postgres JDBC .getImportedKeys method doesn't work for Redshift, and we're not allowed to access
-;; information_schema.constraint_column_usage, so we'll have to use this custom query instead
-;;
-;; See also: [Related Postgres JDBC driver issue on GitHub](https://github.com/pgjdbc/pgjdbc/issues/79)
-;;           [How to access the equivalent of information_schema.constraint_column_usage in Redshift](https://forums.aws.amazon.com/thread.jspa?threadID=133514)
-(def ^:private fk-query
-  "SELECT source_column.attname AS \"fk-column-name\",
-          dest_table.relname    AS \"dest-table-name\",
-          dest_table_ns.nspname AS \"dest-table-schema\",
-          dest_column.attname   AS \"dest-column-name\"
-   FROM pg_constraint c
-          JOIN pg_namespace n             ON c.connamespace          = n.oid
-          JOIN pg_class source_table      ON c.conrelid              = source_table.oid
-          JOIN pg_attribute source_column ON c.conrelid              = source_column.attrelid
-          JOIN pg_class dest_table        ON c.confrelid             = dest_table.oid
-          JOIN pg_namespace dest_table_ns ON dest_table.relnamespace = dest_table_ns.oid
-          JOIN pg_attribute dest_column   ON c.confrelid             = dest_column.attrelid
-   WHERE c.contype                 = 'f'::char
-          AND source_table.relname = ?
-          AND n.nspname            = ?
-          AND source_column.attnum = ANY(c.conkey)
-          AND dest_column.attnum   = ANY(c.confkey)")
-
-(defmethod driver/describe-table-fks :redshift
-  [_ database table]
-  (set (for [fk (jdbc/query (sql-jdbc.conn/db->pooled-connection-spec database)
-                            [fk-query (:name table) (:schema table)])]
-         {:fk-column-name   (:fk-column-name fk)
-          :dest-table       {:name   (:dest-table-name fk)
-                             :schema (:dest-table-schema fk)}
-          :dest-column-name (:dest-column-name fk)})))
-
-;; The docs say TZ should be allowed at the end of the format string, but it doesn't appear to work
-;; Redshift is always in UTC and doesn't return it's timezone
-(defmethod driver.common/current-db-time-date-formatters :redshift
-  [_]
-  (driver.common/create-db-time-formatters "yyyy-MM-dd HH:mm:ss.SSS zzz"))
-
-(defmethod driver.common/current-db-time-native-query :redshift
-  [_]
-  "select to_char(current_timestamp, 'YYYY-MM-DD HH24:MI:SS.MS TZ')")
-
-(defmethod driver/current-db-time :redshift
-  [& args]
-  (apply driver.common/current-db-time args))
+(defmethod sql-jdbc.sync/describe-fks-sql :redshift
+  [driver & {:keys [schema-names table-names]}]
+  (sql/format {:select (vec
+                        {:fk_ns.nspname       "fk-table-schema"
+                         :fk_table.relname    "fk-table-name"
+                         :fk_column.attname   "fk-column-name"
+                         :pk_ns.nspname       "pk-table-schema"
+                         :pk_table.relname    "pk-table-name"
+                         :pk_column.attname   "pk-column-name"})
+               :from   [[:pg_constraint :c]]
+               :join   [[:pg_class     :fk_table]  [:= :c.conrelid :fk_table.oid]
+                        [:pg_namespace :fk_ns]     [:= :c.connamespace :fk_ns.oid]
+                        [:pg_attribute :fk_column] [:= :c.conrelid :fk_column.attrelid]
+                        [:pg_class     :pk_table]  [:= :c.confrelid :pk_table.oid]
+                        [:pg_namespace :pk_ns]     [:= :pk_table.relnamespace :pk_ns.oid]
+                        [:pg_attribute :pk_column] [:= :c.confrelid :pk_column.attrelid]]
+               :where  [:and
+                        [:= :c.contype [:raw "'f'::char"]]
+                        [:= :fk_column.attnum [:raw "ANY(c.conkey)"]]
+                        [:= :pk_column.attnum [:raw "ANY(c.confkey)"]]
+                        (when table-names [:in :fk_table.relname table-names])
+                        (when schema-names [:in :fk_ns.nspname schema-names])]
+               :order-by [:fk-table-schema :fk-table-name]}
+              :dialect (sql.qp/quote-style driver)))
 
 (defmethod driver/db-start-of-week :redshift
   [_]
@@ -139,22 +125,26 @@
   [_]
   "SET TIMEZONE TO %s;")
 
-;; This impl is basically the same as the default impl in `sql-jdbc.execute`, but doesn't attempt to make the
-;; connection read-only, because that seems to be causing problems for people
-(defmethod sql-jdbc.execute/connection-with-timezone :redshift
-  [driver database ^String timezone-id]
-  (let [conn (.getConnection (sql-jdbc.execute/datasource-with-diagnostic-info! driver database))]
-    (try
-      (sql-jdbc.execute/set-best-transaction-level! driver conn)
-      (sql-jdbc.execute/set-time-zone-if-supported! driver conn timezone-id)
-      (try
-        (.setHoldability conn ResultSet/CLOSE_CURSORS_AT_COMMIT)
-        (catch Throwable e
-          (log/debug e (trs "Error setting default holdability for connection"))))
-      conn
-      (catch Throwable e
-        (.close ^Connection conn)
-        (throw e)))))
+;; This impl is basically the same as the default impl in [[metabase.driver.sql-jdbc.execute]], but doesn't attempt to
+;; make the connection read-only, because that seems to be causing problems for people
+(defmethod sql-jdbc.execute/do-with-connection-with-options :redshift
+  [driver db-or-id-or-spec {:keys [^String session-timezone], :as options} f]
+  (sql-jdbc.execute/do-with-resolved-connection
+   driver
+   db-or-id-or-spec
+   options
+   (fn [^Connection conn]
+     (when-not (sql-jdbc.execute/recursive-connection?)
+       (sql-jdbc.execute/set-best-transaction-level! driver conn)
+       (sql-jdbc.execute/set-time-zone-if-supported! driver conn session-timezone)
+       (sql-jdbc.execute/set-role-if-supported! driver conn (cond (integer? db-or-id-or-spec) (qp.store/with-metadata-provider db-or-id-or-spec
+                                                                                               (lib.metadata/database (qp.store/metadata-provider)))
+                                                               (u/id db-or-id-or-spec)     db-or-id-or-spec))
+       (try
+         (.setHoldability conn ResultSet/CLOSE_CURSORS_AT_COMMIT)
+         (catch Throwable e
+           (log/debug e (trs "Error setting default holdability for connection")))))
+     (f conn))))
 
 (defn- prepare-statement ^PreparedStatement [^Connection conn sql]
   (.prepareStatement conn
@@ -176,10 +166,13 @@
 (defn- quote-literal-for-database
   "This function invokes quote-literal-for-connection with a connection for the given database. See its docstring for
   more detail."
-  [database s]
-  (let [jdbc-spec (sql-jdbc.conn/db->pooled-connection-spec database)]
-    (with-open [conn (jdbc/get-connection jdbc-spec)]
-      (quote-literal-for-connection conn s))))
+  [driver database s]
+  (sql-jdbc.execute/do-with-connection-with-options
+   driver
+   database
+   nil
+   (fn [conn]
+     (quote-literal-for-connection conn s))))
 
 (defmethod sql.qp/->honeysql [:redshift :regex-match-first]
   [driver [_ arg pattern]]
@@ -188,7 +181,7 @@
    ;; the parameter to REGEXP_SUBSTR can only be a string literal; neither prepared statement parameters nor encoding/
    ;; decoding functions seem to work (fails with java.sql.SQLExcecption: "The pattern must be a valid UTF-8 literal
    ;; character expression"), hence we will use a different function to safely escape it before splicing here
-   [:raw (quote-literal-for-database (qp.store/database) pattern)]])
+   [:raw (quote-literal-for-database driver (lib.metadata/database (qp.store/metadata-provider)) pattern)]])
 
 (defmethod sql.qp/->honeysql [:redshift :replace]
   [driver [_ arg pattern replacement]]
@@ -204,7 +197,10 @@
   (->> args
        (map (partial sql.qp/->honeysql driver))
        (reduce (fn [x y]
-                 [:concat x y]))))
+                 (if x
+                   [:concat x y]
+                   y))
+               nil)))
 
 (defn- extract [unit temporal]
   [::h2x/extract (format "'%s'" (name unit)) temporal])
@@ -223,6 +219,10 @@
         x (h2x/->timestamp x)
         y (h2x/->timestamp y)]
     (sql.qp/datetime-diff driver unit x y)))
+
+(defmethod sql.qp/->honeysql [:redshift :relative-datetime]
+  [driver [_ amount unit]]
+  (qp.relative-datetime/maybe-cacheable-relative-datetime-honeysql driver unit amount))
 
 (defmethod sql.qp/datetime-diff [:redshift :year]
   [driver _unit x y]
@@ -321,7 +321,8 @@
                                         [:field (field-id :guard integer?) _]
                                         (when (contains? (set &parents) :dimension)
                                           field-id))]
-                    [(:name (qp.store/field field-id)) (:value param)]))))
+                    [(:name (lib.metadata/field (qp.store/metadata-provider) field-id))
+                     (:value param)]))))
         user-parameters))
 
 (defmethod qp.util/query->remark :redshift
@@ -377,8 +378,76 @@
            (into
             #{}
             (sql-jdbc.describe-table/describe-table-fields-xf driver table)
-            (sql-jdbc.describe-table/fallback-fields-metadata-from-select-query driver conn schema table-name))))))
+            (sql-jdbc.describe-table/fallback-fields-metadata-from-select-query driver conn db-name-or-nil schema table-name))))))
 
 (defmethod sql-jdbc.execute/set-parameter [:redshift java.time.ZonedDateTime]
   [driver ps i t]
   (sql-jdbc.execute/set-parameter driver ps i (t/sql-timestamp (t/with-zone-same-instant t (t/zone-id "UTC")))))
+
+(defmethod driver/upload-type->database-type :redshift
+  [_driver upload-type]
+  (case upload-type
+    ::upload/varchar-255              [[:varchar 255]]
+    ::upload/text                     [:text]
+    ::upload/int                      [:bigint]
+    ;; identity(1, 1) defines an auto-increment column starting from 1
+    ::upload/auto-incrementing-int-pk [:bigint [:identity 1 1]]
+    ::upload/float                    [:float]
+    ::upload/boolean                  [:boolean]
+    ::upload/date                     [:date]
+    ::upload/datetime                 [:timestamp]
+    ::upload/offset-datetime          [:timestamp-with-time-zone]))
+
+(defmethod driver/table-name-length-limit :redshift
+  [_driver]
+  ;; https://docs.aws.amazon.com/redshift/latest/dg/r_names.html
+  127)
+
+(defmethod driver/insert-into! :redshift
+  [driver db-id table-name column-names values]
+  ((get-method driver/insert-into! :sql-jdbc) driver db-id table-name column-names values))
+
+(defmethod sql-jdbc.sync/current-user-table-privileges :redshift
+  [_driver conn-spec & {:as _options}]
+  ;; KNOWN LIMITATION: this won't return privileges for external tables, calling has_table_privilege on an external table
+  ;; result in an operation not supported error
+  (->> (jdbc/query
+         conn-spec
+         (str/join
+           "\n"
+           ["with table_privileges as ("
+            " select"
+            "   NULL as role,"
+            "   t.schemaname as schema,"
+            "   t.objectname as table,"
+            "   pg_catalog.has_table_privilege(current_user, '\"' || t.schemaname || '\"' || '.' || '\"' || t.objectname || '\"',  'UPDATE') as update,"
+            "   pg_catalog.has_table_privilege(current_user, '\"' || t.schemaname || '\"' || '.' || '\"' || t.objectname || '\"',  'SELECT') as select,"
+            "   pg_catalog.has_table_privilege(current_user, '\"' || t.schemaname || '\"' || '.' || '\"' || t.objectname || '\"',  'INSERT') as insert,"
+            "   pg_catalog.has_table_privilege(current_user, '\"' || t.schemaname || '\"' || '.' || '\"' || t.objectname || '\"',  'DELETE') as delete"
+            " from ("
+            "   select schemaname, tablename as objectname from pg_catalog.pg_tables"
+            "   union"
+            "   select schemaname, viewname as objectname from pg_views"
+            " ) t"
+            " where t.schemaname !~ '^pg_'"
+            "   and t.schemaname <> 'information_schema'"
+            "   and pg_catalog.has_schema_privilege(current_user, t.schemaname, 'USAGE')"
+            ")"
+            "select t.*"
+            "from table_privileges t"]))
+         (filter #(or (:select %) (:update %) (:delete %) (:update %)))))
+
+
+;;; ----------------------------------------------- Connection Impersonation ------------------------------------------
+
+(defmethod driver.sql/set-role-statement :redshift
+  [_ role]
+  (let [special-chars-pattern #"[^a-zA-Z0-9_]"
+        needs-quote           (re-find special-chars-pattern role)]
+    (if needs-quote
+      (format "SET SESSION AUTHORIZATION \"%s\";" role)
+      (format "SET SESSION AUTHORIZATION %s;" role))))
+
+(defmethod driver.sql/default-database-role :redshift
+  [_ _]
+  "DEFAULT")

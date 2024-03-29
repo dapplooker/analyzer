@@ -1,47 +1,37 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-nocheck
-import Base from "./Base";
-/**
- * @typedef { import("./Metadata").FilterClause } FilterClause
- */
+import type { Filter, NormalizedSegment } from "metabase-types/api";
 
-/**
- * Wrapper class for a segment. Belongs to a {@link Database} and possibly a {@link Table}
- */
+import type Metadata from "./Metadata";
+import type Table from "./Table";
 
-export default class Segment extends Base {
+interface Segment extends Omit<NormalizedSegment, "table"> {
+  table?: Table;
+  metadata?: Metadata;
+}
+
+class Segment {
+  private readonly _plainObject: NormalizedSegment;
+
+  constructor(segment: NormalizedSegment) {
+    this._plainObject = segment;
+    Object.assign(this, segment);
+  }
+
+  getPlainObject() {
+    return this._plainObject;
+  }
+
   displayName() {
     return this.name;
   }
 
-  /**
-   * @returns {FilterClause}
-   */
-  filterClause() {
+  filterClause(): Filter {
     return ["segment", this.id];
   }
 
   isActive() {
     return !this.archived;
   }
-
-  /**
-   * @private
-   * @param {string} name
-   * @param {string} description
-   * @param {Database} database
-   * @param {Table} table
-   * @param {number} id
-   * @param {boolean} archived
-   */
-
-  /* istanbul ignore next */
-  _constructor(name, description, database, table, id, archived) {
-    this.name = name;
-    this.description = description;
-    this.database = database;
-    this.table = table;
-    this.id = id;
-    this.archived = archived;
-  }
 }
+
+// eslint-disable-next-line import/no-default-export -- deprecated usage
+export default Segment;

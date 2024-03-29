@@ -1,6 +1,5 @@
-import React from "react";
 import TippyPopover from "metabase/components/Popover/TippyPopover";
-
+import type { LayoutRendererArgs } from "metabase/components/TokenField/TokenField";
 import type Field from "metabase-lib/metadata/Field";
 
 import {
@@ -9,17 +8,11 @@ import {
   FieldValuesWidgetContainer,
 } from "./CategoryFieldInput.styled";
 
-interface DefaultTokenFieldLayoutProps {
-  valuesList: string[];
-  optionsList: string[];
-  isFocused: boolean;
-}
-
 const DefaultTokenFieldLayout = ({
   valuesList,
   optionsList,
   isFocused,
-}: DefaultTokenFieldLayoutProps) => (
+}: LayoutRendererArgs) => (
   <TippyPopover
     visible={isFocused && !!optionsList}
     content={<OptionListContainer>{optionsList}</OptionListContainer>}
@@ -43,8 +36,6 @@ function CategoryFieldInput({
   return (
     <FieldValuesWidgetContainer>
       <StyledFieldValuesWidget
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore, typescript is very confused about the value type for this non-tsx component
         value={[String(value ?? "")]}
         fields={[field]}
         onChange={(newVals: string[]) => onChange(newVals[0])}
@@ -52,9 +43,9 @@ function CategoryFieldInput({
         autoFocus={false}
         alwaysShowOptions={false}
         disableSearch={false}
-        forceTokenField
+        disableList
         layoutRenderer={DefaultTokenFieldLayout}
-        valueRenderer={(val: string) => <span>{val}</span>}
+        valueRenderer={(val: string | number) => <span>{val}</span>}
         color="brand"
         maxWidth={null}
       />
@@ -62,4 +53,5 @@ function CategoryFieldInput({
   );
 }
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default CategoryFieldInput;

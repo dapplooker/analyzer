@@ -2,7 +2,7 @@
   (:require
    [clojure.spec.alpha :as s]
    [clojure.test.check.generators :as gen]
-   [java-time :as t]
+   [java-time.api :as t]
    [metabase.mbql.util :as mbql.u]
    [metabase.models :refer [Action Activity Card Collection Dashboard
                             DashboardCard DashboardCardSeries Database Dimension Field
@@ -13,7 +13,7 @@
    [reifyhealth.specmonstah.core :as rs]
    [reifyhealth.specmonstah.spec-gen :as rsg]
    [talltale.core :as tt]
-   [toucan.db :as db]))
+   [toucan2.core :as t2]))
 
 (set! *warn-on-reflection* true)
 
@@ -44,7 +44,6 @@
 (s/def ::not-empty-string (s/and string? not-empty #(< (count %) 10)))
 
 (s/def ::database (s/keys :req-un [::id ::engine ::name ::details]))
-(s/def ::color #{"#A00000" "#FFFFFF"})
 (s/def ::password ::not-empty-string)
 (s/def ::str? (s/or :nil nil? :string string?))
 (s/def ::topic ::not-empty-string)
@@ -150,7 +149,7 @@
 (s/def ::http-action (s/keys :req-un [::template]))
 
 (s/def ::core-user (s/keys :req-un [::id ::first_name ::last_name ::email ::password]))
-(s/def ::collection (s/keys :req-un [::id ::name ::color]))
+(s/def ::collection (s/keys :req-un [::id ::name]))
 (s/def ::activity (s/keys :req-un [::id ::topic ::details ::timestamp]))
 (s/def ::pulse (s/keys :req-un [::id ::name]))
 (s/def ::permissions-group (s/keys :req-un [::id ::name]))
@@ -323,7 +322,7 @@
 
 (def ^:private unique-name (mbql.u/unique-name-generator))
 
-(defn- unique-email [email]
+(defn- unique-email [^String email]
   (let [at (.indexOf email "@")]
     (str (unique-name (subs email 0 at))
          (subs email at))))
@@ -387,10 +386,10 @@
       (rs/visit-ents-once
        :insert! (fn [sm-db {:keys [schema-opts attrs] :as visit-opts}]
                   (try
-                    (db/insert! (:model schema-opts)
-                                (rsg/spec-gen-assoc-relations
-                                 sm-db
-                                 (assoc visit-opts :visit-val (:spec-gen attrs))))
+                    (first (t2/insert-returning-instances! (:model schema-opts)
+                                                           (rsg/spec-gen-assoc-relations
+                                                             sm-db
+                                                             (assoc visit-opts :visit-val (:spec-gen attrs)))))
                     (catch Throwable e
                       (log/error e)))))
       (rs/attr-map :insert!)))

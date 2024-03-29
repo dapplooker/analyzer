@@ -1,20 +1,20 @@
-import React from "react";
 import { connect } from "react-redux";
 import { t } from "ttag";
 import _ from "underscore";
 
-import { State } from "metabase-types/store";
-import Tables from "metabase/entities/tables";
 import {
   Description,
   EmptyDescription,
 } from "metabase/components/MetadataInfo/MetadataInfo.styled";
-import ConnectedTableList from "metabase/query_builder/components/dataref/ConnectedTableList";
+import Tables from "metabase/entities/tables";
 import SidebarContent from "metabase/query_builder/components/SidebarContent";
+import ConnectedTableList from "metabase/query_builder/components/dataref/ConnectedTableList";
 import type Table from "metabase-lib/metadata/Table";
-import TableInfoLoader from "./TableInfoLoader";
+import type { State } from "metabase-types/store";
+
 import FieldList from "./FieldList";
 import { PaneContent } from "./Pane.styled";
+import TableInfoLoader from "./TableInfoLoader";
 
 interface TablePaneProps {
   onBack: () => void;
@@ -44,7 +44,7 @@ const TablePane = ({ table, onItemClick, onBack, onClose }: TablePaneProps) => (
           )}
         </div>
         <div className="my2">
-          {table.fields.length ? (
+          {table.fields?.length ? (
             <>
               <FieldList
                 fields={table.fields}
@@ -64,6 +64,7 @@ const TablePane = ({ table, onItemClick, onBack, onClose }: TablePaneProps) => (
   </SidebarContent>
 );
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default _.compose(
   Tables.load({
     id: (_state: State, props: TablePaneProps) => props.table.id,

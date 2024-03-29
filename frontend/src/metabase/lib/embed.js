@@ -1,9 +1,9 @@
 import { push } from "react-router-redux";
 import _ from "underscore";
-import { parseSearchOptions, parseHashOptions } from "metabase/lib/browser";
+
+import { isFitViewportMode } from "metabase/hoc/FitViewPort";
 import { isWithinIframe, IFRAMED_IN_SELF } from "metabase/lib/dom";
 import { setOptions } from "metabase/redux/embed";
-import { isFitViewportMode } from "metabase/hoc/FitViewPort";
 
 // detect if this page is embedded in itself, i.e. it's a embed preview
 // will need to do something different if we ever embed metabase in itself for another reason
@@ -41,12 +41,8 @@ export function initializeEmbedding(store) {
         }
       }
     });
-    store.dispatch(
-      setOptions({
-        ...parseSearchOptions(window.location.search),
-        ...parseHashOptions(window.location.hash),
-      }),
-    );
+
+    store.dispatch(setOptions(window.location));
   }
 }
 

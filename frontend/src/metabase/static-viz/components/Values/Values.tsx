@@ -1,12 +1,10 @@
-import React from "react";
+import { scaleBand } from "@visx/scale";
+import type { AnyScaleBand, PositionScale } from "@visx/shape/lib/types";
+import type { TextProps } from "@visx/text";
+import { Fragment } from "react";
 import _ from "underscore";
 
-import { scaleBand } from "@visx/scale";
-
-import type { TextProps } from "@visx/text";
-import type { AnyScaleBand, PositionScale } from "@visx/shape/lib/types";
 import OutlinedText from "metabase/static-viz/components/Text/OutlinedText";
-import { getValueStep, getY, setY } from "../XYChart/utils";
 
 import type {
   HydratedSeries,
@@ -15,6 +13,7 @@ import type {
   VisualizationType,
   XScale,
 } from "../XYChart/types";
+import { getValueStep, getY, setY } from "../XYChart/utils";
 
 type XYAccessor<
   T extends SeriesDatum | StackedDatum = SeriesDatum | StackedDatum,
@@ -56,6 +55,7 @@ interface MultiSeriesValue extends Value {
   yScale: PositionScale;
 }
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default function Values({
   series: multipleSeries,
   formatter,
@@ -166,7 +166,7 @@ export default function Values({
             ["line", "area"] as VisualizationType[]
           ).includes(value.series.type);
           return (
-            <React.Fragment key={index}>
+            <Fragment key={index}>
               <OutlinedText
                 x={xAccessor(value.datum)}
                 y={yAccessor(value.datum)}
@@ -186,7 +186,7 @@ export default function Values({
                   cy={dataYAccessor(value.datum)}
                 />
               )}
-            </React.Fragment>
+            </Fragment>
           );
         });
       })}
@@ -277,7 +277,7 @@ function getXAccessor(
   }
 }
 
-function exhaustiveCheck(param: never): never {
+function exhaustiveCheck(_param: never): never {
   throw new Error("Should not reach here");
 }
 

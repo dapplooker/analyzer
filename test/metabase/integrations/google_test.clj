@@ -8,7 +8,8 @@
    [metabase.models.user :refer [User]]
    [metabase.public-settings.premium-features :as premium-features]
    [metabase.test :as mt]
-   [toucan.db :as db]))
+   [toucan2.core :as t2]
+   [toucan2.tools.with-temp :as t2.with-temp]))
 
 (set! *warn-on-reflection* true)
 
@@ -33,8 +34,12 @@
 
 ;;; --------------------------------------------- account autocreation -----------------------------------------------
 
+(defmacro ^:private with-no-sso-google-token [& body]
+  `(with-redefs [premium-features/enable-sso-google? (constantly false)]
+     ~@body))
+
 (deftest allow-autocreation-test
-  (with-redefs [premium-features/enable-sso? (constantly false)]
+  (with-no-sso-google-token
     (mt/with-temporary-setting-values [google-auth-auto-create-accounts-domain "metabase.com"]
       (are [allowed? email] (= allowed?
                                (#'google/autocreate-user-allowed-for-email? email))
@@ -42,14 +47,14 @@
         false "cam@expa.com"))))
 
 (deftest google-auth-auto-create-accounts-domain-test
-  (testing "multiple domains cannot be set if EE SSO is not enabled"
-    (with-redefs [premium-features/enable-sso? (constantly false)]
+  (testing "multiple domains cannot be set if EE `:sso-google` feature flag is not enabled"
+    (with-no-sso-google-token
       (is (thrown?
            clojure.lang.ExceptionInfo
            (google.i/google-auth-auto-create-accounts-domain! "metabase.com, example.com"))))))
 
 (deftest google-auth-create-new-user!-test
-  (with-redefs [premium-features/enable-sso? (constantly false)]
+  (with-no-sso-google-token
     (testing "shouldn't be allowed to create a new user via Google Auth if their email doesn't match the auto-create accounts domain"
       (mt/with-temporary-setting-values [google-auth-auto-create-accounts-domain "sf-toucannery.com"]
         (is (thrown?
@@ -69,7 +74,7 @@
               (is (= {:first_name "Rasta", :last_name "Toucan", :email "rasta@sf-toucannery.com"}
                      (select-keys user [:first_name :last_name :email]))))
             (finally
-              (db/delete! User :email "rasta@sf-toucannery.com"))))))))
+              (t2/delete! User :email "rasta@sf-toucannery.com"))))))))
 
 
 ;;; --------------------------------------------- google-auth-token-info ---------------------------------------------
@@ -127,9 +132,9 @@
 ;;; --------------------------------------- google-auth-fetch-or-create-user! ----------------------------------------
 
 (deftest google-auth-fetch-or-create-user!-test
-  (with-redefs [premium-features/enable-sso? (constantly false)]
+  (with-no-sso-google-token
     (testing "test that an existing user can log in with Google auth even if the auto-create accounts domain is different from"
-      (mt/with-temp User [_ {:email "cam@sf-toucannery.com"}]
+      (t2.with-temp/with-temp [User _ {:email "cam@sf-toucannery.com"}]
         (mt/with-temporary-setting-values [google-auth-auto-create-accounts-domain "metabase.com"]
           (testing "their account should return a UserInstance"
             (is (mi/instance-of? User
@@ -153,4 +158,16 @@
                                  (#'google/google-auth-fetch-or-create-user!
                                   "Rasta" "Toucan" "rasta@sf-toucannery.com")))
             (finally
-              (db/delete! User :email "rasta@sf-toucannery.com"))))))))
+              (t2/delete! User :email "rasta@sf-toucannery.com"))))))))
+
+(deftest google-auth-fetch-or-create-user!-updated-name-test
+  (testing "test that a exisitng user gets an updated name when calling google-auth-fetch-or-create-user!"
+    (mt/with-model-cleanup [:model/User]
+      (et/with-fake-inbox
+        (mt/with-temporary-setting-values [google-auth-auto-create-accounts-domain "sf-toucannery.com"
+                                           admin-email                             "rasta@toucans.com"]
+          (#'google/google-auth-fetch-or-create-user! "Rasta" "Toucan" "rasta@sf-toucannery.com")
+          (#'google/google-auth-fetch-or-create-user! "Basta" "Boucan" "rasta@sf-toucannery.com")
+          (let [user (t2/select-one [User :first_name :last_name] :email "rasta@sf-toucannery.com")]
+            (is (= "Basta" (:first_name user)))
+            (is (= "Boucan" (:last_name user)))))))))

@@ -1,3 +1,4 @@
+import { parseHashOptions, parseSearchOptions } from "metabase/lib/browser";
 import {
   combineReducers,
   createAction,
@@ -17,7 +18,15 @@ export const DEFAULT_EMBED_OPTIONS = {
 } as const;
 
 export const SET_OPTIONS = "metabase/embed/SET_OPTIONS";
-export const setOptions = createAction(SET_OPTIONS);
+export const setOptions = createAction(
+  SET_OPTIONS,
+  ({ search, hash }: { search: string; hash: string }) => {
+    return {
+      ...parseSearchOptions(search),
+      ...parseHashOptions(hash),
+    };
+  },
+);
 
 const options = handleActions(
   {
@@ -29,6 +38,7 @@ const options = handleActions(
   {},
 );
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default combineReducers({
   options,
 });

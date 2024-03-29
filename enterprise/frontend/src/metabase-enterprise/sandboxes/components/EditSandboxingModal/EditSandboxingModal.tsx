@@ -1,24 +1,27 @@
-import React, { useState } from "react";
-import _ from "underscore";
-import { jt, t } from "ttag";
+import type * as React from "react";
+import { useState } from "react";
 import { useAsyncFn } from "react-use";
+import { jt, t } from "ttag";
+import _ from "underscore";
 
+import ActionButton from "metabase/components/ActionButton";
+import QuestionLoader from "metabase/containers/QuestionLoader";
 import QuestionPicker from "metabase/containers/QuestionPicker";
 import Button from "metabase/core/components/Button";
-import ActionButton from "metabase/components/ActionButton";
 import Radio from "metabase/core/components/Radio";
-import Icon from "metabase/components/Icon";
-import EntityName from "metabase/entities/containers/EntityName";
-
-import QuestionLoader from "metabase/containers/QuestionLoader";
-import { GroupTableAccessPolicy, UserAttribute } from "metabase-types/api";
-import {
+import { EntityName } from "metabase/entities/containers/EntityName";
+import { GTAPApi } from "metabase/services";
+import type { IconName } from "metabase/ui";
+import { Icon } from "metabase/ui";
+import type {
   GroupTableAccessPolicyDraft,
   GroupTableAccessPolicyParams,
 } from "metabase-enterprise/sandboxes/types";
 import { getRawDataQuestionForTable } from "metabase-enterprise/sandboxes/utils";
-import { GTAPApi } from "metabase/services";
-import Question from "metabase-lib/Question";
+import * as Lib from "metabase-lib";
+import type Question from "metabase-lib/Question";
+import type { GroupTableAccessPolicy, UserAttribute } from "metabase-types/api";
+
 import AttributeMappingEditor, {
   AttributeOptionsEmptyState,
 } from "../AttributeMappingEditor";
@@ -123,9 +126,9 @@ const EditSandboxingModal = ({
           <Radio
             value={!shouldUseSavedQuestion}
             options={[
-              { name: "Filter by a column in the table", value: true },
+              { name: t`Filter by a column in the table`, value: true },
               {
-                name: "Use a saved question to create a custom view for this table",
+                name: t`Use a saved question to create a custom view for this table`,
                 value: false,
               },
             ]}
@@ -140,9 +143,8 @@ const EditSandboxingModal = ({
             <div className="pb2">
               {t`Pick a saved question that returns the custom view of this table that these users should see.`}
             </div>
-            {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment */}
-            {/* @ts-ignore */}
             <QuestionPicker
+              maxHeight={undefined}
               value={policy.card_id}
               onChange={(card_id: number) => setPolicy({ ...policy, card_id })}
             />
@@ -202,8 +204,7 @@ const EditSandboxingModal = ({
           <div className="flex align-center my2 text-error">
             {typeof error === "string"
               ? error
-              : // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-                // @ts-ignore
+              : // @ts-expect-error provide correct type for error
                 error.data.message ?? ERROR_MESSAGE}
           </div>
         )}
@@ -212,10 +213,11 @@ const EditSandboxingModal = ({
   );
 };
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default EditSandboxingModal;
 
 interface SummaryRowProps {
-  icon: string;
+  icon: IconName;
   content: React.ReactNode;
 }
 
@@ -234,12 +236,12 @@ const PolicySummary = ({ policy }: PolicySummaryProps) => {
   return (
     <div>
       <div className="px1 pb2 text-uppercase text-small text-grey-4">
-        Summary
+        {t`Summary`}
       </div>
       <SummaryRow
         icon="group"
         content={jt`Users in ${(
-          <strong>
+          <strong key="group-name">
             <EntityName entityType="groups" entityId={policy.group_id} />
           </strong>
         )} can view`}
@@ -249,7 +251,7 @@ const PolicySummary = ({ policy }: PolicySummaryProps) => {
         content={
           policy.card_id
             ? jt`rows in the ${(
-                <strong>
+                <strong key="question-name">
                   <EntityName
                     entityType="questions"
                     entityId={policy.card_id}
@@ -257,7 +259,7 @@ const PolicySummary = ({ policy }: PolicySummaryProps) => {
                 </strong>
               )} question`
             : jt`rows in the ${(
-                <strong>
+                <strong key="table-name">
                   <EntityName
                     entityType="tables"
                     entityId={policy.table_id}
@@ -271,15 +273,23 @@ const PolicySummary = ({ policy }: PolicySummaryProps) => {
         ([attribute, target], index) => (
           <SummaryRow
             key={attribute}
-            icon="funneloutline"
+            icon="funnel_outline"
             content={
               index === 0
                 ? jt`where ${(
-                    <TargetName policy={policy} target={target} />
-                  )} equals ${(<span className="text-code">{attribute}</span>)}`
+                    <TargetName key="target" policy={policy} target={target} />
+                  )} equals ${(
+                    <span key="attr" className="text-code">
+                      {attribute}
+                    </span>
+                  )}`
                 : jt`and ${(
-                    <TargetName policy={policy} target={target} />
-                  )} equals ${(<span className="text-code">{attribute}</span>)}`
+                    <TargetName key="target" policy={policy} target={target} />
+                  )} equals ${(
+                    <span key="attr" className="text-code">
+                      {attribute}
+                    </span>
+                  )}`
             }
           />
         ),
@@ -308,9 +318,8 @@ const TargetName = ({ policy, target }: TargetNameProps) => {
       const fieldRef = target[1];
 
       return (
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
         <QuestionLoader
+          questionHash={undefined}
           questionId={policy.card_id}
           questionObject={
             policy.card_id == null
@@ -323,10 +332,24 @@ const TargetName = ({ policy, target }: TargetNameProps) => {
               return null;
             }
 
-            const dimension = question.query().parseFieldReference(fieldRef);
+            const query = question.query();
+            const stageIndex = -1;
+            const columns = Lib.visibleColumns(query, stageIndex);
+            const [index] = Lib.findColumnIndexesFromLegacyRefs(
+              query,
+              stageIndex,
+              columns,
+              [fieldRef],
+            );
+            const column = columns[index];
+            if (!column) {
+              return null;
+            }
+
+            const columnInfo = Lib.displayInfo(query, stageIndex, column);
             return (
               <span>
-                <strong>{dimension?.render()}</strong> field
+                <strong>{columnInfo.displayName}</strong> field
               </span>
             );
           }}

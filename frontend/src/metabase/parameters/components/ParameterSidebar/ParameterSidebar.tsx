@@ -1,17 +1,22 @@
-import React, { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { t } from "ttag";
+
 import Radio from "metabase/core/components/Radio";
-import Sidebar from "metabase/dashboard/components/Sidebar";
-import {
+import { Sidebar } from "metabase/dashboard/components/Sidebar";
+import { slugify } from "metabase/lib/formatting";
+import type { EmbeddingParameterVisibility } from "metabase/public/lib/types";
+import type {
   Parameter,
   ParameterId,
   ValuesQueryType,
   ValuesSourceConfig,
   ValuesSourceType,
 } from "metabase-types/api";
+
 import { canUseLinkedFilters } from "../../utils/linked-filters";
-import ParameterSettings from "../ParameterSettings";
 import ParameterLinkedFilters from "../ParameterLinkedFilters";
+import { ParameterSettings } from "../ParameterSettings";
+
 import { SidebarBody, SidebarHeader } from "./ParameterSidebar.styled";
 
 export interface ParameterSidebarProps {
@@ -39,12 +44,16 @@ export interface ParameterSidebarProps {
     parameterId: ParameterId,
     filteringParameters: string[],
   ) => void;
+  onChangeRequired: (parameterId: ParameterId, value: boolean) => void;
   onRemoveParameter: (parameterId: ParameterId) => void;
   onShowAddParameterPopover: () => void;
   onClose: () => void;
+  getEmbeddedParameterVisibility: (
+    slug: string,
+  ) => EmbeddingParameterVisibility | null;
 }
 
-const ParameterSidebar = ({
+export const ParameterSidebar = ({
   parameter,
   otherParameters,
   onChangeName,
@@ -54,9 +63,11 @@ const ParameterSidebar = ({
   onChangeSourceType,
   onChangeSourceConfig,
   onChangeFilteringParameters,
+  onChangeRequired,
   onRemoveParameter,
   onShowAddParameterPopover,
   onClose,
+  getEmbeddedParameterVisibility,
 }: ParameterSidebarProps): JSX.Element => {
   const parameterId = parameter.id;
   const tabs = useMemo(() => getTabs(parameter), [parameter]);
@@ -116,8 +127,17 @@ const ParameterSidebar = ({
     onClose();
   }, [parameterId, onRemoveParameter, onClose]);
 
+  const isParameterSlugUsed = useCallback(
+    (value: string) =>
+      otherParameters.some(parameter => parameter.slug === slugify(value)),
+    [otherParameters],
+  );
+
+  const handleChangeRequired = (value: boolean) =>
+    onChangeRequired(parameterId, value);
+
   return (
-    <Sidebar onClose={onClose}>
+    <Sidebar onClose={onClose} onRemove={handleRemove}>
       <SidebarHeader>
         <Radio
           value={tab}
@@ -130,13 +150,17 @@ const ParameterSidebar = ({
         {tab === "settings" ? (
           <ParameterSettings
             parameter={parameter}
+            embeddedParameterVisibility={getEmbeddedParameterVisibility(
+              parameter.slug,
+            )}
+            isParameterSlugUsed={isParameterSlugUsed}
             onChangeName={handleNameChange}
             onChangeDefaultValue={handleDefaultValueChange}
             onChangeIsMultiSelect={handleIsMultiSelectChange}
             onChangeQueryType={handleQueryTypeChange}
             onChangeSourceType={handleSourceTypeChange}
             onChangeSourceConfig={handleSourceConfigChange}
-            onRemoveParameter={handleRemove}
+            onChangeRequired={handleChangeRequired}
           />
         ) : (
           <ParameterLinkedFilters
@@ -160,5 +184,3 @@ const getTabs = (parameter: Parameter) => {
 
   return tabs;
 };
-
-export default ParameterSidebar;

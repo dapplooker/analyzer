@@ -1,6 +1,7 @@
 import { filterWidget, openNativeEditor, restore } from "e2e/support/helpers";
-import * as SQLFilter from "../helpers/e2e-sql-filter-helpers";
+
 import * as FieldFilter from "../helpers/e2e-field-filter-helpers";
+import * as SQLFilter from "../helpers/e2e-sql-filter-helpers";
 
 const SQL_QUERY = "SELECT * FROM PRODUCTS WHERE {{f1}} AND {{f2}}";
 
@@ -28,6 +29,7 @@ describe("issue 29786", { tags: "@external" }, () => {
     FieldFilter.addWidgetStringFilter("Von-Gulgowski");
 
     SQLFilter.runQuery();
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("1087115303928").should("be.visible");
   });
 });

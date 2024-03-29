@@ -1,3 +1,5 @@
+import { SAMPLE_DB_ID, USER_GROUPS } from "e2e/support/cypress_data";
+import { SAMPLE_DATABASE } from "e2e/support/cypress_sample_database";
 import {
   describeEE,
   modal,
@@ -11,11 +13,11 @@ import {
   visitEmbeddedPage,
   visitPublicQuestion,
   visitQuestion,
+  setTokenFeatures,
 } from "e2e/support/helpers";
-import { SAMPLE_DB_ID, USER_GROUPS } from "e2e/support/cypress_data";
-import { SAMPLE_DATABASE } from "e2e/support/cypress_sample_database";
-import * as SQLFilter from "./helpers/e2e-sql-filter-helpers";
+
 import * as FieldFilter from "./helpers/e2e-field-filter-helpers";
+import * as SQLFilter from "./helpers/e2e-sql-filter-helpers";
 
 const { PRODUCTS_ID, PRODUCTS } = SAMPLE_DATABASE;
 const { COLLECTION_GROUP } = USER_GROUPS;
@@ -90,6 +92,7 @@ describe("scenarios > filters > sql filters > values source", () => {
       FieldFilter.selectFilterValueFromList("Gadget", { addFilter: false });
       FieldFilter.selectFilterValueFromList("Gizmo");
       SQLFilter.runQuery("cardQuery");
+      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
       cy.findByText("Showing 51 rows").should("exist");
 
       SQLFilter.toggleRequired();
@@ -223,6 +226,7 @@ describe("scenarios > filters > sql filters > values source", () => {
       SQLFilter.openTypePickerFromDefaultFilterType();
       SQLFilter.chooseType("Field Filter");
       FieldFilter.mapTo({ table: "Products", field: "Ean" });
+      FieldFilter.setWidgetType("String");
       setFilterQuestionSource({ question: "SQL source", field: "EAN" });
       saveQuestion("SQL filter");
 
@@ -304,6 +308,7 @@ describe("scenarios > filters > sql filters > values source", () => {
       SQLFilter.openTypePickerFromDefaultFilterType();
       SQLFilter.chooseType("Field Filter");
       FieldFilter.mapTo({ table: "Products", field: "Ean" });
+      FieldFilter.setWidgetType("String");
       setFilterListSource({ values: ["1018947080336", "7663515285824"] });
       saveQuestion("SQL filter");
 
@@ -343,6 +348,7 @@ describeEE("scenarios > filters > sql filters > values source", () => {
   beforeEach(() => {
     restore();
     cy.signInAsAdmin();
+    setTokenFeatures("all");
     cy.intercept("POST", "/api/dataset/parameter/values").as("parameterValues");
     cy.intercept("GET", "/api/card/*/params/*/values").as(
       "cardParameterValues",
@@ -381,6 +387,7 @@ describeEE("scenarios > filters > sql filters > values source", () => {
     checkFilterValueNotInList("Doohickey");
     FieldFilter.selectFilterValueFromList("Gizmo");
 
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Open Editor").click();
     cy.icon("variable").click();
     FieldFilter.openEntryForm(true);

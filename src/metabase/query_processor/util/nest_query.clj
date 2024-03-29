@@ -9,9 +9,12 @@
    [clojure.walk :as walk]
    [medley.core :as m]
    [metabase.api.common :as api]
+   [metabase.lib.metadata :as lib.metadata]
    [metabase.mbql.util :as mbql.u]
    [metabase.plugins.classloader :as classloader]
    [metabase.query-processor.middleware.annotate :as annotate]
+   [metabase.query-processor.middleware.resolve-joins
+    :as qp.middleware.resolve-joins]
    [metabase.query-processor.store :as qp.store]
    [metabase.query-processor.util.add-alias-info :as add]
    [metabase.util :as u]))
@@ -27,23 +30,21 @@
      [:field _ (_ :guard :join-alias)]
      &match)))
 
-(defn- add-joined-fields-to-fields [joined-fields source]
-  (cond-> source
-    (seq joined-fields) (update :fields (fn [fields]
-                                          (m/distinct-by add/normalize-clause (concat fields joined-fields))))))
-
 (defn- keep-source+alias-props [field]
   (update field 2 select-keys [::add/source-alias ::add/source-table :join-alias]))
 
 (defn- nfc-root [[_ field-id]]
-  (when-let [field (and (int? field-id) (qp.store/field field-id))]
-    (when-let [nfc-root (first (:nfc_path field))]
-      {:table_id (:table_id field)
+  (when-let [field (and (int? field-id)
+                        (lib.metadata/field (qp.store/metadata-provider) field-id))]
+    (when-let [nfc-root (first (:nfc-path field))]
+      {:table_id (:table-id field)
        :name nfc-root})))
 
 (defn- field-id-props [[_ field-id]]
-  (when-let [field (and (int? field-id) (qp.store/field field-id))]
-    (select-keys field [:table_id :name])))
+  (when-let [field (and (int? field-id)
+                        (lib.metadata/field (qp.store/metadata-provider) field-id))]
+    {:table_id (:table-id field)
+     :name     (:name field)}))
 
 (defn- remove-unused-fields [inner-query source]
   (let [used-fields (-> #{}
@@ -64,13 +65,14 @@
                  ;; here in the first place we already had to do perms checks to make sure the query we're transforming
                  ;; is itself ok, so we don't need to run another check
                  (binding [api/*current-user-id* nil]
-                   ((resolve 'metabase.query-processor/preprocess) {:database (u/the-id (qp.store/database))
-                                                                    :type     :query
-                                                                    :query    source}))
+                   ((resolve 'metabase.query-processor/preprocess)
+                    {:database (u/the-id (lib.metadata/database (qp.store/metadata-provider)))
+                     :type     :query
+                     :query    source}))
                  (add/add-alias-info source)
                  (:query source)
                  (dissoc source :limit)
-                 (add-joined-fields-to-fields (joined-fields inner-query) source)
+                 (qp.middleware.resolve-joins/append-join-fields-to-fields source (joined-fields inner-query))
                  (remove-unused-fields inner-query source)
                  (cond-> source
                    keep-filter? (assoc :filter filter-clause)))]
@@ -87,10 +89,14 @@
         {base-type :base_type}       (some-> expression-definition annotate/infer-expression-type)
         {::add/keys [desired-alias]} (mbql.u/match-one source-query
                                        [:expression (_ :guard (partial = expression-name)) source-opts]
-                                       source-opts)]
+                                       source-opts)
+        source-alias                 (or desired-alias expression-name)]
     [:field
-     (or desired-alias expression-name)
-     (assoc opts :base-type (or base-type :type/*))]))
+     source-alias
+     (-> opts
+         (assoc :base-type          (or base-type :type/*)
+                ::add/source-table  ::add/source
+                ::add/source-alias  source-alias))]))
 
 (defn- rewrite-fields-and-expressions [query]
   (mbql.u/replace query
@@ -102,10 +108,10 @@
     :expression
     (raise-source-query-expression-ref query &match)
 
-    ;; mark all Fields at the new top level as `::outer-select` so QP implementations know not to apply coercion or
+    ;; mark all Fields at the new top level as `:qp/ignore-coercion` so QP implementations know not to apply coercion or
     ;; whatever to them a second time.
-    [:field _id-or-name (_opts :guard (every-pred :temporal-unit (complement ::outer-select)))]
-    (recur (mbql.u/update-field-options &match assoc ::outer-select true))
+    [:field _id-or-name (_opts :guard (every-pred :temporal-unit (complement :qp/ignore-coercion)))]
+    (recur (mbql.u/update-field-options &match assoc :qp/ignore-coercion true))
 
     [:field id-or-name (opts :guard :join-alias)]
     (let [{::add/keys [desired-alias]} (mbql.u/match-one (:source-query query)

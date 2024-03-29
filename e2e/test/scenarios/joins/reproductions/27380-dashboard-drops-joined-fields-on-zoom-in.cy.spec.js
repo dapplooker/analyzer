@@ -1,5 +1,5 @@
-import { restore, visitDashboard } from "e2e/support/helpers";
 import { SAMPLE_DATABASE } from "e2e/support/cypress_sample_database";
+import { restore, visitDashboard } from "e2e/support/helpers";
 
 const { ORDERS, ORDERS_ID, PRODUCTS } = SAMPLE_DATABASE;
 
@@ -34,7 +34,8 @@ describe("issue 27380", () => {
 
     // Doesn't really matter which 'circle" we click on the graph
     cy.get("circle").last().realClick();
-    cy.findByText("Zoom in").click();
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
+    cy.findByText("See this month by week").click();
     cy.wait("@dataset");
 
     // Graph should still exist
@@ -42,7 +43,9 @@ describe("issue 27380", () => {
     cy.get(".y-axis-label").invoke("text").should("eq", "Count");
 
     cy.icon("notebook").click();
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Pick a column to group by").should("not.exist");
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Product → Created At: Week");
   });
 });

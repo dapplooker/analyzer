@@ -1,7 +1,9 @@
-import React, { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { t } from "ttag";
-import Icon from "metabase/components/Icon";
+
 import Tooltip from "metabase/core/components/Tooltip";
+import { Icon } from "metabase/ui";
+
 import {
   CodeContainer,
   CodeCopyButton,
@@ -56,4 +58,5 @@ const useCopyButton = (value: string) => {
   return { isCopied, handleCopy };
 };
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default NativeCodePanel;

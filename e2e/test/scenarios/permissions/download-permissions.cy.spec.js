@@ -1,3 +1,9 @@
+import { SAMPLE_DB_ID, USER_GROUPS } from "e2e/support/cypress_data";
+import { SAMPLE_DATABASE } from "e2e/support/cypress_sample_database";
+import {
+  ORDERS_DASHBOARD_ID,
+  ORDERS_QUESTION_ID,
+} from "e2e/support/cypress_sample_instance_data";
 import {
   restore,
   modal,
@@ -9,11 +15,9 @@ import {
   sidebar,
   visitQuestion,
   visitDashboard,
+  popover,
+  setTokenFeatures,
 } from "e2e/support/helpers";
-
-import { SAMPLE_DATABASE } from "e2e/support/cypress_sample_database";
-
-import { SAMPLE_DB_ID, USER_GROUPS } from "e2e/support/cypress_data";
 
 const { ALL_USERS_GROUP } = USER_GROUPS;
 
@@ -35,6 +39,7 @@ describeEE("scenarios > admin > permissions > data > downloads", () => {
   beforeEach(() => {
     restore();
     cy.signInAsAdmin();
+    setTokenFeatures("all");
   });
 
   it("setting downloads permission UI flow should work", () => {
@@ -95,8 +100,9 @@ describeEE("scenarios > admin > permissions > data > downloads", () => {
     // They both have restricted downloads so this user shouldn't have the right to download anything.
     cy.signIn("normal");
 
-    visitQuestion("1");
+    visitQuestion(ORDERS_QUESTION_ID);
 
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Showing first 2,000 rows");
     cy.icon("download").should("not.exist");
   });
@@ -113,22 +119,26 @@ describeEE("scenarios > admin > permissions > data > downloads", () => {
 
     cy.signInAsNormalUser();
 
-    visitQuestion("1");
+    visitQuestion(ORDERS_QUESTION_ID);
 
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Showing first 2,000 rows");
     cy.icon("download").should("not.exist");
 
-    visitDashboard("1");
+    visitDashboard(ORDERS_DASHBOARD_ID);
 
     cy.findByTestId("dashcard").within(() => {
       cy.findByTestId("legend-caption").realHover();
-      cy.icon("ellipsis").should("not.exist");
+      cy.findByTestId("dashcard-menu").click();
+    });
+
+    popover().within(() => {
+      cy.findByText("Edit question").should("be.visible");
+      cy.findByText("Download results").should("not.exist");
     });
   });
 
   it("limits users from downloading all results", () => {
-    const questionId = 1;
-
     // Restrict downloads for All Users
     cy.updatePermissionsGraph({
       [ALL_USERS_GROUP]: {
@@ -139,12 +149,10 @@ describeEE("scenarios > admin > permissions > data > downloads", () => {
     });
 
     cy.signInAsNormalUser();
-    visitQuestion(questionId);
-
-    cy.icon("download").click();
+    visitQuestion(ORDERS_QUESTION_ID);
 
     downloadAndAssert(
-      { fileType: "xlsx", questionId },
+      { fileType: "xlsx", questionId: ORDERS_QUESTION_ID },
       assertSheetRowsCount(10000),
     );
   });
@@ -170,14 +178,10 @@ describeEE("scenarios > admin > permissions > data > downloads", () => {
       cy.get("@nativeQuestionId").then(id => {
         visitQuestion(id);
 
-        cy.icon("download").click();
-
         downloadAndAssert(
           { fileType: "xlsx", questionId: id },
           assertSheetRowsCount(18760),
         );
-
-        cy.icon("download").click();
 
         // Make sure we can download results from an ad-hoc nested query based on a native question
         cy.findByText("Explore results").click();
@@ -189,8 +193,6 @@ describeEE("scenarios > admin > permissions > data > downloads", () => {
         cy.request("PUT", `/api/card/${id}`, { name: "Native Model" });
 
         visitQuestion(id);
-
-        cy.icon("download").click();
 
         downloadAndAssert(
           { fileType: "xlsx", questionId: id },
@@ -235,8 +237,6 @@ describeEE("scenarios > admin > permissions > data > downloads", () => {
       cy.get("@nativeQuestionId").then(id => {
         visitQuestion(id);
 
-        cy.icon("download").click();
-
         downloadAndAssert(
           { fileType: "xlsx", questionId: id },
           assertSheetRowsCount(10000),
@@ -246,16 +246,12 @@ describeEE("scenarios > admin > permissions > data > downloads", () => {
         cy.findByText("Explore results").click();
         cy.wait("@dataset");
 
-        cy.icon("download").click();
-
         downloadAndAssert({ fileType: "xlsx" }, assertSheetRowsCount(10000));
 
         // Convert question to a model, which should also have a download row limit
         cy.request("PUT", `/api/card/${id}`, { name: "Native Model" });
 
         visitQuestion(id);
-
-        cy.icon("download").click();
 
         downloadAndAssert(
           { fileType: "xlsx", questionId: id },

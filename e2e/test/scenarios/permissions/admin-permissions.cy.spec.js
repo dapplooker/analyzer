@@ -1,3 +1,9 @@
+import { SAMPLE_DB_ID, USER_GROUPS } from "e2e/support/cypress_data";
+import { SAMPLE_DATABASE } from "e2e/support/cypress_sample_database";
+import {
+  ORDERS_QUESTION_ID,
+  ORDERS_DASHBOARD_ID,
+} from "e2e/support/cypress_sample_instance_data";
 import {
   restore,
   popover,
@@ -13,10 +19,8 @@ import {
   visitQuestion,
   visitDashboard,
   selectPermissionRow,
+  setTokenFeatures,
 } from "e2e/support/helpers";
-
-import { SAMPLE_DB_ID, USER_GROUPS } from "e2e/support/cypress_data";
-import { SAMPLE_DATABASE } from "e2e/support/cypress_sample_database";
 
 const { ORDERS_ID } = SAMPLE_DATABASE;
 
@@ -65,11 +69,15 @@ describe("scenarios > admin > permissions", { tags: "@OSS" }, () => {
     cy.intercept("PUT", "/api/permissions/graph", req => {
       req.reply(500, "Server error");
     });
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.contains("Save changes").click();
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.contains("button", "Yes").click();
 
     // see error modal
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.contains("Server error");
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.contains("There was an error saving");
   });
 
@@ -95,9 +103,9 @@ describe("scenarios > admin > permissions", { tags: "@OSS" }, () => {
       cy.get("label").contains("Data").click();
 
       modal().within(() => {
-        cy.findByText("Discard your unsaved changes?");
+        cy.findByText("Discard your changes?");
         cy.findByText(
-          "If you leave this page now, your changes won't be saved.",
+          "Your changes haven't been saved, so you'll lose them if you navigate away.",
         );
 
         cy.button("Cancel").click();
@@ -108,9 +116,7 @@ describe("scenarios > admin > permissions", { tags: "@OSS" }, () => {
       // Switching to data permissions page again
       cy.get("label").contains("Data").click();
 
-      modal().within(() => {
-        cy.button("Discard changes").click();
-      });
+      modal().button("Discard changes").click();
 
       cy.url().should("include", "/admin/permissions/data/group");
     });
@@ -192,6 +198,7 @@ describe("scenarios > admin > permissions", { tags: "@OSS" }, () => {
         cy.button("Yes").click();
       });
 
+      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
       cy.findByText("Save changes").should("not.exist");
 
       assertPermissionTable([
@@ -283,6 +290,7 @@ describe("scenarios > admin > permissions", { tags: "@OSS" }, () => {
         "Unrestricted",
       );
 
+      // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
       cy.findByText("You've made changes to permissions.");
 
       // Switching to databases focus should not show any warnings
@@ -295,9 +303,9 @@ describe("scenarios > admin > permissions", { tags: "@OSS" }, () => {
       cy.get("label").contains("Collection").click();
 
       modal().within(() => {
-        cy.findByText("Discard your unsaved changes?");
+        cy.findByText("Discard your changes?");
         cy.findByText(
-          "If you leave this page now, your changes won't be saved.",
+          "Your changes haven't been saved, so you'll lose them if you navigate away.",
         );
 
         cy.button("Cancel").click();
@@ -308,9 +316,7 @@ describe("scenarios > admin > permissions", { tags: "@OSS" }, () => {
       // Switching to collection permissions page again
       cy.get("label").contains("Collection").click();
 
-      modal().within(() => {
-        cy.button("Discard changes").click();
-      });
+      modal().button("Discard changes").click();
 
       cy.url().should("include", "/admin/permissions/collections");
     });
@@ -320,6 +326,7 @@ describe("scenarios > admin > permissions", { tags: "@OSS" }, () => {
         cy.visit("/admin/permissions");
 
         // no groups selected initially and it shows an empty state
+        // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
         cy.findByText("Select a group to see its data permissions");
 
         const groups = [
@@ -359,7 +366,9 @@ describe("scenarios > admin > permissions", { tags: "@OSS" }, () => {
           `/admin/permissions/data/group/${ADMIN_GROUP}`,
         );
 
+        // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
         cy.findByText("Permissions for the Administrators group");
+        // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
         cy.findByText("1 person");
 
         assertPermissionTable([["Sample Database", "Unrestricted", "Yes"]]);
@@ -407,7 +416,7 @@ describe("scenarios > admin > permissions", { tags: "@OSS" }, () => {
         );
 
         modal().within(() => {
-          cy.findByText("Change access to this database to limited?");
+          cy.findByText("Change access to this database to granular?");
           cy.button("Change").click();
         });
 
@@ -467,6 +476,7 @@ describe("scenarios > admin > permissions", { tags: "@OSS" }, () => {
           cy.button("Yes").click();
         });
 
+        // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
         cy.findByText("Save changes").should("not.exist");
 
         assertPermissionTable([
@@ -479,6 +489,42 @@ describe("scenarios > admin > permissions", { tags: "@OSS" }, () => {
           ["Products", "Unrestricted", "Yes"],
           ["Reviews", "Unrestricted", "Yes"],
         ]);
+
+        // After saving permissions, user should be able to make further edits without refreshing the page
+        // metabase#37811
+        selectSidebarItem("data");
+
+        modifyPermission(
+          "Sample Database",
+          NATIVE_QUERIES_PERMISSION_INDEX,
+          "No",
+        );
+
+        cy.button("Refresh the page").should("not.exist");
+      });
+
+      it("should show a modal when a revision changes while an admin is editing", () => {
+        cy.intercept("/api/permissions/graph/group/1").as("graph");
+        cy.visit("/admin/permissions");
+
+        selectSidebarItem("collection");
+
+        modifyPermission(
+          "Sample Database",
+          DATA_ACCESS_PERMISSION_INDEX,
+          "Unrestricted",
+        );
+
+        cy.get("@graph").then(data => {
+          cy.request("PUT", "/api/permissions/graph", {
+            groups: {},
+            revision: data.response.body.revision,
+          }).then(() => {
+            selectSidebarItem("data");
+
+            modal().findByText("Someone just changed permissions");
+          });
+        });
       });
     });
 
@@ -488,6 +534,7 @@ describe("scenarios > admin > permissions", { tags: "@OSS" }, () => {
 
         cy.get("label").contains("Databases").click();
 
+        // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
         cy.findByText("Select a database to see group permissions");
 
         selectSidebarItem("Sample Database");
@@ -519,7 +566,7 @@ describe("scenarios > admin > permissions", { tags: "@OSS" }, () => {
         );
 
         modal().within(() => {
-          cy.findByText("Change access to this database to limited?");
+          cy.findByText("Change access to this database to granular?");
           cy.button("Change").click();
         });
 
@@ -573,6 +620,7 @@ describe("scenarios > admin > permissions", { tags: "@OSS" }, () => {
           cy.button("Yes").click();
         });
 
+        // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
         cy.findByText("Save changes").should("not.exist");
 
         assertPermissionTable([
@@ -584,6 +632,30 @@ describe("scenarios > admin > permissions", { tags: "@OSS" }, () => {
           ["readonly", "Unrestricted", "Yes"],
         ]);
       });
+      it("should show a modal when a revision changes while an admin is editing", () => {
+        cy.intercept("/api/permissions/graph/group/1").as("graph");
+        cy.visit("/admin/permissions/");
+
+        selectSidebarItem("collection");
+
+        modifyPermission(
+          "Sample Database",
+          DATA_ACCESS_PERMISSION_INDEX,
+          "Unrestricted",
+        );
+
+        cy.get("@graph").then(data => {
+          cy.request("PUT", "/api/permissions/graph", {
+            groups: {},
+            revision: data.response.body.revision,
+          }).then(() => {
+            cy.get("label").contains("Databases").click();
+            selectSidebarItem("Sample Database");
+
+            modal().findByText("Someone just changed permissions");
+          });
+        });
+      });
     });
   });
 });
@@ -592,6 +664,7 @@ describeEE("scenarios > admin > permissions", () => {
   beforeEach(() => {
     restore();
     cy.signInAsAdmin();
+    setTokenFeatures("all");
   });
 
   it("allows editing sandboxed access in the database focused view", () => {
@@ -602,7 +675,7 @@ describeEE("scenarios > admin > permissions", () => {
     modifyPermission("All Users", DATA_ACCESS_PERMISSION_INDEX, "Sandboxed");
 
     modal().within(() => {
-      cy.findByText("Change access to this database to limited?");
+      cy.findByText("Change access to this database to granular?");
       cy.button("Change").click();
     });
 
@@ -610,13 +683,18 @@ describeEE("scenarios > admin > permissions", () => {
       "include",
       `/admin/permissions/data/database/${SAMPLE_DB_ID}/schema/PUBLIC/table/${ORDERS_ID}/segmented/group/${ALL_USERS_GROUP}`,
     );
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Grant sandboxed access to this table");
     cy.button("Save").should("be.disabled");
 
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Pick a column").click();
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("User ID").click();
 
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Pick a user attribute").click();
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("attr_uid").click();
     cy.button("Save").click();
 
@@ -639,9 +717,11 @@ describeEE("scenarios > admin > permissions", () => {
       "include",
       `/admin/permissions/data/database/${SAMPLE_DB_ID}/schema/PUBLIC/table/${ORDERS_ID}/segmented/group/${ALL_USERS_GROUP}`,
     );
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Grant sandboxed access to this table");
 
     cy.button("Save").click();
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Grant sandboxed access to this table").should("not.exist");
 
     cy.button("Save changes").click();
@@ -656,9 +736,102 @@ describeEE("scenarios > admin > permissions", () => {
     ]);
   });
 
+  it("allows editing sandboxed access in the group focused view", () => {
+    cy.intercept("PUT", "/api/permissions/graph").as("saveGraph");
+    cy.visit(
+      `/admin/permissions/data/group/${ALL_USERS_GROUP}/database/${SAMPLE_DB_ID}`,
+    );
+
+    modifyPermission("Orders", DATA_ACCESS_PERMISSION_INDEX, "Sandboxed");
+
+    modal().within(() => {
+      cy.findByText("Change access to this database to granular?");
+      cy.button("Change").click();
+    });
+
+    cy.url().should(
+      "include",
+      `/admin/permissions/data/group/${ALL_USERS_GROUP}/database/${SAMPLE_DB_ID}/schema/PUBLIC/${ORDERS_ID}/segmented`,
+    );
+    modal().within(() => {
+      cy.findByText("Grant sandboxed access to this table");
+      cy.button("Save").should("be.disabled");
+      cy.findByText("Pick a column").click();
+    });
+
+    popover().findByText("User ID").click();
+    modal().findByText("Pick a user attribute").click();
+    popover().findByText("attr_uid").click();
+    modal().button("Save").click();
+
+    assertPermissionTable([
+      ["Accounts", "No self-service", "No", "1 million rows", "No"],
+      ["Analytic Events", "No self-service", "No", "1 million rows", "No"],
+      ["Feedback", "No self-service", "No", "1 million rows", "No"],
+      ["Invoices", "No self-service", "No", "1 million rows", "No"],
+      ["Orders", "Sandboxed", "No", "1 million rows", "No"],
+      ["People", "No self-service", "No", "1 million rows", "No"],
+      ["Products", "No self-service", "No", "1 million rows", "No"],
+      ["Reviews", "No self-service", "No", "1 million rows", "No"],
+    ]);
+
+    modifyPermission(
+      "Orders",
+      DATA_ACCESS_PERMISSION_INDEX,
+      "Edit sandboxed access",
+    );
+
+    cy.url().should(
+      "include",
+      `/admin/permissions/data/group/${ALL_USERS_GROUP}/database/${SAMPLE_DB_ID}/schema/PUBLIC/${ORDERS_ID}/segmented`,
+    );
+
+    modal().findByText("Grant sandboxed access to this table");
+
+    cy.button("Save").click();
+
+    modal().should("not.exist");
+
+    cy.url().should(
+      "include",
+      `/admin/permissions/data/group/${ALL_USERS_GROUP}/database/${SAMPLE_DB_ID}/schema/PUBLIC`,
+    );
+
+    cy.button("Save changes").click();
+
+    modal().within(() => {
+      cy.findByText("Save permissions?").should("exist");
+      cy.contains(
+        "All Users will be given access to 1 table in Sample Database",
+      ).should("exist");
+      cy.button("Yes").click();
+    });
+
+    cy.wait("@saveGraph");
+
+    // assertions that specifically targets metabase#37774. Should be able to reload with the schema in the URL and not error
+    cy.url().should(
+      "include",
+      `/admin/permissions/data/group/${ALL_USERS_GROUP}/database/${SAMPLE_DB_ID}/schema/PUBLIC`,
+    );
+    cy.reload();
+
+    assertPermissionTable([
+      ["Accounts", "No self-service", "No", "1 million rows", "No"],
+      ["Analytic Events", "No self-service", "No", "1 million rows", "No"],
+      ["Feedback", "No self-service", "No", "1 million rows", "No"],
+      ["Invoices", "No self-service", "No", "1 million rows", "No"],
+      ["Orders", "Sandboxed", "No", "1 million rows", "No"],
+      ["People", "No self-service", "No", "1 million rows", "No"],
+      ["Products", "No self-service", "No", "1 million rows", "No"],
+      ["Reviews", "No self-service", "No", "1 million rows", "No"],
+    ]);
+  });
+
   it("'block' data permission should not have editable 'native query editing' option (metabase#17738)", () => {
     cy.visit(`/admin/permissions/data/database/${SAMPLE_DB_ID}`);
 
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("All Users")
       .closest("tr")
       .as("allUsersRow")
@@ -689,10 +862,12 @@ describeEE("scenarios > admin > permissions", () => {
     });
 
     cy.signIn("nodata");
-    visitQuestion(1);
+    visitQuestion(ORDERS_QUESTION_ID);
 
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("There was a problem with your question");
     cy.findByTestId("viz-settings-button").should("not.exist");
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Visualization").should("not.exist");
   });
 
@@ -706,8 +881,55 @@ describeEE("scenarios > admin > permissions", () => {
     });
 
     cy.signIn("nodata");
-    visitDashboard(1);
+    visitDashboard(ORDERS_DASHBOARD_ID);
 
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Sorry, you don't have permission to see this card.");
+  });
+});
+
+describe("scenarios > admin > permissions", () => {
+  beforeEach(() => {
+    restore();
+    cy.signInAsAdmin();
+  });
+
+  it("shows permissions help", () => {
+    cy.visit("/admin/permissions");
+
+    // Data permissions
+    cy.get("main").within(() => {
+      cy.findByText("Permission help").as("permissionHelpButton").click();
+      cy.get("@permissionHelpButton").should("not.exist");
+    });
+
+    cy.findByLabelText("Permissions help reference")
+      .as("permissionsHelpContent")
+      .within(() => {
+        cy.findByText("Data permissions");
+        cy.findByText("Unrestricted");
+        cy.findByText("Impersonated (Pro)");
+        cy.findByLabelText("Close").click();
+      });
+
+    cy.get("main").within(() => {
+      cy.findByText("Collections").click();
+      cy.get("@permissionHelpButton").click();
+    });
+
+    // Collection permissions
+    cy.get("@permissionsHelpContent").within(() => {
+      cy.findByText("Collection permissions");
+      cy.findByText("Collections Permission Levels");
+    });
+
+    // The help reference keeps being open when switching tabs
+    cy.get("main").within(() => {
+      cy.findByText("Data").click();
+    });
+
+    cy.get("@permissionsHelpContent").within(() => {
+      cy.findByText("Data permissions");
+    });
   });
 });

@@ -1,43 +1,71 @@
 import * as A from "./aggregation";
 import * as B from "./breakout";
-import * as F from "./filter";
-import * as J from "./join";
-import * as L from "./limit";
-import * as O from "./order-by";
 import * as E from "./expression";
 import * as FIELD from "./field";
 import * as FIELD_REF from "./field-ref";
+import * as F from "./filter";
+import * as J from "./join";
+import * as O from "./order-by";
 
 // AGGREGATION
-
+/**
+ * @deprecated use MLv2
+ */
 export const getAggregations = query => A.getAggregations(query.aggregation);
+
+/**
+ * @deprecated use MLv2
+ */
 export const addAggregation = (query, aggregation) =>
   setAggregationClause(query, A.addAggregation(query.aggregation, aggregation));
+
+/**
+ * @deprecated use MLv2
+ */
 export const updateAggregation = (query, index, aggregation) =>
   setAggregationClause(
     query,
     A.updateAggregation(query.aggregation, index, aggregation),
   );
+
+/**
+ * @deprecated use MLv2
+ */
 export const removeAggregation = (query, index) =>
   setAggregationClause(query, A.removeAggregation(query.aggregation, index));
-export const clearAggregations = query =>
-  setAggregationClause(query, A.clearAggregations(query.aggregation));
 
+/**
+ * @deprecated use MLv2
+ */
 export const isBareRows = query => A.isBareRows(query.aggregation);
-export const hasEmptyAggregation = query =>
-  A.hasEmptyAggregation(query.aggregation);
-export const hasValidAggregation = query =>
-  A.hasValidAggregation(query.aggregation);
 
 // BREAKOUT
-
+/**
+ * @deprecated use MLv2
+ */
 export const getBreakouts = query => B.getBreakouts(query.breakout);
+
+/**
+ * @deprecated use MLv2
+ */
 export const addBreakout = (query, breakout) =>
   setBreakoutClause(query, B.addBreakout(query.breakout, breakout));
+
+/**
+ * @deprecated use MLv2
+ */
 export const updateBreakout = (query, index, breakout) =>
   setBreakoutClause(query, B.updateBreakout(query.breakout, index, breakout));
+
+/**
+ * @deprecated use MLv2
+ */
 export const removeBreakout = (query, index) =>
   setBreakoutClause(query, B.removeBreakout(query.breakout, index));
+
+/**
+ * @deprecated use MLv2
+ */
 export const clearBreakouts = query =>
   setBreakoutClause(query, B.clearBreakouts(query.breakout));
 
@@ -50,12 +78,10 @@ export const updateFilter = (query, index, filter) =>
   setFilterClause(query, F.updateFilter(query.filter, index, filter));
 export const removeFilter = (query, index) =>
   setFilterClause(query, F.removeFilter(query.filter, index));
-export const clearFilters = query =>
-  setFilterClause(query, F.clearFilters(query.filter));
-export const clearSegments = query =>
-  setFilterClause(query, F.clearSegments(getFilters(query)));
 
 export const canAddFilter = query => F.canAddFilter(query.filter);
+
+export { getFilterClause } from "./filter";
 
 // JOIN
 
@@ -66,23 +92,18 @@ export const updateJoin = (query, index, join) =>
   setJoinClause(query, J.updateJoin(query.joins, index, join));
 export const removeJoin = (query, index) =>
   setJoinClause(query, J.removeJoin(query.joins, index));
-export const clearJoins = query =>
-  setJoinClause(query, J.clearJoins(query.joins));
 
 // ORDER_BY
 
 export const getOrderBys = query => O.getOrderBys(query["order-by"]);
-export const addOrderBy = (query, orderBy) =>
-  setOrderByClause(query, O.addOrderBy(query["order-by"], orderBy));
-export const updateOrderBy = (query, index, orderBy) =>
+const updateOrderBy = (query, index, orderBy) =>
   setOrderByClause(query, O.updateOrderBy(query["order-by"], index, orderBy));
-export const removeOrderBy = (query, index) =>
+const removeOrderBy = (query, index) =>
   setOrderByClause(query, O.removeOrderBy(query["order-by"], index));
-export const clearOrderBy = query =>
+const clearOrderBy = query =>
   setOrderByClause(query, O.clearOrderBy(query["order-by"]));
 
 // FIELD
-export const getFields = query => FIELD.getFields(query.fields);
 export const addField = (query, field) =>
   setFieldsClause(query, FIELD.addField(query.fields, field));
 export const updateField = (query, index, field) =>
@@ -92,33 +113,14 @@ export const removeField = (query, index) =>
 export const clearFields = query =>
   setFieldsClause(query, FIELD.clearFields(query.fields));
 
-// LIMIT
-
-export const getLimit = query => L.getLimit(query.limit);
-export const updateLimit = (query, limit) =>
-  setLimitClause(query, L.updateLimit(query.limit, limit));
-export const clearLimit = query =>
-  setLimitClause(query, L.clearLimit(query.limit));
-
 // EXPRESSIONS
 
 export const getExpressions = query => E.getExpressions(query.expressions);
-export const getExpressionsList = query =>
-  E.getExpressionsList(query.expressions);
 export const addExpression = (query, name, expression) =>
   setExpressionClause(
     query,
     E.addExpression(query.expressions, name, expression),
   );
-export const updateExpression = (query, name, expression, oldName) =>
-  setExpressionClause(
-    query,
-    E.updateExpression(query.expressions, name, expression, oldName),
-  );
-export const removeExpression = (query, name) =>
-  setExpressionClause(query, E.removeExpression(query.expressions, name));
-export const clearExpressions = query =>
-  setExpressionClause(query, E.clearExpressions(query.expressions));
 
 // we can enforce various constraints in these functions:
 
@@ -176,9 +178,6 @@ function setOrderByClause(query, orderByClause) {
 }
 function setFieldsClause(query, fieldsClause) {
   return setClause("fields", query, fieldsClause);
-}
-function setLimitClause(query, limitClause) {
-  return setClause("limit", query, limitClause);
 }
 function setExpressionClause(query, expressionClause) {
   if (expressionClause && Object.keys(expressionClause).length === 0) {

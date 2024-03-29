@@ -97,24 +97,6 @@ This means that settings configured on the database side can prevent Metabase fr
 2. Log in to Metabase as the person in question.
 3. Run a question, dashboard, or native query to confirm that the person can see the data they're supposed to.
 
-## Granting database privileges
-
-These sample commands use PostgreSQL syntax. If you use a different database, refer to your database's syntax guide.
-
-To allow Metabase to query a specific table:
-
-```sql
-USE <database>;
-GRANT ALL ON <table> IN SCHEMA <schema> TO <metabase_user>;
-```
-
-To allow Metabase to query all tables in a specific schema:
-
-```sql
-USE <database>;
-GRANT ALL ON <table> TO <metabase_user>;
-```
-
 ## Do you have a different problem?
 
 - [I can't view or edit my question or dashboard][view-edit].

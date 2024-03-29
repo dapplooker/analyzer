@@ -1,6 +1,5 @@
-import { createThunkAction } from "metabase/lib/redux";
-
 import * as MetabaseAnalytics from "metabase/lib/analytics";
+import { createThunkAction } from "metabase/lib/redux";
 import { MetabaseApi } from "metabase/services";
 
 export const RESCAN_FIELD_VALUES = "metabase/admin/fields/RESCAN_FIELD_VALUES";
@@ -19,7 +18,7 @@ export const rescanFieldValues = createThunkAction(
         );
         return call;
       } catch (error) {
-        console.log("error manually re-scanning field values", error);
+        console.error("error manually re-scanning field values", error);
       }
     };
   },
@@ -37,7 +36,7 @@ export const discardFieldValues = createThunkAction(
         );
         return call;
       } catch (error) {
-        console.log("error discarding field values", error);
+        console.error("error discarding field values", error);
       }
     };
   },

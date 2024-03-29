@@ -1,18 +1,18 @@
 /* eslint-disable react/prop-types */
-import React, { Component } from "react";
+import { Component } from "react";
 import { connect } from "react-redux";
-
 import { t } from "ttag";
-import Icon from "metabase/components/Icon";
-import { getSetting } from "metabase/selectors/settings";
-import Link from "metabase/core/components/Link";
-import ExternalLink from "metabase/core/components/ExternalLink";
+
 import Confirm from "metabase/components/Confirm";
 import LoadingAndErrorWrapper from "metabase/components/LoadingAndErrorWrapper";
-import { ActionsApi, CardApi, DashboardApi } from "metabase/services";
-import * as Urls from "metabase/lib/urls";
-
+import ExternalLink from "metabase/core/components/ExternalLink";
+import Link from "metabase/core/components/Link";
 import * as MetabaseAnalytics from "metabase/lib/analytics";
+import * as Urls from "metabase/lib/urls";
+import { getSetting } from "metabase/selectors/settings";
+import { ActionsApi, CardApi, DashboardApi } from "metabase/services";
+import { Icon, Stack, Text } from "metabase/ui";
+
 import { RevokeIconWrapper } from "./PublicLinksListing.styled";
 
 export default class PublicLinksListing extends Component {
@@ -64,7 +64,10 @@ export default class PublicLinksListing extends Component {
     return (
       <LoadingAndErrorWrapper loading={!list} error={error}>
         {() => (
-          <table className="ContentTable">
+          <table
+            className="ContentTable"
+            data-testId={this.props["data-testId"]}
+          >
             <thead>
               <tr>
                 <th>{t`Name`}</th>
@@ -146,7 +149,9 @@ export const PublicLinksQuestionListing = () => (
     revoke={CardApi.deletePublicLink}
     type={t`Public Card Listing`}
     getUrl={question => Urls.question(question)}
-    getPublicUrl={({ public_uuid }) => Urls.publicQuestion(public_uuid)}
+    getPublicUrl={({ public_uuid }) =>
+      Urls.publicQuestion({ uuid: public_uuid })
+    }
     noLinksMessage={t`No questions have been publicly shared yet.`}
   />
 );
@@ -172,24 +177,32 @@ export const PublicLinksActionListing = connect(mapStateToProps)(
   },
 );
 
-export const EmbeddedDashboardListing = () => (
-  <div className="bordered rounded full" style={{ maxWidth: 820 }}>
-    <PublicLinksListing
-      load={DashboardApi.listEmbeddable}
-      getUrl={dashboard => Urls.dashboard(dashboard)}
-      type={t`Embedded Dashboard Listing`}
-      noLinksMessage={t`No dashboards have been embedded yet.`}
-    />
-  </div>
-);
+export const EmbeddedResources = () => (
+  <Stack spacing="md" className="flex-full">
+    <div>
+      <Text mb="sm">{t`Embedded Dashboards`}</Text>
+      <div className="bordered rounded full" style={{ maxWidth: 820 }}>
+        <PublicLinksListing
+          data-testId="-embedded-dashboards-setting"
+          load={DashboardApi.listEmbeddable}
+          getUrl={dashboard => Urls.dashboard(dashboard)}
+          type={t`Embedded Dashboard Listing`}
+          noLinksMessage={t`No dashboards have been embedded yet.`}
+        />
+      </div>
+    </div>
 
-export const EmbeddedQuestionListing = () => (
-  <div className="bordered rounded full" style={{ maxWidth: 820 }}>
-    <PublicLinksListing
-      load={CardApi.listEmbeddable}
-      getUrl={question => Urls.question(question)}
-      type={t`Embedded Card Listing`}
-      noLinksMessage={t`No questions have been embedded yet.`}
-    />
-  </div>
+    <div>
+      <Text mb="sm">{t`Embedded Questions`}</Text>
+      <div className="bordered rounded full" style={{ maxWidth: 820 }}>
+        <PublicLinksListing
+          data-testId="-embedded-questions-setting"
+          load={CardApi.listEmbeddable}
+          getUrl={question => Urls.question(question)}
+          type={t`Embedded Card Listing`}
+          noLinksMessage={t`No questions have been embedded yet.`}
+        />
+      </div>
+    </div>
+  </Stack>
 );

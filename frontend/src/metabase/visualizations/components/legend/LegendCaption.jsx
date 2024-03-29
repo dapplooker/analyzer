@@ -1,8 +1,9 @@
-import React from "react";
 import PropTypes from "prop-types";
-import { iconPropTypes } from "metabase/components/Icon";
+
+import { Ellipsified } from "metabase/core/components/Ellipsified";
+import Markdown from "metabase/core/components/Markdown";
 import Tooltip from "metabase/core/components/Tooltip";
-import Ellipsified from "metabase/core/components/Ellipsified";
+
 import LegendActions from "./LegendActions";
 import {
   LegendCaptionRoot,
@@ -16,10 +17,16 @@ const propTypes = {
   className: PropTypes.string,
   title: PropTypes.string,
   description: PropTypes.string,
-  icon: PropTypes.shape(iconPropTypes),
+  icon: PropTypes.object,
   actionButtons: PropTypes.node,
   onSelectTitle: PropTypes.func,
+  width: PropTypes.number,
 };
+
+function shouldHideDescription(width) {
+  const HIDE_DESCRIPTION_THRESHOLD = 100;
+  return width != null && width < HIDE_DESCRIPTION_THRESHOLD;
+}
 
 const LegendCaption = ({
   className,
@@ -28,6 +35,7 @@ const LegendCaption = ({
   icon,
   actionButtons,
   onSelectTitle,
+  width,
 }) => {
   return (
     <LegendCaptionRoot className={className} data-testid="legend-caption">
@@ -36,11 +44,18 @@ const LegendCaption = ({
         className="fullscreen-normal-text fullscreen-night-text"
         onClick={onSelectTitle}
       >
-        <Ellipsified>{title}</Ellipsified>
+        <Ellipsified data-testid="legend-caption-title">{title}</Ellipsified>
       </LegendLabel>
       <LegendRightContent>
-        {description && (
-          <Tooltip tooltip={description} maxWidth="22em">
+        {description && !shouldHideDescription(width) && (
+          <Tooltip
+            tooltip={
+              <Markdown dark disallowHeading unstyleLinks lineClamp={8}>
+                {description}
+              </Markdown>
+            }
+            maxWidth="22em"
+          >
             <LegendDescriptionIcon className="hover-child hover-child--smooth" />
           </Tooltip>
         )}

@@ -1,21 +1,21 @@
-import React from "react";
-import { t } from "ttag";
+import * as React from "react";
 import { connect } from "react-redux";
+import { t } from "ttag";
 
+import {
+  verifyCard,
+  removeCardReview,
+} from "metabase-enterprise/moderation/actions";
+import { getIsModerator } from "metabase-enterprise/moderation/selectors";
 import {
   MODERATION_STATUS,
   getLatestModerationReview,
   getStatusIcon,
   isItemVerified,
 } from "metabase-enterprise/moderation/service";
-import { getIsModerator } from "metabase-enterprise/moderation/selectors";
-import {
-  verifyCard,
-  removeCardReview,
-} from "metabase-enterprise/moderation/actions";
+import type Question from "metabase-lib/Question";
+import type { State } from "metabase-types/store";
 
-import { State } from "metabase-types/store";
-import Question from "metabase-lib/Question";
 import { VerifyButton as DefaultVerifyButton } from "../QuestionModerationSection/QuestionModerationSection.styled";
 
 interface Props {
@@ -36,6 +36,7 @@ const mapDispatchToProps = {
   removeCardReview,
 };
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default connect(
   mapStateToProps,
   mapDispatchToProps,

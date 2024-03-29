@@ -1,82 +1,36 @@
 /* eslint-disable react/prop-types */
-import React, { Component } from "react";
-import PropTypes from "prop-types";
-import { t } from "ttag";
-
-import _ from "underscore";
 import cx from "classnames";
-import { iconPropTypes } from "metabase/components/Icon";
+import PropTypes from "prop-types";
+import { Component } from "react";
+import { t } from "ttag";
+import _ from "underscore";
 
 import "./LineAreaBarChart.css";
 
-import { getFriendlyName, MAX_SERIES } from "metabase/visualizations/lib/utils";
-import { addCSSRule } from "metabase/lib/dom";
+import { getAccentColors } from "metabase/lib/colors/groups";
+import { NULL_DISPLAY_VALUE } from "metabase/lib/constants";
 import { formatValue } from "metabase/lib/formatting";
-
-import { getComputedSettingsForSeries } from "metabase/visualizations/lib/settings/visualization";
-
+import { isEmpty } from "metabase/lib/validate";
+import { getOrderedSeries } from "metabase/visualizations/lib/series";
 import {
   validateChartDataSettings,
   validateDatasetRows,
   validateStacking,
 } from "metabase/visualizations/lib/settings/validation";
-import { getOrderedSeries } from "metabase/visualizations/lib/series";
-import { getAccentColors } from "metabase/lib/colors/groups";
-import { isEmpty } from "metabase/lib/validate";
+import { getComputedSettingsForSeries } from "metabase/visualizations/lib/settings/visualization";
+import { getFriendlyName, MAX_SERIES } from "metabase/visualizations/lib/utils";
 import { isDimension, isMetric } from "metabase-lib/types/utils/isa";
 
+import CardRenderer from "./CardRenderer";
 import {
   LineAreaBarChartRoot,
   ChartLegendCaption,
 } from "./LineAreaBarChart.styled";
 import LegendLayout from "./legend/LegendLayout";
-import CardRenderer from "./CardRenderer";
-
-const MUTE_STYLE = "opacity: 0.25;";
-for (let i = 0; i < MAX_SERIES; i++) {
-  addCSSRule(
-    `.LineAreaBarChart.mute-${i} svg.stacked .stack._${i} .area`,
-    MUTE_STYLE,
-  );
-  addCSSRule(
-    `.LineAreaBarChart.mute-${i} svg.stacked .stack._${i} .line`,
-    MUTE_STYLE,
-  );
-  addCSSRule(
-    `.LineAreaBarChart.mute-${i} svg.stacked .stack._${i} .bar`,
-    MUTE_STYLE,
-  );
-  addCSSRule(
-    `.LineAreaBarChart.mute-${i} svg.stacked .dc-tooltip._${i} .dot`,
-    MUTE_STYLE,
-  );
-
-  addCSSRule(
-    `.LineAreaBarChart.mute-${i} svg:not(.stacked) .sub._${i} .bar`,
-    MUTE_STYLE,
-  );
-  addCSSRule(
-    `.LineAreaBarChart.mute-${i} svg:not(.stacked) .sub._${i} .line`,
-    MUTE_STYLE,
-  );
-  addCSSRule(
-    `.LineAreaBarChart.mute-${i} svg:not(.stacked) .sub._${i} .dot`,
-    MUTE_STYLE,
-  );
-  addCSSRule(
-    `.LineAreaBarChart.mute-${i} svg:not(.stacked) .sub._${i} .bubble`,
-    MUTE_STYLE,
-  );
-
-  // row charts don't support multiseries
-  addCSSRule(`.LineAreaBarChart.mute-${i} svg:not(.stacked) .row`, MUTE_STYLE);
-}
 
 export default class LineAreaBarChart extends Component {
   static noHeader = true;
   static supportsSeries = true;
-
-  static minSize = { width: 4, height: 3 };
 
   static isSensible({ cols, rows }) {
     return (
@@ -131,18 +85,6 @@ export default class LineAreaBarChart extends Component {
       return newSeries;
     }
   }
-
-  static propTypes = {
-    card: PropTypes.object.isRequired,
-    series: PropTypes.array.isRequired,
-    settings: PropTypes.object.isRequired,
-    actionButtons: PropTypes.node,
-    showTitle: PropTypes.bool,
-    isDashboard: PropTypes.bool,
-    headerIcon: PropTypes.shape(iconPropTypes),
-  };
-
-  static defaultProps = {};
 
   getHoverClasses() {
     const { hovered } = this.props;
@@ -208,8 +150,6 @@ export default class LineAreaBarChart extends Component {
       settings,
       showTitle,
       actionButtons,
-      onAddSeries,
-      onEditSeries,
       onRemoveSeries,
       onChangeCardAndRun,
     } = this.props;
@@ -224,7 +164,7 @@ export default class LineAreaBarChart extends Component {
     const canSelectTitle = cardIds.size === 1 && onChangeCardAndRun;
 
     const hasMultipleSeries = series.length > 1;
-    const canChangeSeries = onAddSeries || onEditSeries || onRemoveSeries;
+    const canChangeSeries = onRemoveSeries;
     const hasLegendButtons = !hasTitle && actionButtons;
     const hasLegend =
       hasMultipleSeries || canChangeSeries || hasLegendButtons || hasBreakout;
@@ -263,22 +203,18 @@ export default class LineAreaBarChart extends Component {
 
   handleSelectSeries = (event, index, isReversed) => {
     const {
-      card,
       series,
+      settings,
       visualizationIsClickable,
-      onEditSeries,
       onVisualizationClick,
       onChangeCardAndRun,
     } = this.props;
 
-    const single = isReversed
-      ? series[series.length - index - 1]
-      : series[index];
-    const hasBreakout = card._breakoutColumn != null;
+    const orderedSeries = getOrderedSeries(series, settings, isReversed);
 
-    if (onEditSeries && !hasBreakout) {
-      onEditSeries(event, index);
-    } else if (single.clicked && visualizationIsClickable(single.clicked)) {
+    const single = orderedSeries[index];
+
+    if (single.clicked && visualizationIsClickable(single.clicked)) {
       onVisualizationClick({
         ...single.clicked,
         element: event.currentTarget,
@@ -302,6 +238,8 @@ export default class LineAreaBarChart extends Component {
       onHoverChange,
       onRemoveSeries,
       settings,
+      canRemoveSeries,
+      width,
     } = this.props;
 
     // Note (EmmadUsmani): Stacked charts should be reversed so series are stacked
@@ -336,9 +274,11 @@ export default class LineAreaBarChart extends Component {
             icon={headerIcon}
             actionButtons={actionButtons}
             onSelectTitle={canSelectTitle ? this.handleSelectTitle : undefined}
+            width={width}
           />
         )}
         <LegendLayout
+          canRemoveSeries={canRemoveSeries}
           labels={labels}
           colors={colors}
           hovered={hovered}
@@ -364,6 +304,17 @@ export default class LineAreaBarChart extends Component {
     );
   }
 }
+
+LineAreaBarChart.propTypes = {
+  card: PropTypes.object.isRequired,
+  series: PropTypes.array.isRequired,
+  settings: PropTypes.object.isRequired,
+  actionButtons: PropTypes.node,
+  showTitle: PropTypes.bool,
+  isDashboard: PropTypes.bool,
+  headerIcon: PropTypes.object,
+  width: PropTypes.number,
+};
 
 function transformSingleSeries(s, series, seriesIndex) {
   const { card, data } = s;
@@ -427,7 +378,10 @@ function transformSingleSeries(s, series, seriesIndex) {
           // show series title if it's multiseries
           series.length > 1 && card.name,
           // always show grouping value
-          formatValue(breakoutValue, { column: cols[seriesColumnIndex] }),
+          formatValue(
+            isEmpty(breakoutValue) ? NULL_DISPLAY_VALUE : breakoutValue,
+            { column: cols[seriesColumnIndex] },
+          ),
         ]
           .filter(n => n)
           .join(": "),

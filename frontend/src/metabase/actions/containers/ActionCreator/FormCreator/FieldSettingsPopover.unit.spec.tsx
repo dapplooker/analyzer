@@ -1,12 +1,13 @@
-import React, { useState } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
+
 import type { FieldSettings } from "metabase-types/api";
+
 import { getDefaultFieldSettings } from "../../../utils";
-import {
-  FieldSettingsPopover,
-  FieldSettingsPopoverProps,
-} from "./FieldSettingsPopover";
+
+import type { FieldSettingsPopoverProps } from "./FieldSettingsPopover";
+import { FieldSettingsPopover } from "./FieldSettingsPopover";
 
 function WrappedFieldSettingsPopover({
   fieldSettings: initialSettings,
@@ -57,6 +58,34 @@ describe("actions > FormCreator > FieldSettingsPopover", () => {
     expect(onChange).toHaveBeenLastCalledWith({
       ...settings,
       placeholder: "$",
+    });
+  });
+
+  describe("when field has placeholder", () => {
+    it("should render two <Divider />s", async () => {
+      const settings = getDefaultFieldSettings({
+        fieldType: "string",
+      });
+      setup({ settings });
+
+      userEvent.click(screen.getByLabelText("Field settings"));
+      await screen.findByLabelText("Default value");
+
+      expect(screen.getAllByTestId("divider").length).toBe(2);
+    });
+  });
+
+  describe("when field does not have placeholder", () => {
+    it("should render one <Divider />", async () => {
+      const settings = getDefaultFieldSettings({
+        fieldType: "date",
+      });
+      setup({ settings });
+
+      userEvent.click(screen.getByLabelText("Field settings"));
+      await screen.findByLabelText("Default value");
+
+      expect(screen.getAllByTestId("divider").length).toBe(1);
     });
   });
 

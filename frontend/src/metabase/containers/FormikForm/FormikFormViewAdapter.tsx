@@ -1,15 +1,14 @@
-import React, { useEffect, useState } from "react";
-import _ from "underscore";
+import type { FormikProps } from "formik";
+import type * as React from "react";
+import { useEffect, useState } from "react";
 import { usePrevious } from "react-use";
+import _ from "underscore";
 
-// eslint-disable-next-line import/named
-import { FormikProps } from "formik";
-
-import { CustomFormProps } from "metabase/components/form/FormikCustomForm";
-
-import { BaseFieldValues, FormField } from "metabase-types/forms";
+import type { CustomFormProps } from "metabase/components/form/FormikCustomForm";
+import type { BaseFieldValues, FormField } from "metabase-types/forms";
 
 import { getMaybeNestedValue } from "../formUtils";
+
 import FormView from "./FormView";
 
 type FormProps<Values extends BaseFieldValues> = Omit<
@@ -139,4 +138,5 @@ function FormikFormViewAdapter<Values extends BaseFieldValues>({
   );
 }
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default FormikFormViewAdapter;

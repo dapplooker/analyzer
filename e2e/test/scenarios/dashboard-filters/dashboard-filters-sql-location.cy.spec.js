@@ -1,6 +1,7 @@
 import {
   restore,
   popover,
+  clearFilterWidget,
   filterWidget,
   editDashboard,
   saveDashboard,
@@ -10,6 +11,7 @@ import {
 } from "e2e/support/helpers";
 
 import { addWidgetStringFilter } from "../native-filters/helpers/e2e-field-filter-helpers";
+
 import {
   DASHBOARD_SQL_LOCATION_FILTERS,
   questionDetails,
@@ -17,6 +19,10 @@ import {
 
 describe("scenarios > dashboard > filters > location", () => {
   beforeEach(() => {
+    cy.intercept("POST", "/api/dashboard/*/dashcard/*/card/*/query").as(
+      "dashcardQuery",
+    );
+
     restore();
     cy.signInAsAdmin();
 
@@ -50,7 +56,8 @@ describe("scenarios > dashboard > filters > location", () => {
           cy.contains(representativeResult);
         });
 
-        clearFilter(index);
+        clearFilterWidget(index);
+        cy.wait("@dashcardQuery");
       },
     );
   });
@@ -58,9 +65,11 @@ describe("scenarios > dashboard > filters > location", () => {
   it(`should work when set as the default filter`, () => {
     setFilter("Location", "Is");
 
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Select…").click();
     popover().contains("Is").click();
 
+    // eslint-disable-next-line no-unscoped-text-selectors -- deprecated usage
     cy.findByText("Default value").next().click();
 
     addWidgetStringFilter("Rye");
@@ -71,7 +80,7 @@ describe("scenarios > dashboard > filters > location", () => {
       cy.contains("Arnold Adams");
     });
 
-    filterWidget().find(".Icon-close").click();
+    clearFilterWidget();
 
     cy.url().should("not.include", "Rye");
 
@@ -84,8 +93,3 @@ describe("scenarios > dashboard > filters > location", () => {
     });
   });
 });
-
-function clearFilter(index) {
-  filterWidget().eq(index).find(".Icon-close").click();
-  cy.wait("@dashcardQuery2");
-}

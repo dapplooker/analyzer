@@ -1,10 +1,11 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-nocheck
-import _ from "underscore";
 import { assoc, assocIn, chain, dissoc, getIn } from "icepick";
+import _ from "underscore";
 /* eslint-disable import/order */
 // NOTE: the order of these matters due to circular dependency issues
 import slugg from "slugg";
+import * as Lib from "metabase-lib";
 import StructuredQuery, {
   STRUCTURED_QUERY_TEMPLATE,
 } from "metabase-lib/queries/StructuredQuery";
@@ -13,72 +14,50 @@ import NativeQuery, {
 } from "metabase-lib/queries/NativeQuery";
 import AtomicQuery from "metabase-lib/queries/AtomicQuery";
 import InternalQuery from "metabase-lib/queries/InternalQuery";
-import Query from "metabase-lib/queries/Query";
+import type BaseQuery from "metabase-lib/queries/Query";
 import Metadata from "metabase-lib/metadata/Metadata";
-import Database from "metabase-lib/metadata/Database";
-import Table from "metabase-lib/metadata/Table";
-import Field from "metabase-lib/metadata/Field";
-import { AggregationDimension, FieldDimension } from "metabase-lib/Dimension";
+import type Database from "metabase-lib/metadata/Database";
+import type Table from "metabase-lib/metadata/Table";
 import { isFK } from "metabase-lib/types/utils/isa";
-import { memoizeClass, sortObject } from "metabase-lib/utils";
+import { sortObject } from "metabase-lib/utils";
 
-// TODO: remove these dependencies
-import * as Urls from "metabase/lib/urls";
-import { getCardUiParameters } from "metabase-lib/parameters/utils/cards";
-import {
-  CardApi,
-  DashboardApi,
-  maybeUsePivotEndpoint,
-  MetabaseApi,
-} from "metabase/services";
-import { ParameterValues } from "metabase-types/types/Parameter";
-import { Card as CardObject, DatasetQuery } from "metabase-types/types/Card";
-import { VisualizationSettings } from "metabase-types/api/card";
-import { Column, Dataset, Value } from "metabase-types/types/Dataset";
-import { TableId } from "metabase-types/types/Table";
-import { DatabaseId } from "metabase-types/types/Database";
-import {
-  ClickObject,
-  DimensionValue,
-} from "metabase-types/types/Visualization";
-import { DependentMetadataItem } from "metabase-types/types/Query";
-import { utf8_to_b64url } from "metabase/lib/encoding";
-import {
+import type {
+  Card as CardObject,
+  CardType,
   CollectionId,
+  DatabaseId,
+  DatasetQuery,
+  DatasetData,
+  DependentMetadataItem,
+  TableId,
   Parameter as ParameterObject,
+  ParameterValues,
   ParameterId,
+  VisualizationSettings,
+  CardDisplayType,
+  Dataset,
 } from "metabase-types/api";
 
-import {
-  getParameterValuesBySlug,
-  normalizeParameters,
-} from "metabase-lib/parameters/utils/parameter-values";
-import {
-  getTemplateTagParametersFromCard,
-  remapParameterValuesToTemplateTags,
-} from "metabase-lib/parameters/utils/template-tags";
-import { fieldFilterParameterToMBQLFilter } from "metabase-lib/parameters/utils/mbql";
+// TODO: remove these dependencies
+import { getCardUiParameters } from "metabase-lib/parameters/utils/cards";
+import { utf8_to_b64url } from "metabase/lib/encoding";
+
+import { getTemplateTagParametersFromCard } from "metabase-lib/parameters/utils/template-tags";
+import { fieldFilterParameterToFilter } from "metabase-lib/parameters/utils/mbql";
 import { getQuestionVirtualTableId } from "metabase-lib/metadata/utils/saved-questions";
-import {
-  aggregate,
-  breakout,
-  distribution,
-  drillFilter,
-  filter,
-  pivot,
-} from "metabase-lib/queries/utils/actions";
 import { isTransientId } from "metabase-lib/queries/utils/card";
+import { getColumnKey } from "metabase-lib/queries/utils/get-column-key";
 import {
-  findColumnIndexForColumnSetting,
-  findColumnSettingIndexForColumn,
-  syncTableColumnsToQuery,
+  findColumnIndexesForColumnSettings,
+  findColumnSettingIndexesForColumns,
 } from "metabase-lib/queries/utils/dataset";
 import {
   ALERT_TYPE_PROGRESS_BAR_GOAL,
   ALERT_TYPE_ROWS,
   ALERT_TYPE_TIMESERIES_GOAL,
 } from "metabase-lib/Alert";
-import { getBaseDimensionReference } from "metabase-lib/references";
+
+import type { Query } from "./types";
 
 export type QuestionCreatorOpts = {
   databaseId?: DatabaseId;
@@ -89,7 +68,7 @@ export type QuestionCreatorOpts = {
   parameterValues?: ParameterValues;
   type?: "query" | "native";
   name?: string;
-  display?: string;
+  display?: CardDisplayType;
   visualization_settings?: VisualizationSettings;
   dataset_query?: DatasetQuery;
 };
@@ -98,7 +77,7 @@ export type QuestionCreatorOpts = {
  * This is a wrapper around a question/card object, which may contain one or more Query objects
  */
 
-class QuestionInner {
+class Question {
   /**
    * The plain object presentation of this question, equal to the format that Metabase REST API understands.
    * It is called `card` for both historical reasons and to make a clear distinction to this class.
@@ -121,7 +100,7 @@ class QuestionInner {
    * Question constructor
    */
   constructor(
-    card: CardObject,
+    card: any,
     metadata?: Metadata,
     parameterValues?: ParameterValues,
   ) {
@@ -148,6 +127,10 @@ class QuestionInner {
   }
 
   card() {
+    return this._doNotCallSerializableCard();
+  }
+
+  _doNotCallSerializableCard() {
     return this._card;
   }
 
@@ -189,7 +172,7 @@ class QuestionInner {
    *
    * This is just a wrapper object, the data is stored in `this._card.dataset_query` in a format specific to the query type.
    */
-  query(): AtomicQuery {
+  _legacyQuery = _.once((): AtomicQuery => {
     const datasetQuery = this._card.dataset_query;
 
     for (const QueryClass of [StructuredQuery, NativeQuery, InternalQuery]) {
@@ -198,22 +181,31 @@ class QuestionInner {
       }
     }
 
-    console.warn("Unknown query type: " + datasetQuery?.type);
-  }
+    const isVirtualDashcard = !this._card.id;
+    // The `dataset_query` is null for questions on a dashboard the user doesn't have access to
+    !isVirtualDashcard &&
+      console.warn("Unknown query type: " + datasetQuery?.type);
+  });
 
-  isNative(): boolean {
-    return this.query() instanceof NativeQuery;
-  }
-
-  isStructured(): boolean {
-    return this.query() instanceof StructuredQuery;
+  legacyQuery<UseStructuredQuery extends boolean>({
+    useStructuredQuery,
+  }: {
+    useStructuredQuery?: UseStructuredQuery;
+  } = {}): UseStructuredQuery extends true
+    ? StructuredQuery
+    : AtomicQuery | StructuredQuery {
+    const query = this._legacyQuery();
+    if (query instanceof StructuredQuery && !useStructuredQuery) {
+      throw new Error("StructuredQuery usage is forbidden. Use MLv2");
+    }
+    return query;
   }
 
   /**
    * Returns a new Question object with an updated query.
    * The query is saved to the `dataset_query` field of the Card object.
    */
-  setQuery(newQuery: Query): Question {
+  setLegacyQuery(newQuery: BaseQuery): Question {
     if (this._card.dataset_query !== newQuery.datasetQuery()) {
       return this.setCard(
         assoc(this.card(), "dataset_query", newQuery.datasetQuery()),
@@ -235,7 +227,7 @@ class QuestionInner {
    * Returns a list of atomic queries (NativeQuery or StructuredQuery) contained in this question
    */
   atomicQueries(): AtomicQuery[] {
-    const query = this.query();
+    const query = this.legacyQuery({ useStructuredQuery: true });
 
     if (query instanceof AtomicQuery) {
       return [query];
@@ -265,10 +257,28 @@ class QuestionInner {
 
   /**
    * returns whether this question is a model
-   * @returns boolean
+   * @deprecated Use Question.prototype.type instead
    */
-  isDataset() {
+  isDataset(): boolean {
     return this._card && this._card.dataset;
+  }
+
+  type(): CardType | undefined {
+    return this._card && this._card.type;
+  }
+
+  /**
+   * @deprecated Use Question.prototype.setType instead
+   */
+  private _setDataset(dataset: boolean) {
+    return this.setCard(assoc(this.card(), "dataset", dataset));
+  }
+
+  setType(type: CardType) {
+    const dataset = type === "model";
+    // _setDataset is still called for backwards compatibility
+    // as we're migrating "dataset" -> "type" incrementally
+    return this.setCard(assoc(this.card(), "type", type))._setDataset(dataset);
   }
 
   isPersisted() {
@@ -277,10 +287,6 @@ class QuestionInner {
 
   setPersisted(isPersisted) {
     return this.setCard(assoc(this.card(), "persisted", isPersisted));
-  }
-
-  setDataset(dataset) {
-    return this.setCard(assoc(this.card(), "dataset", dataset));
   }
 
   setPinned(pinned: boolean) {
@@ -302,35 +308,39 @@ class QuestionInner {
     return this._card && this._card.displayIsLocked;
   }
 
-  // If we're locked to a display that is no longer "sensible", unlock it
-  // unless it was locked in unsensible
-  maybeUnlockDisplay(sensibleDisplays, previousSensibleDisplays): Question {
+  maybeResetDisplay(
+    data: DatasetData,
+    sensibleDisplays: string[],
+    previousSensibleDisplays: string[] | undefined,
+  ): Question {
     const wasSensible =
       previousSensibleDisplays == null ||
       previousSensibleDisplays.includes(this.display());
     const isSensible = sensibleDisplays.includes(this.display());
     const shouldUnlock = wasSensible && !isSensible;
-    const locked = this.displayIsLocked() && !shouldUnlock;
-    return this.setDisplayIsLocked(locked);
-  }
+    const defaultDisplay = this.setDefaultDisplay().display();
 
-  // Switches display based on data shape. For 1x1 data, we show a scalar. If
-  // our display was a 1x1 type, but the data isn't 1x1, we show a table.
-  switchTableScalar({ rows = [], cols }): Question {
-    if (this.displayIsLocked()) {
-      return this;
+    let question;
+    if (isSensible && defaultDisplay === "table") {
+      // any sensible display is better than the default table display
+      question = this;
+    } else if (shouldUnlock && this.displayIsLocked()) {
+      question = this.setDisplayIsLocked(false).setDefaultDisplay();
+    } else {
+      question = this.setDefaultDisplay();
     }
 
-    const display = this.display();
-    const isScalar = ["scalar", "progress", "gauge"].includes(display);
+    return question._maybeSwitchToScalar(data);
+  }
+
+  // Switches display to scalar if the data is 1 row x 1 column
+  private _maybeSwitchToScalar({ rows, cols }): Question {
+    const isScalar = ["scalar", "progress", "gauge"].includes(this.display());
     const isOneByOne = rows.length === 1 && cols.length === 1;
-    const newDisplay =
-      !isScalar && isOneByOne // if we have a 1x1 data result then this should always be viewed as a scalar
-        ? "scalar"
-        : isScalar && !isOneByOne // any time we were a scalar and now have more than 1x1 data switch to table view
-        ? "table" // otherwise leave the display unchanged
-        : display;
-    return this.setDisplay(newDisplay);
+    if (!isScalar && isOneByOne && !this.displayIsLocked()) {
+      return this.setDisplay("scalar");
+    }
+    return this;
   }
 
   setDefaultDisplay(): Question {
@@ -339,86 +349,13 @@ class QuestionInner {
     }
 
     const query = this.query();
+    const { display, settings = {} } = Lib.defaultDisplay(query);
 
-    if (query instanceof StructuredQuery) {
-      // TODO: move to StructuredQuery?
-      const aggregations = query.aggregations();
-      const breakouts = query.breakouts();
-      const breakoutDimensions = breakouts.map(b => b.dimension());
-      const breakoutFields = breakoutDimensions.map(d => d.field());
-
-      if (aggregations.length === 0 && breakouts.length === 0) {
-        return this.setDisplay("table");
-      }
-
-      if (aggregations.length === 1 && breakouts.length === 0) {
-        return this.setDisplay("scalar");
-      }
-
-      if (aggregations.length === 1 && breakouts.length === 1) {
-        if (breakoutFields[0].isState()) {
-          return this.setDisplay("map").updateSettings({
-            "map.type": "region",
-            "map.region": "us_states",
-          });
-        } else if (breakoutFields[0].isCountry()) {
-          return this.setDisplay("map").updateSettings({
-            "map.type": "region",
-            "map.region": "world_countries",
-          });
-        }
-      }
-
-      if (aggregations.length >= 1 && breakouts.length === 1) {
-        if (breakoutFields[0].isDate()) {
-          if (
-            breakoutDimensions[0] instanceof FieldDimension &&
-            breakoutDimensions[0].temporalUnit() &&
-            breakoutDimensions[0].isTemporalExtraction()
-          ) {
-            return this.setDisplay("bar");
-          } else {
-            return this.setDisplay("line");
-          }
-        }
-
-        if (
-          breakoutDimensions[0] instanceof FieldDimension &&
-          breakoutDimensions[0].binningStrategy()
-        ) {
-          return this.setDisplay("bar");
-        }
-
-        if (breakoutFields[0].isCategory()) {
-          return this.setDisplay("bar");
-        }
-      }
-
-      if (aggregations.length === 1 && breakouts.length === 2) {
-        if (_.any(breakoutFields, f => f.isDate())) {
-          return this.setDisplay("line");
-        }
-
-        if (
-          breakoutFields[0].isCoordinate() &&
-          breakoutFields[1].isCoordinate()
-        ) {
-          return this.setDisplay("map").updateSettings({
-            "map.type": "grid",
-          });
-        }
-
-        if (_.all(breakoutFields, f => f.isCategory())) {
-          return this.setDisplay("bar");
-        }
-      }
-    }
-
-    return this.setDisplay("table");
+    return this.setDisplay(display).updateSettings(settings);
   }
 
   setDefaultQuery() {
-    return this.query().setDefaultQuery().question();
+    return this.legacyQuery({ useStructuredQuery: true }).question();
   }
 
   settings(): VisualizationSettings {
@@ -434,12 +371,8 @@ class QuestionInner {
     return this.setCard(assoc(this.card(), "visualization_settings", settings));
   }
 
-  updateSettings(settings: VisualizationSettings) {
+  updateSettings(settings: Partial<VisualizationSettings>) {
     return this.setSettings({ ...this.settings(), ...settings });
-  }
-
-  type(): string {
-    return this.datasetQuery().type;
   }
 
   creationType(): string {
@@ -447,7 +380,7 @@ class QuestionInner {
   }
 
   isEmpty(): boolean {
-    return this.query().isEmpty();
+    return this.legacyQuery({ useStructuredQuery: true }).isEmpty();
   }
 
   /**
@@ -461,7 +394,11 @@ class QuestionInner {
    * Question is valid (as far as we know) and can be executed
    */
   canRun(): boolean {
-    return this.query().canRun();
+    const { isNative } = Lib.queryDisplayInfo(this.query());
+
+    return isNative
+      ? this.legacyQuery({ useStructuredQuery: true }).canRun()
+      : Lib.canRun(this.query());
   }
 
   canWrite(): boolean {
@@ -481,7 +418,16 @@ class QuestionInner {
 
   supportsImplicitActions(): boolean {
     const query = this.query();
-    return query instanceof StructuredQuery && !query.hasAnyClauses();
+
+    // we want to check the metadata for the underlying table, not the model
+    const sourceTableId = Lib.sourceTableOrCardId(query);
+    const table = this.metadata().table(sourceTableId);
+
+    const hasSinglePk =
+      table?.fields?.filter(field => field.isPK())?.length === 1;
+    const { isNative } = Lib.queryDisplayInfo(this.query());
+
+    return !isNative && !Lib.hasClauses(query, -1) && hasSinglePk;
   }
 
   canAutoRun(): boolean {
@@ -534,73 +480,6 @@ class QuestionInner {
    * Although most of these are essentially a way to modify the current query, having them as a part
    * of Question interface instead of Query interface makes it more convenient to also change the current visualization
    */
-  aggregate(a): Question {
-    return aggregate(this, a) || this;
-  }
-
-  breakout(b): Question | null | undefined {
-    return breakout(this, b) || this;
-  }
-
-  filter(operator, column, value): Question {
-    return filter(this, operator, column, value) || this;
-  }
-
-  pivot(
-    breakouts: (Breakout | Dimension | Field)[] = [],
-    dimensions = [],
-  ): Question {
-    return pivot(this, breakouts, dimensions) || this;
-  }
-
-  drillUnderlyingRecords(
-    dimensions: DimensionValue[],
-    column?: Column,
-  ): Question {
-    let query = this.query();
-    if (!(query instanceof StructuredQuery)) {
-      return this;
-    }
-
-    dimensions.forEach(({ value, column }) => {
-      if (column.source !== "aggregation") {
-        query = drillFilter(query, value, column);
-      }
-    });
-
-    const dimension = column && query.parseFieldReference(column.field_ref);
-    if (dimension instanceof AggregationDimension) {
-      const aggregation = dimension.aggregation();
-      const filters = aggregation ? aggregation.filters() : [];
-      query = filters.reduce((query, filter) => query.filter(filter), query);
-    }
-
-    return query.question().toUnderlyingRecords();
-  }
-
-  toUnderlyingRecords(): Question {
-    const query = this.query();
-    if (!(query instanceof StructuredQuery)) {
-      return this;
-    }
-
-    return query
-      .clearAggregations()
-      .clearBreakouts()
-      .clearSort()
-      .clearLimit()
-      .clearFields()
-      .question()
-      .setDisplay("table");
-  }
-
-  toUnderlyingData(): Question {
-    return this.setDisplay("table");
-  }
-
-  distribution(column): Question {
-    return distribution(this, column) || this;
-  }
 
   composeThisQuery(): Question | null | undefined {
     if (this.id()) {
@@ -618,7 +497,7 @@ class QuestionInner {
     }
   }
 
-  composeDataset() {
+  composeDataset(): Question {
     if (!this.isDataset() || !this.isSaved()) {
       return this;
     }
@@ -632,119 +511,44 @@ class QuestionInner {
     });
   }
 
-  drillPK(field: Field, value: Value): Question | null | undefined {
-    const query = this.query();
-
-    if (!(query instanceof StructuredQuery)) {
-      if (this.isDataset()) {
-        const drillQuery = Question.create({
-          type: "query",
-          databaseId: this.databaseId(),
-          tableId: field.table_id,
-          metadata: this.metadata(),
-        }).query();
-        return drillQuery.addFilter(["=", field.reference(), value]).question();
-      }
-      return;
-    }
-
-    const otherPKFilters = query
-      .filters()
-      ?.filter(filter => {
-        const filterField = filter?.field();
-
-        if (!filterField) {
-          return false;
-        }
-
-        const isNotSameField = filterField.id !== field.id;
-        const isPKEqualsFilter =
-          filterField.isPK() && filter.operatorName() === "=";
-        const isFromSameTable = filterField.table.id === field.table.id;
-        return isPKEqualsFilter && isNotSameField && isFromSameTable;
-      })
-      .map(filter => filter.raw());
-    const filtersToApply = [
-      ["=", ["field", field.id, null], value],
-      ...otherPKFilters,
-    ];
-    const resultedQuery = filtersToApply.reduce((query, filter) => {
-      return query.addFilter(filter);
-    }, query.reset().setTable(field.table));
-    return resultedQuery.question();
-  }
-
-  _syncStructuredQueryColumnsAndSettings(previousQuestion, previousQuery) {
-    const query = this.query();
-
-    if (
-      !_.isEqual(
-        previousQuestion.setting("table.columns"),
-        this.setting("table.columns"),
-      )
-    ) {
-      return syncTableColumnsToQuery(this);
-    }
-
-    const addedColumnNames = _.difference(
-      query.columnNames(),
-      previousQuery.columnNames(),
-    );
-
-    const removedColumnNames = _.difference(
-      previousQuery.columnNames(),
-      query.columnNames(),
-    );
-
+  private _syncGraphMetricSettings(
+    { data: { cols = [] } = {} }: Dataset,
+    { data: { cols: prevCols = [] } = {} }: Dataset,
+  ) {
     const graphMetrics = this.setting("graph.metrics");
-
-    if (
-      graphMetrics &&
-      (addedColumnNames.length > 0 || removedColumnNames.length > 0)
-    ) {
-      const addedMetricColumnNames = addedColumnNames.filter(
-        name =>
-          query.columnDimensionWithName(name) instanceof AggregationDimension,
-      );
-
-      const removedMetricColumnNames = removedColumnNames.filter(
-        name =>
-          previousQuery.columnDimensionWithName(name) instanceof
-          AggregationDimension,
-      );
-
-      if (
-        addedMetricColumnNames.length > 0 ||
-        removedMetricColumnNames.length > 0
-      ) {
-        return this.updateSettings({
-          "graph.metrics": [
-            ..._.difference(graphMetrics, removedMetricColumnNames),
-            ...addedMetricColumnNames,
-          ],
-        });
-      }
+    if (!graphMetrics) {
+      return this;
     }
 
-    const tableColumns = this.setting("table.columns");
-    if (
-      tableColumns &&
-      addedColumnNames.length > 0 &&
-      removedColumnNames.length === 0
-    ) {
+    const hasNativeColumns =
+      cols.some(column => column.source === "native") ||
+      prevCols.some(column => column.source === "native");
+    if (hasNativeColumns) {
+      return this;
+    }
+
+    const metricColumnNames = new Set(
+      cols
+        .filter(column => column.source === "aggregation")
+        .map(column => column.name),
+    );
+    const prevMetricColumnNames = new Set(
+      prevCols
+        .filter(column => column.source === "aggregation")
+        .map(column => column.name),
+    );
+    const addedMetricColumnNames = new Set(
+      [...metricColumnNames].filter(name => !prevMetricColumnNames.has(name)),
+    );
+    const removedMetricColumnNames = new Set(
+      [...prevMetricColumnNames].filter(name => !metricColumnNames.has(name)),
+    );
+
+    if (addedMetricColumnNames.size > 0 || removedMetricColumnNames.size > 0) {
       return this.updateSettings({
-        "table.columns": [
-          ...tableColumns.filter(
-            column => !addedColumnNames.includes(column.name),
-          ),
-          ...addedColumnNames.map(name => {
-            const dimension = query.columnDimensionWithName(name);
-            return {
-              name: name,
-              fieldRef: getBaseDimensionReference(dimension.mbql()),
-              enabled: true,
-            };
-          }),
+        "graph.metrics": [
+          ...graphMetrics.filter(name => !removedMetricColumnNames.has(name)),
+          ...addedMetricColumnNames,
         ],
       });
     }
@@ -752,99 +556,65 @@ class QuestionInner {
     return this;
   }
 
-  _syncNativeQuerySettings({ data: { cols = [] } = {} }) {
-    const vizSettings = this.setting("table.columns") || [];
+  _syncTableColumnSettings({ data = {} }: Dataset) {
+    const columnSettings = this.setting("table.columns") || [];
     // "table.columns" receive a value only if there are custom settings
     // e.g. some columns are hidden. If it's empty, it means everything is visible
-    const isUsingDefaultSettings = vizSettings.length === 0;
-
+    const isUsingDefaultSettings = columnSettings.length === 0;
     if (isUsingDefaultSettings) {
       return this;
     }
 
-    let addedColumns = cols.filter(col => {
-      const hasVizSettings =
-        findColumnSettingIndexForColumn(vizSettings, col) >= 0;
+    // remove columns used for remapping only
+    const cols = data.cols.filter(col => col.remapped_from == null);
+    const columnIndexes = findColumnIndexesForColumnSettings(
+      cols,
+      columnSettings,
+    );
+    const columnSettingIndexes = findColumnSettingIndexesForColumns(
+      cols,
+      columnSettings,
+    );
+    const addedColumns = cols.filter((col, colIndex) => {
+      const hasVizSettings = columnSettingIndexes[colIndex] >= 0;
       return !hasVizSettings;
     });
-    const validVizSettings = vizSettings.filter(colSetting => {
-      const hasColumn = findColumnIndexForColumnSetting(cols, colSetting) >= 0;
-      const isMutatingColumn =
-        findColumnIndexForColumnSetting(addedColumns, colSetting) >= 0;
-      return hasColumn && !isMutatingColumn;
-    });
-    const noColumnsRemoved = validVizSettings.length === vizSettings.length;
+    const existingColumnSettings = columnSettings.filter(
+      (setting, settingIndex) => columnIndexes[settingIndex] >= 0,
+    );
+    const noColumnsRemoved =
+      existingColumnSettings.length === columnSettings.length;
 
     if (noColumnsRemoved && addedColumns.length === 0) {
       return this;
     }
 
-    addedColumns = addedColumns.map(col => ({
+    const addedColumnSettings = addedColumns.map(col => ({
       name: col.name,
+      key: getColumnKey(col),
       fieldRef: col.field_ref,
       enabled: true,
     }));
     return this.updateSettings({
-      "table.columns": [...validVizSettings, ...addedColumns],
+      "table.columns": [...existingColumnSettings, ...addedColumnSettings],
     });
   }
 
-  syncColumnsAndSettings(previous, queryResults) {
-    const query = this.query();
-    const isQueryResultValid = queryResults && !queryResults.error;
+  syncColumnsAndSettings(queryResults?: Dataset, prevQueryResults?: Dataset) {
+    let question = this;
 
-    if (query instanceof NativeQuery && isQueryResultValid) {
-      return this._syncNativeQuerySettings(queryResults);
+    if (queryResults && !queryResults.error) {
+      question = question._syncTableColumnSettings(queryResults);
+
+      if (prevQueryResults && !prevQueryResults.error) {
+        question = question._syncGraphMetricSettings(
+          queryResults,
+          prevQueryResults,
+        );
+      }
     }
 
-    const previousQuery = previous && previous.query();
-
-    if (
-      query instanceof StructuredQuery &&
-      previousQuery instanceof StructuredQuery
-    ) {
-      return this._syncStructuredQueryColumnsAndSettings(
-        previous,
-        previousQuery,
-      );
-    }
-
-    return this;
-  }
-
-  /**
-   * returns the "top-level" {Question} for a nested structured query, e.x. with post-aggregation filters removed
-   */
-  topLevelQuestion(): Question {
-    const query = this.query();
-
-    if (query instanceof StructuredQuery && query !== query.topLevelQuery()) {
-      return this.setQuery(query.topLevelQuery());
-    } else {
-      return this;
-    }
-  }
-
-  /**
-   * returns the {ClickObject} with all columns transformed to be relative to the "top-level" query
-   */
-  topLevelClicked(clicked: ClickObject): ClickObject {
-    const query = this.query();
-
-    if (query instanceof StructuredQuery && query !== query.topLevelQuery()) {
-      return {
-        ...clicked,
-        column: clicked.column && query.topLevelColumn(clicked.column),
-        dimensions:
-          clicked.dimensions &&
-          clicked.dimensions.map(dimension => ({
-            ...dimension,
-            column: dimension.column && query.topLevelColumn(dimension.column),
-          })),
-      };
-    } else {
-      return clicked;
-    }
+    return question;
   }
 
   /**
@@ -872,6 +642,10 @@ class QuestionInner {
 
   id(): number {
     return this._card && this._card.id;
+  }
+
+  setId(id: number | undefined): Question {
+    return this.setCard(assoc(this.card(), "id", id));
   }
 
   markDirty(): Question {
@@ -918,116 +692,31 @@ class QuestionInner {
     return this._card && this._card.public_uuid;
   }
 
-  database(): Database | null | undefined {
-    const query = this.query();
-    return query && typeof query.database === "function"
-      ? query.database()
-      : null;
+  database(): Database | null {
+    const metadata = this.metadata();
+    const databaseId = this.databaseId();
+    const database = metadata.database(databaseId);
+    return database;
   }
 
-  databaseId(): DatabaseId | null | undefined {
-    const db = this.database();
-    return db ? db.id : null;
+  databaseId(): DatabaseId | null {
+    const query = this.query();
+    const databaseId = Lib.databaseID(query);
+    return databaseId;
   }
 
-  table(): Table | null | undefined {
-    const query = this.query();
+  table(): Table | null {
+    const query = this.legacyQuery({ useStructuredQuery: true });
     return query && typeof query.table === "function" ? query.table() : null;
   }
 
-  tableId(): TableId | null | undefined {
+  tableId(): TableId | null {
     const table = this.table();
     return table ? table.id : null;
   }
 
   isArchived(): boolean {
     return this._card && this._card.archived;
-  }
-
-  getUrl({
-    originalQuestion,
-    clean = true,
-    query,
-    includeDisplayIsLocked,
-    creationType,
-    ...options
-  }: {
-    originalQuestion?: Question;
-    clean?: boolean;
-    query?: Record<string, any>;
-    includeDisplayIsLocked?: boolean;
-    creationType?: string;
-  } = {}): string {
-    const question = this.omitTransientCardIds();
-
-    if (
-      !question.id() ||
-      (originalQuestion && question.isDirtyComparedTo(originalQuestion))
-    ) {
-      return Urls.question(null, {
-        hash: question._serializeForUrl({
-          clean,
-          includeDisplayIsLocked,
-          creationType,
-        }),
-        query,
-      });
-    } else {
-      return Urls.question(question.card(), { query });
-    }
-  }
-
-  getAutomaticDashboardUrl(
-    filters,
-    /*?: Filter[] = []*/
-  ) {
-    let cellQuery = "";
-
-    if (filters.length > 0) {
-      const mbqlFilter = filters.length > 1 ? ["and", ...filters] : filters[0];
-      cellQuery = `/cell/${utf8_to_b64url(JSON.stringify(mbqlFilter))}`;
-    }
-
-    const questionId = this.id();
-
-    if (questionId != null && !isTransientId(questionId)) {
-      return `/auto/dashboard/question/${questionId}${cellQuery}`;
-    } else {
-      const adHocQuery = utf8_to_b64url(
-        JSON.stringify(this.card().dataset_query),
-      );
-      return `/auto/dashboard/adhoc/${adHocQuery}${cellQuery}`;
-    }
-  }
-
-  getComparisonDashboardUrl(
-    filters,
-    /*?: Filter[] = []*/
-  ) {
-    let cellQuery = "";
-
-    if (filters.length > 0) {
-      const mbqlFilter = filters.length > 1 ? ["and", ...filters] : filters[0];
-      cellQuery = `/cell/${utf8_to_b64url(JSON.stringify(mbqlFilter))}`;
-    }
-
-    const questionId = this.id();
-    const query = this.query();
-
-    if (query instanceof StructuredQuery) {
-      const tableId = query.tableId();
-
-      if (tableId) {
-        if (questionId != null && !isTransientId(questionId)) {
-          return `/auto/dashboard/question/${questionId}${cellQuery}/compare/table/${tableId}`;
-        } else {
-          const adHocQuery = utf8_to_b64url(
-            JSON.stringify(this.card().dataset_query),
-          );
-          return `/auto/dashboard/adhoc/${adHocQuery}${cellQuery}/compare/table/${tableId}`;
-        }
-      }
-    }
   }
 
   setResultsMetadata(resultsMetadata) {
@@ -1098,67 +787,6 @@ class QuestionInner {
     return true;
   }
 
-  /**
-   * Runs the query and returns an array containing results for each single query.
-   *
-   * If we have a saved and clean single-query question, we use `CardApi.query` instead of a ad-hoc dataset query.
-   * This way we benefit from caching and query optimizations done by Metabase backend.
-   */
-  async apiGetResults({
-    cancelDeferred,
-    isDirty = false,
-    ignoreCache = false,
-    collectionPreview = false,
-  } = {}): Promise<[Dataset]> {
-    // TODO Atte Keinänen 7/5/17: Should we clean this query with Query.cleanQuery(query) before executing it?
-    const canUseCardApiEndpoint = !isDirty && this.isSaved();
-    const parameters = normalizeParameters(this.parameters());
-
-    if (canUseCardApiEndpoint) {
-      const dashboardId = this._card.dashboardId;
-      const dashcardId = this._card.dashcardId;
-
-      const queryParams = {
-        cardId: this.id(),
-        dashboardId,
-        dashcardId,
-        ignore_cache: ignoreCache,
-        collection_preview: collectionPreview,
-        parameters,
-      };
-      return [
-        await maybeUsePivotEndpoint(
-          dashboardId ? DashboardApi.cardQuery : CardApi.query,
-          this.card(),
-          this.metadata(),
-        )(queryParams, {
-          cancelled: cancelDeferred.promise,
-        }),
-      ];
-    } else {
-      const getDatasetQueryResult = datasetQuery => {
-        const datasetQueryWithParameters = { ...datasetQuery, parameters };
-        return maybeUsePivotEndpoint(
-          MetabaseApi.dataset,
-          this.card(),
-          this.metadata(),
-        )(
-          datasetQueryWithParameters,
-          cancelDeferred
-            ? {
-                cancelled: cancelDeferred.promise,
-              }
-            : {},
-        );
-      };
-
-      const datasetQueries = this.atomicQueries().map(query =>
-        query.datasetQuery(),
-      );
-      return Promise.all(datasetQueries.map(getDatasetQueryResult));
-    }
-  }
-
   setParameter(id: ParameterId, parameter: ParameterObject) {
     const newParameters = this.parameters().map(oldParameter =>
       oldParameter.id === id ? parameter : oldParameter,
@@ -1177,16 +805,17 @@ class QuestionInner {
     return question;
   }
 
-  // TODO: Fix incorrect Flow signature
-  parameters(): ParameterObject[] {
+  parameters({ collectionPreview } = {}): ParameterObject[] {
     return getCardUiParameters(
       this.card(),
       this.metadata(),
       this._parameterValues,
+      undefined,
+      collectionPreview,
     );
   }
 
-  // predicate function that dermines if the question is "dirty" compared to the given question
+  // predicate function that determines if the question is "dirty" compared to the given question
   isDirtyComparedTo(originalQuestion: Question) {
     if (!this.isSaved() && this.canRun() && originalQuestion == null) {
       // if it's new, then it's dirty if it is runnable
@@ -1229,12 +858,13 @@ class QuestionInner {
     includeDisplayIsLocked = false,
     creationType,
   } = {}) {
-    const query = clean ? this.query().clean() : this.query();
+    const query = clean ? Lib.dropStageIfEmpty(this.query()) : this.query();
+
     const cardCopy = {
       name: this._card.name,
       description: this._card.description,
       collection_id: this._card.collection_id,
-      dataset_query: query.datasetQuery(),
+      dataset_query: Lib.toLegacyQuery(query),
       display: this._card.display,
       parameters: this._card.parameters,
       dataset: this._card.dataset,
@@ -1263,76 +893,95 @@ class QuestionInner {
     return utf8_to_b64url(JSON.stringify(sortObject(cardCopy)));
   }
 
-  convertParametersToMbql() {
-    if (!this.isStructured()) {
+  _convertParametersToMbql(): Question {
+    const query = this.query();
+    const { isNative } = Lib.queryDisplayInfo(query);
+
+    if (isNative) {
       return this;
     }
 
-    const mbqlFilters = this.parameters()
-      .map(parameter => {
-        return fieldFilterParameterToMBQLFilter(parameter, this.metadata());
-      })
+    const stageIndex = -1;
+    const filters = this.parameters()
+      .map(parameter =>
+        fieldFilterParameterToFilter(query, stageIndex, parameter),
+      )
       .filter(mbqlFilter => mbqlFilter != null);
 
-    const query = mbqlFilters.reduce((query, mbqlFilter) => {
-      return query.filter(mbqlFilter);
-    }, this.query());
-
-    const hasQueryBeenAltered = mbqlFilters.length > 0;
-
-    const question = query
-      .question()
+    const newQuery = filters.reduce((query, filter) => {
+      return Lib.filter(query, stageIndex, filter);
+    }, query);
+    const newQuestion = this.setQuery(newQuery)
       .setParameters(undefined)
       .setParameterValues(undefined);
 
-    return hasQueryBeenAltered ? question.markDirty() : question;
+    const hasQueryBeenAltered = filters.length > 0;
+    return hasQueryBeenAltered ? newQuestion.markDirty() : newQuestion;
   }
 
-  getUrlWithParameters(parameters, parameterValues, { objectId, clean } = {}) {
-    const includeDisplayIsLocked = true;
-
-    if (this.isStructured()) {
-      const questionWithParameters = this.setParameters(parameters);
-
-      if (this.query().isEditable()) {
-        return questionWithParameters
-          .setParameterValues(parameterValues)
-          .convertParametersToMbql()
-          .getUrl({
-            clean,
-            originalQuestion: this,
-            includeDisplayIsLocked,
-            query: { objectId },
-          });
-      } else {
-        const query = getParameterValuesBySlug(parameters, parameterValues);
-        return questionWithParameters.markDirty().getUrl({
-          clean,
-          query,
-          includeDisplayIsLocked,
-        });
-      }
-    } else {
-      return this.getUrl({
-        clean,
-        query: remapParameterValuesToTemplateTags(
-          this.query().templateTags(),
-          parameters,
-          parameterValues,
-        ),
-        includeDisplayIsLocked,
-      });
+  query(metadata = this._metadata): Query {
+    if (this._legacyQuery() instanceof InternalQuery) {
+      throw new Error("Internal query is not supported by MLv2");
     }
+
+    const databaseId = this.datasetQuery()?.database;
+
+    // cache the metadata provider we create for our metadata.
+    if (metadata === this._metadata) {
+      if (!this.__mlv2MetadataProvider) {
+        this.__mlv2MetadataProvider = Lib.metadataProvider(
+          databaseId,
+          metadata,
+        );
+      }
+      metadata = this.__mlv2MetadataProvider;
+    }
+
+    if (this.__mlv2QueryMetadata !== metadata) {
+      this.__mlv2QueryMetadata = null;
+      this.__mlv2Query = null;
+    }
+
+    if (!this.__mlv2Query) {
+      this.__mlv2QueryMetadata = metadata;
+      this.__mlv2Query = Lib.fromLegacyQuery(
+        databaseId,
+        metadata,
+        this.datasetQuery(),
+      );
+    }
+
+    // Helpers for working with the current query from CLJS REPLs.
+    if (process.env.NODE_ENV === "development") {
+      window.__MLv2_metadata = metadata;
+      window.__MLv2_query = this.__mlv2Query;
+      window.Lib = Lib;
+    }
+
+    return this.__mlv2Query;
+  }
+
+  setQuery(query: Query): Question {
+    return this.setDatasetQuery(Lib.toLegacyQuery(query));
+  }
+
+  generateQueryDescription() {
+    const query = this.query();
+    return Lib.suggestedName(query);
   }
 
   getModerationReviews() {
     return getIn(this, ["_card", "moderation_reviews"]) || [];
   }
-}
 
-export default class Question extends memoizeClass<QuestionInner>("query")(
-  QuestionInner,
-) {
+  getCreator(): string {
+    return getIn(this, ["_card", "creator"]) || "";
+  }
+
+  getCreatedAt(): string {
+    return getIn(this, ["_card", "created_at"]) || "";
+  }
+
   /**
    * TODO Atte Keinänen 6/13/17: Discussed with Tom that we could use the default Question constructor instead,
    * but it would require changing the constructor signature so that `card` is an optional parameter and has a default value
@@ -1376,3 +1025,6 @@ export default class Question extends memoizeClass<QuestionInner>("query")(
     return new Question(card, metadata, parameterValues);
   }
 }
+
+// eslint-disable-next-line import/no-default-export -- deprecated usage
+export default Question;

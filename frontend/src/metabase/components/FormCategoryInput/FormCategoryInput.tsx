@@ -1,8 +1,9 @@
-import React, { forwardRef, ReactNode, Ref, useCallback } from "react";
 import { useField } from "formik";
-import { useUniqueId } from "metabase/hooks/use-unique-id";
-import FormField from "metabase/core/components/FormField";
+import type { CSSProperties, ReactNode, Ref } from "react";
+import { forwardRef, useCallback } from "react";
 
+import FormField from "metabase/core/components/FormField";
+import { useUniqueId } from "metabase/hooks/use-unique-id";
 import type Field from "metabase-lib/metadata/Field";
 
 import CategoryFieldPicker from "./CategoryFieldPicker";
@@ -13,7 +14,7 @@ export interface FormCategoryInputProps {
   description?: ReactNode;
   nullable?: boolean;
   className?: string;
-  style?: React.CSSProperties;
+  style?: CSSProperties;
   field: Field;
 }
 
@@ -58,4 +59,5 @@ const FormCategoryInput = forwardRef(function FormInput(
   );
 });
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default FormCategoryInput;

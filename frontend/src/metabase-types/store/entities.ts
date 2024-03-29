@@ -1,35 +1,35 @@
-import {
-  Card,
-  CardId,
-  Collection,
-  CollectionId,
-  Dashboard,
-  DashboardId,
-  Database,
-  Field,
-  FieldId,
-  Metric,
-  NativeQuerySnippet,
-  NativeQuerySnippetId,
-  Segment,
-  Table,
-  User,
-  UserId,
-  WritebackAction,
-  WritebackActionId,
+import type {
+  NormalizedAlert,
+  NormalizedCard,
+  NormalizedCollection,
+  NormalizedDashboard,
+  NormalizedDatabase,
+  NormalizedField,
+  NormalizedIndexedEntity,
+  NormalizedMetric,
+  NormalizedModelIndex,
+  NormalizedNativeQuerySnippet,
+  NormalizedSchema,
+  NormalizedSegment,
+  NormalizedTable,
+  NormalizedUser,
+  NormalizedWritebackAction,
 } from "metabase-types/api";
 
 export interface EntitiesState {
-  actions?: Record<WritebackActionId, WritebackAction>;
-  collections?: Partial<Record<CollectionId, Collection>>;
-  dashboards?: Record<DashboardId, Dashboard>;
-  databases?: Record<number, Database>;
-  fields?: Record<FieldId, Field>;
-  metrics?: Record<string, Metric>;
-  tables?: Record<number | string, Table>;
-  schemas?: Record<string, Table["schema"]>;
-  segments?: Record<string, Segment>;
-  snippets?: Record<NativeQuerySnippetId, NativeQuerySnippet>;
-  users?: Record<UserId, User>;
-  questions?: Record<CardId, Card>;
+  actions: Record<string, NormalizedWritebackAction>;
+  alerts: Record<string, NormalizedAlert>;
+  collections: Record<string, NormalizedCollection>;
+  dashboards: Record<string, NormalizedDashboard>;
+  databases: Record<string, NormalizedDatabase>;
+  schemas: Record<string, NormalizedSchema>;
+  tables: Record<string, NormalizedTable>;
+  fields: Record<string, NormalizedField>;
+  segments: Record<string, NormalizedSegment>;
+  metrics: Record<string, NormalizedMetric>;
+  modelIndexes: Record<string, NormalizedModelIndex>;
+  indexedEntities: Record<string, NormalizedIndexedEntity>;
+  snippets: Record<string, NormalizedNativeQuerySnippet>;
+  users: Record<string, NormalizedUser>;
+  questions: Record<string, NormalizedCard>;
 }

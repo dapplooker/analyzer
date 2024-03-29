@@ -8,14 +8,13 @@
    [metabase.driver.util :as driver.u]
    [metabase.mbql.schema :as mbql.s]
    [metabase.mbql.schema.helpers :as helpers]
-   [metabase.models.table :as table :refer [Table]]
+   [metabase.models.table :as table]
    [metabase.query-processor :as qp]
    [metabase.query-processor.interface :as qp.i]
-   [metabase.sync.interface :as i]
    [metabase.util :as u]
-   [metabase.util.schema :as su]
-   [schema.core :as s]
-   [toucan.db :as db]))
+   [metabase.util.malli :as mu]
+   [metabase.util.malli.schema :as ms]
+   [toucan2.core :as t2]))
 
 (defn- qp-query [db-id mbql-query]
   {:pre [(integer? db-id)]}
@@ -28,12 +27,52 @@
       :data
       :rows))
 
+(defn- partition-field->filter-form
+  "Given a partition field, returns the default value can be used to query."
+  [field]
+  (let [field-form [:field (:id field) {:base-type (:base_type field)}]]
+    (condp #(isa? %2 %1) (:base_type field)
+      :type/Number   [:> field-form -9223372036854775808]
+      :type/Date     [:> field-form "0001-01-01"]
+      :type/DateTime [:> field-form "0001-01-01T00:00:00"])))
+
+(defn- query-with-default-partitioned-field-filter
+  [query table-id]
+  (let [;; In bigquery, range or datetime partitioned table can have only one partioned field,
+        ;; Ingestion time partitioned table can use either _PARTITIONDATE or _PARTITIONTIME as
+        ;; partitioned field
+        partition-field (or (t2/select-one :model/Field
+                                           :table_id table-id
+                                           :database_partitioned true
+                                           :active true
+                                           ;; prefer _PARTITIONDATE over _PARTITIONTIME for ingestion time query
+                                           {:order-by [[:name :asc]]})
+                            (throw (ex-info (format "No partitioned field found for table: %d" table-id)
+                                            {:table_id table-id})))
+        filter-form     (partition-field->filter-form partition-field)]
+    (update query :filter (fn [existing-filter]
+                            (if (some? existing-filter)
+                              [:and existing-filter filter-form]
+                              filter-form)))))
+
+(defn- field-mbql-query
+  [table mbql-query]
+  (cond-> mbql-query
+    true
+    (assoc :source-table (:id table))
+
+    ;; Some table requires a filter to be able to query the data
+    ;; Currently this only applied to Partitioned table in bigquery where the partition field
+    ;; is required as a filter.
+    ;; In the future we probably want this to be dispatched by database engine type
+    (:database_require_filter table)
+    (query-with-default-partitioned-field-filter (:id table))))
+
 (defn- field-query [{table-id :table_id} mbql-query]
   {:pre [(integer? table-id)]}
-  (qp-query (db/select-one-field :db_id Table, :id table-id)
-            ;; this seeming useless `merge` statement IS in fact doing something important. `ql/query` is a threading
-            ;; macro for building queries. Do not remove
-            (assoc mbql-query :source-table table-id)))
+  (let [table (t2/select-one :model/Table :id table-id)]
+    (qp-query (:db_id table)
+              (field-mbql-query table mbql-query))))
 
 (def ^Integer absolute-max-distinct-values-limit
   "The absolute maximum number of results to return for a `field-distinct-values` query. Normally Fields with 100 or
@@ -55,15 +94,15 @@
   * Not being too high, which would result in Metabase running out of memory dealing with too many values"
   (int 1000))
 
-(s/defn field-distinct-values
-  "Return the distinct values of `field`.
+(mu/defn field-distinct-values :- [:sequential ms/NonRemappedFieldValue]
+  "Return the distinct values of `field`, each wrapped in a vector.
    This is used to create a `FieldValues` object for `:type/Category` Fields."
   ([field]
    (field-distinct-values field absolute-max-distinct-values-limit))
 
-  ([field max-results :- su/IntGreaterThanZero]
-   (mapv first (field-query field {:breakout [[:field (u/the-id field) nil]]
-                                   :limit    (min max-results absolute-max-distinct-values-limit)}))))
+  ([field max-results :- ms/PositiveInt]
+   (field-query field {:breakout [[:field (u/the-id field) nil]]
+                       :limit    (min max-results absolute-max-distinct-values-limit)})))
 
 (defn field-distinct-count
   "Return the distinct count of `field`."
@@ -87,12 +126,14 @@
   "Number of rows to sample for tables with nested (e.g., JSON) columns."
   500)
 
-(def TableRowsSampleOptions
+(def ^:private TableRowsSampleOptions
   "Schema for `table-rows-sample` options"
-  (s/maybe {(s/optional-key :truncation-size)  s/Int
-            (s/optional-key :limit)            s/Int
-            (s/optional-key :order-by)         (helpers/distinct (helpers/non-empty [mbql.s/OrderBy]))
-            (s/optional-key :rff)              s/Any}))
+  [:maybe
+   [:map
+    [:truncation-size {:optional true} :int]
+    [:limit           {:optional true} :int]
+    [:order-by        {:optional true} (helpers/distinct (helpers/non-empty [:sequential mbql.s/OrderBy]))]
+    [:rff             {:optional true} fn?]]])
 
 (defn- text-field?
   "Identify text fields which can accept our substring optimization.
@@ -125,11 +166,15 @@
                                                  [:expression expression-name]
                                                  [:field (u/the-id field) nil])))
                           :limit        limit}
-                   order-by (assoc :order-by order-by))
+                   order-by
+                   (assoc :order-by order-by)
+
+                   (:database_require_filter table)
+                   (query-with-default-partitioned-field-filter (:id table)))
      :middleware {:format-rows?           false
                   :skip-results-metadata? true}}))
 
-(s/defn table-rows-sample
+(mu/defn table-rows-sample
   "Run a basic MBQL query to fetch a sample of rows of FIELDS belonging to a TABLE.
 
   Options: a map of
@@ -137,12 +182,17 @@
   `:rff`: [optional] a reducing function function (a function that given initial results metadata returns a reducing
   function) to reduce over the result set in the the query-processor rather than realizing the whole collection"
   {:style/indent 1}
-  ([table :- i/TableInstance, fields :- [i/FieldInstance], rff]
+  ([table  :- (ms/InstanceOf :model/Table)
+    fields :- [:sequential (ms/InstanceOf :model/Field)]
+    rff]
    (table-rows-sample table fields rff nil))
-  ([table :- i/TableInstance, fields :- [i/FieldInstance], rff, opts :- TableRowsSampleOptions]
-   (let [query (table-rows-sample-query table fields opts)
-         qp    (resolve 'metabase.query-processor/process-query)]
-     (qp query {:rff rff}))))
+
+  ([table  :- (ms/InstanceOf :model/Table)
+    fields :- [:sequential (ms/InstanceOf :model/Field)]
+    rff    :- fn?
+    opts   :- TableRowsSampleOptions]
+   (let [query (table-rows-sample-query table fields opts)]
+     (qp/process-query query rff nil))))
 
 (defmethod driver/table-rows-sample :default
   [_driver table fields rff opts]

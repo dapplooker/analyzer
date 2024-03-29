@@ -1,15 +1,15 @@
-import styled from "@emotion/styled";
 import { css } from "@emotion/react";
-
-import Icon from "metabase/components/Icon";
-import { NAV_SIDEBAR_WIDTH } from "metabase/nav/constants";
+import styled from "@emotion/styled";
 
 import { color, lighten } from "metabase/lib/colors";
+import { NAV_SIDEBAR_WIDTH } from "metabase/nav/constants";
 import {
   breakpointMaxSmall,
   breakpointMinSmall,
   space,
 } from "metabase/styled-components/theme";
+import { Icon } from "metabase/ui";
+
 import { SidebarLink } from "./SidebarItems";
 
 const openSidebarCSS = css`
@@ -20,6 +20,10 @@ const openSidebarCSS = css`
   ${breakpointMaxSmall} {
     width: 90vw;
   }
+`;
+
+const closeSidebarCSS = css`
+  opacity: 0;
 `;
 
 export const Sidebar = styled.aside<{ isOpen: boolean }>`
@@ -35,7 +39,7 @@ export const Sidebar = styled.aside<{ isOpen: boolean }>`
   overflow-x: hidden;
   z-index: 4;
 
-  ${props => props.isOpen && openSidebarCSS};
+  ${props => (props.isOpen ? openSidebarCSS : closeSidebarCSS)};
 
   ${breakpointMaxSmall} {
     position: absolute;
@@ -114,19 +118,29 @@ export const CollectionMenuList = styled.ul`
   padding: 0.5rem;
 `;
 
-export const LoadingContainer = styled.div`
+export const LoadingAndErrorContainer = styled.div`
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+`;
+
+export const LoadingAndErrorContent = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   color: ${color("brand")};
   text-align: center;
 `;
 
-export const LoadingTitle = styled.h2`
+export const LoadingAndErrorTitle = styled.h2`
   color: ${color("text-light")};
   font-weight: 400;
   margin-top: ${space(1)};
 `;
 
 export const PaddedSidebarLink = styled(SidebarLink)`
-  padding-left: ${space(2)};
+  padding-left: 12px;
 `;
 
 export const AddYourOwnDataLink = styled(SidebarLink)`
@@ -135,6 +149,9 @@ export const AddYourOwnDataLink = styled(SidebarLink)`
   color: ${color("white")};
   margin: ${space(1)};
   padding: 2px 6px;
+  svg {
+    color: ${color("brand-light")};
+  }
   transition: background-color 0.3s linear;
 
   @media (prefers-reduced-motion) {

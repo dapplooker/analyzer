@@ -1,10 +1,14 @@
-import styled from "@emotion/styled";
 import { css } from "@emotion/react";
+import styled from "@emotion/styled";
+
 import { color } from "metabase/lib/colors";
+import { FullWidthContainer } from "metabase/styled-components/layout/FullWidthContainer";
 import {
   breakpointMinSmall,
   breakpointMinLarge,
   breakpointMinMedium,
+  space,
+  breakpointMaxSmall,
 } from "metabase/styled-components/theme";
 
 export const Root = styled.div<{
@@ -40,13 +44,12 @@ export const Root = styled.div<{
     `}
 `;
 
-export const ContentContainer = styled.div<{ hasScroll: boolean }>`
+export const ContentContainer = styled.div`
   display: flex;
   flex-direction: column;
   flex: 1 0 auto;
   position: relative;
   background-color: #f3f8fd;
-  overflow-y: ${props => props.hasScroll && "auto"};
 `;
 
 export const Header = styled.header<{ isNotInIframe: boolean }>`
@@ -64,6 +67,31 @@ export const Header = styled.header<{ isNotInIframe: boolean }>`
     /* padding: 1.5rem; */
     padding: ${props => (props.isNotInIframe ? "1.5rem" : "0px 1.5rem")};
   }
+`;
+
+
+
+export const TitleAndDescriptionContainer = styled(FullWidthContainer)`
+  margin-top: 0.5rem;
+
+  ${breakpointMinSmall} {
+    margin-top: 1rem;
+  }
+
+  ${breakpointMinLarge} {
+    margin-top: 1.5rem;
+  }
+`;
+
+export const DashboardTabsContainer = styled(FullWidthContainer)`
+  ${breakpointMaxSmall} {
+    padding-left: 0;
+    padding-right: 0;
+  }
+`;
+
+export const Separator = styled.div`
+  border-bottom: 1px solid ${color("border")};
 `;
 
 export const Body = styled.main<{ isNightTheme: boolean }>`
@@ -100,10 +128,57 @@ const footerVariantStyles = {
   `,
 };
 
-export const Footer = styled.footer<{
-  variant: FooterVariant;
-  isNotInIframe: boolean;
+function getParameterPanelBackgroundColor(theme?: string) {
+  if (theme === "night") {
+    return color("bg-black");
+  }
+  if (theme === "transparent") {
+    return "transparent";
+  }
+  return color("white");
+}
+
+function getParameterPanelBorderColor(theme?: string) {
+  if (theme === "night") {
+    return color("bg-dark");
+  }
+  if (theme === "transparent") {
+    return "transparent";
+  }
+  return color("border");
+}
+
+export const ParametersWidgetContainer = styled(FullWidthContainer)<{
+  embedFrameTheme?: string;
+  hasScroll: boolean;
+  isSticky: boolean;
 }>`
+  padding-top: ${space(1)};
+  padding-bottom: ${space(1)};
+
+  ${props =>
+    props.hasScroll &&
+    css`
+      border-bottom: 1px solid
+        ${getParameterPanelBorderColor(props.embedFrameTheme)};
+    `}
+
+  ${props =>
+    props.isSticky &&
+    css`
+      position: sticky;
+      top: 0;
+      left: 0;
+      width: 100%;
+      z-index: 3;
+
+      background-color: ${getParameterPanelBackgroundColor(
+        props.embedFrameTheme,
+      )};
+    `}
+`;
+
+export const Footer = styled.footer<{ variant: FooterVariant; isNotInIframe: boolean;}>`
   display: flex;
   flex-shrink: 0;
   align-items: center;

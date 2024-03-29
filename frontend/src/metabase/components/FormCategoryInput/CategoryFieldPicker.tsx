@@ -1,9 +1,6 @@
-import React from "react";
-
 import CategoryFieldInput from "./CategoryFieldInput";
-import { CategoryWidgetProps } from "./types";
-
 import CategoryRadioPicker from "./CategoryRadioPicker";
+import type { CategoryWidgetProps } from "./types";
 
 const MAX_DISTINCT_OPTIONS_FOR_RADIO_INPUT = 7;
 
@@ -22,4 +19,5 @@ function CategoryFieldPicker({ value, onChange, field }: CategoryWidgetProps) {
   return <CategoryFieldInput value={value} onChange={onChange} field={field} />;
 }
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default CategoryFieldPicker;

@@ -1,6 +1,8 @@
-import React, { ChangeEvent, FocusEvent } from "react";
+import type { ChangeEvent, FocusEvent } from "react";
+
 import FileInput from "metabase/core/components/FileInput";
-import { FormField, TreatBeforePosting } from "./types";
+
+import type { FormField, TreatBeforePosting } from "./types";
 
 export interface FormTextFileWidgetProps {
   field: FormField;
@@ -54,4 +56,5 @@ const getFieldValue = (
   });
 };
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default FormTextFileWidget;

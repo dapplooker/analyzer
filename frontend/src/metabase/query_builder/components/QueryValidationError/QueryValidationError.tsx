@@ -1,14 +1,13 @@
-import React from "react";
 import { t } from "ttag";
 
-import ValidationError from "metabase-lib/ValidationError";
+import type ValidationError from "metabase-lib/ValidationError";
 
+import ErrorActionButton from "./ErrorActionButton";
 import {
   QueryValidationErrorRoot,
   QueryValidationErrorHeader,
   QueryValidationErrorMessage,
 } from "./QueryValidationError.styled";
-import ErrorActionButton from "./ErrorActionButton";
 
 type QueryBuilderUiControls = {
   isShowingTemplateTagsEditor?: boolean;
@@ -33,4 +32,5 @@ function QueryValidationError({ error }: QueryValidationErrorProps) {
   );
 }
 
+// eslint-disable-next-line import/no-default-export -- deprecated usage
 export default QueryValidationError;

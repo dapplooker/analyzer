@@ -7,7 +7,6 @@
    [metabase.transforms.materialize :as tf.materialize]
    [metabase.transforms.specs :refer [transform-specs]]
    [metabase.util :as u]
-   [toucan.db :as db]
    [toucan2.core :as t2]
    [toucan2.realize :as t2.realize]))
 
@@ -23,16 +22,16 @@
                        :group         group
                        :width         width
                        :height        height
-                       :score         100
+                       :card-score    100
                        :title         name
                        :visualization [display]
                        :position      0)]
-              description (conj {:text     description
-                                 :group    group
-                                 :width    (- total-width width)
-                                 :height   height
-                                 :score    100
-                                 :position 0})))
+              description (conj {:text       description
+                                 :group      group
+                                 :width      (- total-width width)
+                                 :height     height
+                                 :card-score 100
+                                 :position   0})))
           cards))
 
 (defn- card-for-source-table
@@ -64,7 +63,7 @@
   (let [transform-spec              (m/find-first (comp #{transform-name} :name) @transform-specs)
         {steps false provides true} (->> transform-name
                                          tf.materialize/get-collection
-                                         (db/select 'Card :collection_id)
+                                         (t2/select 'Card :collection_id)
                                          (group-by (comp some?
                                                          (-> transform-spec :provides set)
                                                          :name)))

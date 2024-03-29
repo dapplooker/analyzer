@@ -1,7 +1,8 @@
 import _ from "underscore";
-import {
-  AggregationReference,
-  ColumnName,
+
+import { normalize } from "metabase-lib/queries/utils/normalize";
+import type {
+  AggregateFieldReference,
   DimensionReference,
   DimensionReferenceWithOptions,
   ExpressionReference,
@@ -23,7 +24,7 @@ export const isExpressionReference = (
 
 export const isAggregationReference = (
   mbql: any,
-): mbql is AggregationReference => {
+): mbql is AggregateFieldReference => {
   return Array.isArray(mbql) && mbql[0] === "aggregation";
 };
 
@@ -34,8 +35,8 @@ export const isTemplateTagReference = (
 };
 
 export const createFieldReference = (
-  columnNameOrFieldId: ColumnName | FieldId,
-): FieldReference => ["field", columnNameOrFieldId, null];
+  columnNameOrFieldId: string | FieldId,
+): FieldReference => ["field", columnNameOrFieldId, null] as FieldReference;
 
 export const isValidDimensionReference = (
   mbql: any,
@@ -76,13 +77,13 @@ export const getNormalizedDimensionReference = (
     const normalizedOptions = normalizeReferenceOptions(mbql[2]);
     normalizedReference[2] = normalizedOptions;
 
-    return normalizedReference;
+    return normalize(normalizedReference);
   }
 
   return mbql;
 };
 
-export const getDimensionReferenceWithoutOptions = (
+const getDimensionReferenceWithoutOptions = (
   mbql: DimensionReferenceWithOptions,
   optionsKeysToOmit: string[],
 ): DimensionReferenceWithOptions => {

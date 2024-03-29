@@ -1,9 +1,6 @@
 /* eslint-disable react/prop-types */
-import React from "react";
-
-import { formatValue } from "metabase/lib/formatting";
-
 import AutoLoadRemapped from "metabase/hoc/Remapped";
+import { formatValue } from "metabase/lib/formatting";
 
 const defaultRenderNormal = ({ value, column }) => (
   <span className="text-bold">{value}</span>

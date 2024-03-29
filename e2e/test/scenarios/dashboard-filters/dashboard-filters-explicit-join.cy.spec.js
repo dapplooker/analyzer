@@ -1,5 +1,5 @@
-import { restore, filterWidget, visitDashboard } from "e2e/support/helpers";
 import { SAMPLE_DATABASE } from "e2e/support/cypress_sample_database";
+import { restore, filterWidget, visitDashboard } from "e2e/support/helpers";
 
 const { ORDERS, ORDERS_ID, PRODUCTS, PRODUCTS_ID } = SAMPLE_DATABASE;
 
@@ -49,7 +49,7 @@ describe("scenarios > dashboard > filters", () => {
         const { card_id, dashboard_id } = dashboardCard;
 
         const updatedCardDetails = {
-          size_x: 16,
+          size_x: 21,
           size_y: 10,
           parameter_mappings: [
             {

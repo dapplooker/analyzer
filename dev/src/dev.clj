@@ -1,9 +1,49 @@
+;; # Metabase Backend Developer Documentation
+;;
+;; Welcome to Metabase! Here are links to useful resources.
+;;
+;; ## Project Management
+;;
+;; - [Engineering and Product Playbook](https://www.notion.so/metabase/Engineering-and-Product-Playbook-cd4bc1c0b8744470bebc0b979f8f5268)
+;; - [Weekly Tactical Board: how to](https://www.notion.so/metabase/Weekly-Tactical-Board-how-to-6e81f994a792493ba7ae430f2afa1673)
+;; - [The Escalations Process](https://www.notion.so/Escalating-a-bug-b876f78c801345f3bda8504d4a63ba80)
+;;
+;; ## Dev Environment
+;;
+;; - [Getting started with backend development](https://github.com/metabase/metabase/blob/master/docs/developers-guide/devenv.md#backend-development)
+;; - [Additional notes on using tools.deps](https://github.com/metabase/metabase/wiki/Migrating-from-Leiningen-to-tools.deps)
+;; - [Other tips](https://github.com/metabase/metabase/wiki/Metabase-Backend-Dev-Secrets)
+;;
+;; ## Important Parts of the Codebase
+;;
+;; - [API Endpoints](#metabase.api.common)
+;; - [Drivers](#metabase.driver)
+;; - [Permissions](#metabase.models.permissions)
+;; - [The Query Processor](#metabase.query-processor)
+;; - [Application Settings](#metabase.models.setting)
+;;
+;; ## Important Libraries
+;;
+;; - [Toucan 2](https://github.com/camsaul/toucan2/) to work with models
+;; - [Honey SQL](https://github.com/seancorfield/honeysql) (version 2) for SQL queries
+;; - [Liquibase](https://docs.liquibase.com/concepts/changelogs/changeset.html) for database migrations
+;; - [Compojure](https://github.com/weavejester/compojure) on top of [Ring](https://github.com/ring-clojure/ring) for our API
+;;
+;; <hr />
+
+
 (ns dev
   "Put everything needed for REPL development within easy reach"
   (:require
    [clojure.core.async :as a]
+   [clojure.string :as str]
+   [clojure.test]
    [dev.debug-qp :as debug-qp]
-   [honeysql.core :as hsql]
+   [dev.explain :as dev.explain]
+   [dev.model-tracking :as model-tracking]
+   [hashp.core :as hashp]
+   [honey.sql :as sql]
+   [java-time.api :as t]
    [malli.dev :as malli-dev]
    [metabase.api.common :as api]
    [metabase.config :as config]
@@ -21,44 +61,100 @@
    [metabase.server.handler :as handler]
    [metabase.sync :as sync]
    [metabase.test :as mt]
+   [metabase.test-runner]
    [metabase.test.data.impl :as data.impl]
    [metabase.util :as u]
+   [metabase.util.log :as log]
    [methodical.core :as methodical]
    [potemkin :as p]
-   [toucan.db :as db]
    [toucan2.connection :as t2.connection]
+   [toucan2.core :as t2]
    [toucan2.pipeline :as t2.pipeline]))
 
-(comment debug-qp/keep-me)
+(set! *warn-on-reflection* true)
 
+(comment
+  debug-qp/keep-me
+  model-tracking/keep-me)
+
+#_:clj-kondo/ignore
 (defn tap>-spy [x]
   (doto x tap>))
 
 (p/import-vars
- [debug-qp process-query-debug])
+ [debug-qp
+  process-query-debug
+  pprint-sql]
+ [dev.explain
+  explain-query]
+ [model-tracking
+  track!
+  untrack!
+  untrack-all!
+  reset-changes!
+  changes]
+ [mt
+  set-ns-log-level!])
 
 (def initialized?
+  "Was Metabase already initialized? Used in `init!` to prevent calling `core/init!`
+   more than once (during `start!`, for example)."
   (atom nil))
 
 (defn init!
+  "Trigger general initialization, but only once."
   []
-  (mbc/init!)
-  (reset! initialized? true))
+  (when-not @initialized?
+    (mbc/init!)
+    (reset! initialized? true)))
+
+(defn migration-timestamp
+  "Returns a UTC timestamp in format `yyyy-MM-dd'T'HH:mm:ss` that you can used to postfix for migration ID."
+  []
+  (t/format (t/formatter "yyyy-MM-dd'T'HH:mm:ss") (t/zoned-date-time (t/zone-id "UTC"))))
+
+(defn deleted-inmem-databases
+  "Finds in-memory Databases for which the underlying in-mem h2 db no longer exists."
+  []
+  (let [h2-dbs (t2/select :model/Database :engine :h2)
+        in-memory? (fn [db] (some-> db :details :db (str/starts-with? "mem:")))
+        can-connect? (fn [db]
+                       #_:clj-kondo/ignore
+                       (binding [metabase.driver.h2/*allow-testing-h2-connections* true]
+                         (try
+                           (driver/can-connect? :h2 (:details db))
+                           (catch org.h2.jdbc.JdbcSQLNonTransientConnectionException _
+                             false)
+                           (catch Exception e
+                             (log/error e "Error checking in-memory database for deletion")
+                             ;; we don't want to delete these, so just pretend we could connect
+                             true))))]
+    (remove can-connect? (filter in-memory? h2-dbs))))
+
+(defn prune-deleted-inmem-databases!
+  "Delete any in-memory Databases to which we can't connect (in order to trigger cleanup of their related tasks, which
+  will otherwise spam logs)."
+  []
+  (when-let [outdated-ids (seq (map :id (deleted-inmem-databases)))]
+    (t2/delete! :model/Database :id [:in outdated-ids])))
 
 (defn start!
+  "Start Metabase"
   []
   (server/start-web-server! #'handler/app)
+  (init!)
   (when config/is-dev?
-    (malli-dev/start!))
-  (when-not @initialized?
-    (init!)))
+    (prune-deleted-inmem-databases!)
+    (with-out-str (malli-dev/start!))))
 
 (defn stop!
+  "Stop Metabase"
   []
   (malli-dev/stop!)
-  (metabase.server/stop-web-server!))
+  (server/stop-web-server!))
 
 (defn restart!
+  "Restart Metabase"
   []
   (stop!)
   (start!))
@@ -124,18 +220,23 @@
   [driver-or-driver+dataset sql-args]
   (let [[driver dataset] (u/one-or-many driver-or-driver+dataset)
         [sql & params]   (if (map? sql-args)
-                           (hsql/format sql-args)
+                           (sql/format sql-args)
                            (u/one-or-many sql-args))
         canceled-chan    (a/promise-chan)]
     (try
       (driver/with-driver driver
         (letfn [(thunk []
-                  (with-open [conn (sql-jdbc.execute/connection-with-timezone driver (mt/db) (qp.timezone/report-timezone-id-if-supported))
-                              stmt (sql-jdbc.execute/prepared-statement driver conn sql params)
-                              rs   (sql-jdbc.execute/execute-prepared-statement! driver stmt)]
-                    (let [rsmeta (.getMetaData rs)]
-                      {:cols (sql-jdbc.execute/column-metadata driver rsmeta)
-                       :rows (reduce conj [] (sql-jdbc.execute/reducible-rows driver rs rsmeta canceled-chan))})))]
+                  (let [db (mt/db)]
+                    (sql-jdbc.execute/do-with-connection-with-options
+                     driver
+                     db
+                     {:session-timezone (qp.timezone/report-timezone-id-if-supported driver db)}
+                     (fn [conn]
+                       (with-open [stmt (sql-jdbc.execute/prepared-statement driver conn sql params)
+                                   rs   (sql-jdbc.execute/execute-prepared-statement! driver stmt)]
+                         (let [rsmeta (.getMetaData rs)]
+                           {:cols (sql-jdbc.execute/column-metadata driver rsmeta)
+                            :rows (reduce conj [] (sql-jdbc.execute/reducible-rows driver rs rsmeta canceled-chan))}))))))]
           (if dataset
             (data.impl/do-with-dataset (data.impl/resolve-dataset-definition *ns* dataset) thunk)
             (thunk))))
@@ -152,7 +253,7 @@
    (mdb.setup/migrate! (mdb.connection/db-type) (mdb.connection/data-source)
                        direction version)))
 
-(methodical/defmethod t2.connection/do-with-connection :metabase.models.database/Database
+(methodical/defmethod t2.connection/do-with-connection :model/Database
   "Support running arbitrary queries against data warehouse DBs for easy REPL debugging. Only works for SQL+JDBC drivers
   right now!
 
@@ -200,13 +301,15 @@
   "Add the application database as a Database. Currently only works if your app DB uses broken-out details!"
   []
   (binding [t2.connection/*current-connectable* nil]
-    (or (db/select-one Database :name "Application Database")
+    (or (t2/select-one Database :name "Application Database")
+        #_:clj-kondo/ignore
         (let [details (#'metabase.db.env/broken-out-details
                        (mdb.connection/db-type)
                        @#'metabase.db.env/env)
-              app-db  (db/insert! Database {:name    "Application Database"
-                                            :engine  (mdb.connection/db-type)
-                                            :details details})]
+              app-db  (first (t2/insert-returning-instances! Database
+                                                             {:name    "Application Database"
+                                                              :engine  (mdb.connection/db-type)
+                                                              :details details}))]
           (sync/sync-database! app-db)
           app-db))))
 
@@ -218,3 +321,38 @@
      (mt/with-driver (:engine db#)
        (mt/with-db db#
          ~@body))))
+
+(defmacro p
+  "#p, but to use in pipelines like `(-> 1 inc dev/p inc)`.
+
+  See https://github.com/weavejester/hashp"
+  [form]
+  (hashp/p* form))
+
+(defn- tests-in-var-ns [test-var]
+  (->> test-var meta :ns ns-interns vals
+       (filter (comp :test meta))))
+
+(defn find-root-test-failure!
+  "Sometimes tests fail due to another test not cleaning up after itself properly (e.g. leaving permissions in a dirty
+  state). This is a common cause of tests failing in CI, or when run via `find-and-run-tests`, but not when run alone.
+
+  This helper allows you to pass in a test var for a test that fails only after other tests run. It finds and runs all
+  tests, running your passed test after each.
+
+  When the passed test starts failing, it throws an exception notifying you of the test that caused it to start
+  failing. At that point, you can start investigating what pleasant surprises that test is leaving behind in the
+  database."
+  [failing-test-var & {:keys [scope] :or {scope :same-ns}}]
+  (let [failed? (fn []
+                  (not= [0 0] ((juxt :fail :error) (clojure.test/run-test-var failing-test-var))))]
+    (when (failed?)
+      (throw (ex-info "Test is already failing! Better go fix it." {:failed-test failing-test-var})))
+    (let [tests (case scope
+                  :same-ns (tests-in-var-ns failing-test-var)
+                  :full-suite (metabase.test-runner/find-tests))]
+      (doseq [test tests]
+        (clojure.test/run-test-var test)
+        (when (failed?)
+          (throw (ex-info (format "Test failed after running: `%s`" test)
+                          {:test test})))))))
