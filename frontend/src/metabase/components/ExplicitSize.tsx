@@ -4,7 +4,6 @@ import type { CSSProperties, ComponentType } from "react";
 import { Component } from "react";
 import ReactDOM from "react-dom";
 import _ from "underscore";
-import debounce from "lodash.debounce";
 
 import { isCypressActive } from "metabase/env";
 import resizeObserver from "metabase/lib/resize-observer";

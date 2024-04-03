@@ -7,13 +7,6 @@ import type {
 import { Droppable, Draggable } from "react-beautiful-dnd";
 import { t } from "ttag";
 import _ from "underscore";
-import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
-
-import type {
-  DraggableProvided,
-  DroppableProvided,
-  DropResult,
-} from "react-beautiful-dnd";
 
 import { DragDropContext } from "metabase/core/components/DragDropContext";
 import { Form, FormProvider } from "metabase/forms";
@@ -31,7 +24,6 @@ import {
   getDefaultFormSettings,
 } from "../../../utils";
 import { syncFieldsWithParameters } from "../utils";
-import { reorderFields } from "./utils";
 
 import { Description } from "./Description";
 import { EmptyFormPlaceholder } from "./EmptyFormPlaceholder";

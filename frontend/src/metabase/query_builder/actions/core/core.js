@@ -309,9 +309,6 @@ export const apiUpdateQuestion = (question, { rerunQuery } = {}) => {
     const metadataOptions = { reload: question.isDataset() };
     await dispatch(loadMetadataForCard(question.card(), metadataOptions));
 
-    const metadataOptions = { reload: question.isDataset() };
-    await dispatch(loadMetadataForCard(question.card(), metadataOptions));
-
     if (rerunQuery) {
       dispatch(runQuestionQuery());
     }

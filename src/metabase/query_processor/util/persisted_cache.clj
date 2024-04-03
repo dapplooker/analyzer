@@ -37,7 +37,7 @@
             (sql.u/quote-name
              driver
              :table
-             (ddl.i/schema-name {:id database_id} (public-settings/site-uuid)))
+             (ddl.i/schema-name {:id database-id} (public-settings/site-uuid)))
             (sql.u/quote-name
              driver
              :table

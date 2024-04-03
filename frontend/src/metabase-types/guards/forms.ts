@@ -3,7 +3,6 @@ import type {
   CustomFormFieldDefinition,
   FormFieldDefinition,
 } from "metabase-types/forms";
-import { isReactComponent } from "./react";
 
 import { isReactComponent } from "./react";
 

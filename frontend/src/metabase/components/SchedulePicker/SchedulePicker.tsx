@@ -20,13 +20,6 @@ import type {
   ScheduleSettings,
   ScheduleType,
 } from "metabase-types/api";
-import {
-  AM_PM_OPTIONS,
-  getDayOfWeekOptions,
-  HOUR_OPTIONS,
-  MINUTE_OPTIONS,
-  MONTH_DAY_OPTIONS,
-} from "metabase/lib/date-time";
 
 import {
   PickerRoot,

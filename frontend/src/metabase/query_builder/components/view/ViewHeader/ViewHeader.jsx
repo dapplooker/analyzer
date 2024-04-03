@@ -11,14 +11,13 @@ import { useDispatch, useSelector } from "metabase/lib/redux";
 import MetabaseSettings from "metabase/lib/settings";
 import * as Urls from "metabase/lib/urls";
 import { navigateBackToDashboard } from "metabase/query_builder/actions";
+import { QuestionAPIWidgetTrigger } from "metabase/query_builder/components/QuestionEmbedWidget";
 import SavedQuestionHeaderButton from "metabase/query_builder/components/SavedQuestionHeaderButton/SavedQuestionHeaderButton";
 import { MODAL_TYPES } from "metabase/query_builder/constants";
 import { getDashboard } from "metabase/query_builder/selectors";
 import * as Lib from "metabase-lib";
 
-import { QuestionAPIWidgetTrigger } from "metabase/query_builder/containers/QuestionEmbedWidget";
-
-import QueryDownloadWidget from "../QueryDownloadWidget";
+import QueryDownloadWidget from "../../QueryDownloadWidget";
 
 import {
   AdHocViewHeading,

@@ -27,7 +27,6 @@ import {
   getDashcardParamValues,
   getMappedActionParameters,
   getNotProvidedActionParameters,
-  getMappedActionParameters,
   shouldShowConfirmation,
 } from "./utils";
 

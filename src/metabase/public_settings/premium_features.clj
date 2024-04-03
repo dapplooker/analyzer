@@ -81,22 +81,6 @@
                  0
                  (cached-active-users-count))))
 
-(def ^:private cached-active-user-count
-  "Primarily used for the settings because we don't wish it to be 100%."
-  (memoize/ttl
-    active-users-count*
-    :ttl/threshold (u/minutes->ms 5)))
-
-(defsetting active-users-count
-  (deferred-tru "Cached number of active users. Refresh every 5 minutes.")
-  :visibility :admin
-  :type       :integer
-  :default    0
-  :getter     (fn []
-                (if-not ((requiring-resolve 'metabase.db/db-is-set-up?))
-                 0
-                 (cached-active-user-count))))
-
 (defn- token-status-url [token base-url]
   (when (seq token)
     (format "%s/api/%s/v2/status" base-url token)))

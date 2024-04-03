@@ -1,6 +1,11 @@
+import { t } from "ttag";
+
 import type { ExportFormatType } from "metabase/dashboard/components/PublicLinkPopover/types";
+import * as MetabaseAnalytics from "metabase/lib/analytics";
+import { color } from "metabase/lib/colors";
 import { useDispatch, useSelector } from "metabase/lib/redux";
 import { publicQuestion } from "metabase/lib/urls";
+import * as Urls from "metabase/lib/urls";
 import {
   EmbedModal,
   EmbedModalContent,
@@ -9,7 +14,6 @@ import { getMetadata } from "metabase/selectors/metadata";
 import { getCardUiParameters } from "metabase-lib/parameters/utils/cards";
 import type { Card } from "metabase-types/api";
 import type { EmbedOptions } from "metabase-types/store";
-import * as Urls from "metabase/lib/urls";
 
 import {
   createPublicLink,
@@ -19,7 +23,6 @@ import {
   updateEnableEmbedding,
 } from "../../actions";
 import { HeaderButton } from "../../components/view/ViewHeader/ViewHeader.styled";
-import { color } from "metabase/lib/colors";
 
 type QuestionEmbedWidgetProps = {
   className?: string;
@@ -28,7 +31,7 @@ type QuestionEmbedWidgetProps = {
   onClose: () => void;
 };
 export const QuestionEmbedWidget = (props: QuestionEmbedWidgetProps) => {
-  const { className, card, onClose, isChartAPI = false} = props;
+  const { className, card, onClose, isChartAPI = false } = props;
 
   const metadata = useSelector(getMetadata);
 
@@ -55,29 +58,34 @@ export const QuestionEmbedWidget = (props: QuestionEmbedWidgetProps) => {
           resource={card}
           resourceType="question"
           resourceParameters={getCardUiParameters(card, metadata)}
-          onGetChartApi={()=> getChartAPI(card)}
+          onGetChartApi={() => getChartAPI(card)}
           onCreatePublicLink={createPublicQuestionLink}
           onDeletePublicLink={deletePublicQuestionLink}
           onUpdateEnableEmbedding={updateQuestionEnableEmbedding}
           onUpdateEmbeddingParams={updateQuestionEmbeddingParams}
           getPublicUrl={getPublicQuestionUrl}
-          getChartApiEndPoint = {({ public_uuid }, extension) => Urls.chartApiEndPoint(public_uuid, extension)}
+          getChartApiEndPoint={({ public_uuid }, extension) =>
+            Urls.chartApiEndPoint(public_uuid, extension)
+          }
           isChartAPI={isChartAPI}
         />
       )}
     </EmbedModal>
   );
 };
-interface QuestionAPIWidgetTriggerProps{
+interface QuestionAPIWidgetTriggerProps {
   onClick: () => void;
 }
-export function QuestionAPIWidgetTrigger({ onClick }: QuestionAPIWidgetTriggerProps) {
+export function QuestionAPIWidgetTrigger({
+  onClick,
+}: QuestionAPIWidgetTriggerProps) {
   return (
     <HeaderButton
       large
       labelBreakpoint="sm"
       className="hide sm-show"
       color={color("filter")}
+      active={true}
       onClick={() => {
         MetabaseAnalytics.trackStructEvent(
           "Sharing / Embedding",

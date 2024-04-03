@@ -31,7 +31,6 @@ import {
 import { settings } from "./LinkVizSettings";
 import type { WrappedUnrestrictedLinkEntity } from "./types";
 import { isUrlString } from "./utils";
-import { WrappedUnrestrictedLinkEntity } from "./types";
 
 const MODELS_TO_SEARCH: SearchModelType[] = [
   "card",
@@ -123,8 +122,6 @@ function LinkVizInner({
         </EditLinkCardWrapper>
       );
     }
-
-    const target = isWithinIframe() ? undefined : "_blank";
 
     return (
       <DisplayLinkCardWrapper>

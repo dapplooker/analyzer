@@ -4,7 +4,6 @@ import { addLocale, useLocale } from "ttag";
 
 import { DAY_OF_WEEK_OPTIONS } from "metabase/lib/date-time";
 import MetabaseSettings from "metabase/lib/settings";
-import { DAY_OF_WEEK_OPTIONS } from "metabase/lib/date-time";
 
 // note this won't refresh strings that are evaluated at load time
 export async function loadLocalization(locale) {

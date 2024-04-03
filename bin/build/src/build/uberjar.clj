@@ -65,8 +65,7 @@
         (fn [graph dep]
           (ns.deps/depend graph ns-symbol dep))
         graph
-        (ns.parse/deps-from  "Verify that a driver JAR looks correct."
--ns-decl ns-decl))))
+        (ns.parse/deps-from-ns-decl ns-decl))))
    (ns.deps/graph)
    ns-decls))
 

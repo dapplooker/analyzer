@@ -44,15 +44,6 @@ export const getTitleForColumn = (
   return columnTitle || formatColumn(_column);
 };
 
-export const getTitleForColumn = (
-  column: Column,
-  settings: VisualizationSettings,
-) => {
-  const { column: _column, column_title: columnTitle } =
-    settings.column(column);
-  return columnTitle || formatColumn(_column);
-};
-
 export const settings = {
   ...columnSettings({ hidden: true }),
   [COLLAPSED_ROWS_SETTING]: {

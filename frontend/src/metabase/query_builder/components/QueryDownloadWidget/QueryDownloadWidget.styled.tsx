@@ -1,8 +1,9 @@
 import { css } from "@emotion/react";
 import styled from "@emotion/styled";
-import Icon from "metabase/components/Icon";
-import { color } from "metabase/lib/colors";
+
 import LoadingSpinner from "metabase/components/LoadingSpinner";
+import { color } from "metabase/lib/colors";
+import { Icon } from "metabase/ui";
 
 const BorderedBase = css`
   padding: 0.6rem 1.25rem;

@@ -1,13 +1,11 @@
+import cx from "classnames";
+import type { Location } from "history";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { connect } from "react-redux";
 import { withRouter } from "react-router";
-import { useMount } from "react-use";
-import _ from "underscore";
-import cx from "classnames";
-import type { Location } from "history";
-
 import { useLocation, useMount } from "react-use";
+import _ from "underscore";
 
 import TitleAndDescription from "metabase/components/TitleAndDescription";
 import {

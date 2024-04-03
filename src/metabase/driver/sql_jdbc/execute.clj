@@ -6,6 +6,7 @@
   `metabase.driver.sql-jdbc.execute.legacy-impl`. "
   (:require
    [clojure.core.async :as a]
+   [clojure.java.jdbc :as jdbc]
    [clojure.string :as str]
    [java-time.api :as t]
    [metabase.driver :as driver]

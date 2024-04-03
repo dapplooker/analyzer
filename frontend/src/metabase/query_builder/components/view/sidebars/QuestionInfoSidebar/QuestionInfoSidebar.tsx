@@ -1,20 +1,17 @@
 import { t } from "ttag";
 
-import { useDispatch } from "react-redux";
 import EditableText from "metabase/core/components/EditableText";
 import Link from "metabase/core/components/Link";
+import { useDispatch } from "metabase/lib/redux";
 import * as Urls from "metabase/lib/urls";
 import { PLUGIN_MODERATION, PLUGIN_CACHING } from "metabase/plugins";
+import { onCloseQuestionInfo } from "metabase/query_builder/actions";
 import { QuestionActivityTimeline } from "metabase/query_builder/components/QuestionActivityTimeline";
+import { Icon } from "metabase/ui";
 import type Question from "metabase-lib/Question";
 
 import ModelCacheManagementSection from "../ModelCacheManagementSection";
 
-import Icon from "metabase/components/Icon";
-import { onCloseQuestionInfo } from "metabase/query_builder/actions";
-import Question from "metabase-lib/Question";
-
-import ModelCacheManagementSection from "./ModelCacheManagementSection";
 import {
   Root,
   ContentSection,
