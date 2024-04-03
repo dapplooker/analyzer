@@ -17,6 +17,7 @@
    [metabase.mbql.normalize :as mbql.normalize]
    [metabase.mbql.schema :as mbql.s]
    [metabase.models.audit-log :as audit-log]
+   [metabase.models.user :as user :refer [User]]
    [metabase.models.collection :as collection]
    [metabase.models.field-values :as field-values]
    [metabase.models.interface :as mi]
@@ -476,27 +477,6 @@
                                                      :where  [:= :action.model_id model-id]})]
     (t2/delete! 'Action :id [:in action-ids])))
 
-(defn model-supports-implicit-actions?
-  "A model with implicit action supported iff they are a raw table,
-  meaning there are no clauses such as filter, limit, breakout...
-
-  The list of clauses should match with FE, which is defined in the
-  method `hasAnyClauses` of `metabase-lib/queries/StructuredQuery` class"
-  [{dataset-query :dataset_query :as _card}]
-  (and (= :query (:type dataset-query))
-       (every? #(nil? (get-in dataset-query [:query %]))
-               [:expressions :filter :limit :breakout :aggregation :joins :order-by :fields])))
-
-(defn- disable-implicit-action-for-model!
-  "Delete all implicit actions of a model if exists."
-  [model-id]
-  (when-let [action-ids (t2/select-pks-set 'Action {:select [:action.id]
-                                                    :from   [:action]
-                                                    :join   [:implicit_action
-                                                             [:= :action.id :implicit_action.action_id]]
-                                                    :where  [:= :action.model_id model-id]})]
-    (t2/delete! 'Action :id [:in action-ids])))
-
 (defn- pre-update [{archived? :archived, id :id, :as changes}]
   ;; TODO - don't we need to be doing the same permissions check we do in `pre-insert` if the query gets changed? Or
   ;; does that happen in the `PUT` endpoint?
@@ -695,6 +675,10 @@ saved later when it is ready."
                   (log/info (trs "Not updating metadata asynchronously for card {0} because query has changed"
                                  id)))))))))
 
+(defn get-creator-details [creator-id]
+  "Retrieve the login attribute from the core_user table based on the creator-id."
+  (t2/select-one [User :login_attributes] :id creator-id))
+
 (defn create-card!
   "Create a new Card. Metadata will be fetched off thread. If the metadata takes longer than [[metadata-sync-wait-ms]]
   the card will be saved without metadata and it will be saved to the card in the future when it is ready.
@@ -724,6 +708,7 @@ saved later when it is ready."
          metadata-timeout     (a/timeout metadata-sync-wait-ms)
          [metadata port]      (a/alts!! [result-metadata-chan metadata-timeout])
          timed-out?           (= port metadata-timeout)
+         creator-details      (get-creator-details (:creator_id card-data)) ; Fetch creator details
          card                 (t2/with-transaction [_conn]
                                 ;; Adding a new card at `collection_position` could cause other cards in this
                                 ;; collection to change position, check that and fix it if needed
@@ -737,9 +722,11 @@ saved later when it is ready."
        (log/info (trs "Metadata not available soon enough. Saving new card and asynchronously updating metadata")))
      ;; include same information returned by GET /api/card/:id since frontend replaces the Card it currently has with
      ;; returned one -- See #4283
-     (u/prog1 card
+     (let [card-with-creator (-> card
+       (assoc :creator_details creator-details))]
        (when timed-out?
-         (schedule-metadata-saving result-metadata-chan <>))))))
+         (schedule-metadata-saving result-metadata-chan card-with-creator))
+        card-with-creator))))
 
 ;;; ------------------------------------------------- Updating Cards -------------------------------------------------
 

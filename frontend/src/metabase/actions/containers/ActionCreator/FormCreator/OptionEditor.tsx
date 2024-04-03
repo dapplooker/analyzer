@@ -7,8 +7,6 @@ import Button from "metabase/core/components/Button";
 import { Icon } from "metabase/ui";
 import type { FieldType, FieldValueOptions } from "metabase-types/api";
 
-import type { FieldType, FieldValueOptions } from "metabase-types/api";
-
 import {
   OptionEditorContainer,
   AddMorePrompt,
@@ -49,27 +47,12 @@ function getValidationError(options: FieldValueOptions, fieldType: FieldType) {
   return isValid ? undefined : t`Invalid number format`;
 }
 
-export interface OptionEditorProps {
-  fieldType: FieldType;
-  options: FieldValueOptions;
-  onChange: (options: FieldValueOptions) => void;
-}
-
-function cleanOptions(options: FieldValueOptions, fieldType: FieldType) {
-  if (fieldType === "number") {
-    return options.map(option => Number(option));
-  }
-  return options;
-}
-
-function getValidationError(options: FieldValueOptions, fieldType: FieldType) {
-  if (fieldType === "number") {
-    const isValid = options.every(option => !Number.isNaN(option));
-    return isValid ? undefined : t`Invalid number format`;
-  }
-  return;
-}
-
+// function cleanOptions(options: FieldValueOptions, fieldType: FieldType) {
+//   if (fieldType === "number") {
+//     return options.map(option => Number(option));
+//   }
+//   return options;
+// }
 export interface OptionEditorProps {
   fieldType: FieldType;
   options: FieldValueOptions;

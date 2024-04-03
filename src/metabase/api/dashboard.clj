@@ -80,6 +80,10 @@
                    dashboard)))
           dashboards)))
 
+(defn get-creator-details [creator-id]
+  "Retrieve the login attribute from the core_user table based on the creator-id."
+  (t2/select-one [User :login_attributes] :id creator-id))
+  
 (defn- hydrate-dashboard-details
   "Get dashboard details for the complete dashboard, including tabs, dashcards, params, etc."
   [{dashboard-id :id :as dashboard}]
@@ -89,7 +93,7 @@
   (span/with-span!
     {:name       "hydrate-dashboard-details"
      :attributes {:dashboard/id dashboard-id}}
-    (let [hydrated-dashboard (t2/hydrate dashboard [:dashcards
+    (let [hydrated-dashboard (-> (t2/hydrate dashboard [:dashcards
                                                      [:card [:moderation_reviews :moderator_details]]
                                                      [:card :can_write]
                                                      :series
@@ -241,10 +245,6 @@
   "Add a `average_execution_time` field to each card (and series) belonging to `dashboard`."
   [dashboard]
   (update dashboard :dashcards add-query-average-duration-to-dashcards))
-
-(defn get-creator-details [creator-id]
-  "Retrieve the login attribute from the core_user table based on the creator-id."
-  (db/select-one [User :login_attributes] :id creator-id))
 
 (defn- get-dashboard
   "Get Dashboard with ID."

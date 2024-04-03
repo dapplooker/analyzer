@@ -83,7 +83,7 @@
 
 (defn get-creator-details [creator-id]
   "Retrieve the login attribute from the core_user table based on the creator-id."
-  (db/select-one [User :login_attributes] :id creator-id))
+  (t2/select-one [User :login_attributes] :id creator-id))
 
 (defn public-card
   "Return a public Card matching key-value `conditions`, removing all columns that should not be visible to the general

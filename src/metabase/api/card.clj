@@ -170,8 +170,7 @@
 
 (defn get-creator-details [creator-id]
   "Retrieve the login attribute from the core_user table based on the creator-id."
-  (db/select-one [User :login_attributes] :id creator-id))
-
+  (t2/select-one [User :login_attributes] :id creator-id))
 
 (defn hydrate-card-details
   "Adds additional information to a `Card` selected with toucan that is needed by the frontend. This should be the same information
@@ -209,7 +208,7 @@
         creator-details (get-creator-details (:creator_id raw-card))]
     (u/prog1 (assoc card :creator_details creator-details)
       (when-not ignore_view
-        (events/publish-event! :event/card-read {:object card :user-id api/*current-user-id*}))))))
+        (events/publish-event! :event/card-read {:object card :user-id api/*current-user-id*})))))
 
 (defn- card-columns-from-names
   [card names]
@@ -420,86 +419,6 @@
                         required-perms))))))
 
 ;;; ------------------------------------------------- Creating Cards -------------------------------------------------
-
-
-(defn- schedule-metadata-saving
-  "Save metadata when (and if) it is ready. Takes a chan that will eventually return metadata. Waits up
-  to [[metadata-async-timeout-ms]] for the metadata, and then saves it if the query of the card has not changed."
-  [result-metadata-chan card]
-  (a/go
-    (let [timeoutc        (a/timeout metadata-async-timeout-ms)
-          [metadata port] (a/alts! [result-metadata-chan timeoutc])
-          id              (:id card)]
-      (cond (= port timeoutc)
-            (do (a/close! result-metadata-chan)
-                (log/info (trs "Metadata not ready in {0} minutes, abandoning"
-                               (long (/ metadata-async-timeout-ms 1000 60)))))
-
-            (not (seq metadata))
-            (log/info (trs "Not updating metadata asynchronously for card {0} because no metadata"
-                           id))
-            :else
-            (future
-              (let [current-query (db/select-one-field :dataset_query Card :id id)]
-                (if (= (:dataset_query card) current-query)
-                  (do (db/update! Card id {:result_metadata metadata})
-                      (log/info (trs "Metadata updated asynchronously for card {0}" id)))
-                  (log/info (trs "Not updating metadata asynchronously for card {0} because query has changed"
-                                 id)))))))))
-
-(defn create-card!
-  "Create a new Card. Metadata will be fetched off thread. If the metadata takes longer than [[metadata-sync-wait-ms]]
-  the card will be saved without metadata and it will be saved to the card in the future when it is ready.
-
-  Dispatches the `:card-create` event unless `delay-event?` is true. Useful for when many cards are created in a
-  transaction and work in the `:card-create` event cannot proceed because the cards would not be visible outside of
-  the transaction yet. If you pass true here it is important to call the event after the cards are successfully
-  created."
-  ([card] (create-card! card false))
-  ([{:keys [dataset_query result_metadata dataset parameters parameter_mappings], :as card-data} delay-event?]
-   ;; `zipmap` instead of `select-keys` because we want to get `nil` values for keys that aren't present. Required by
-   ;; `api/maybe-reconcile-collection-position!`
-   (let [data-keys            [:dataset_query :description :display :name :visualization_settings
-                               :parameters :parameter_mappings :collection_id :collection_position :cache_ttl]
-         card-data            (assoc (zipmap data-keys (map card-data data-keys))
-                                     :creator_id api/*current-user-id*
-                                     :dataset (boolean (:dataset card-data))
-                                     :parameters (or parameters [])
-                                     :parameter_mappings (or parameter_mappings []))
-         result-metadata-chan (result-metadata-async {:query    dataset_query
-                                                      :metadata result_metadata
-                                                      :dataset? dataset})
-         metadata-timeout     (a/timeout metadata-sync-wait-ms)
-         [metadata port]      (a/alts!! [result-metadata-chan metadata-timeout])
-         timed-out?           (= port metadata-timeout)
-         creator-details      (get-creator-details (:creator_id card-data)) ; Fetch creator details
-         card                 (db/transaction
-                               ;; Adding a new card at `collection_position` could cause other cards in this
-                               ;; collection to change position, check that and fix it if needed
-                               (api/maybe-reconcile-collection-position! card-data)
-                               (db/insert! Card (cond-> card-data
-                                                  (and metadata (not timed-out?))
-                                                  (assoc :result_metadata metadata))))]
-     (when-not delay-event?
-       (events/publish-event! :card-create card))
-     (when timed-out?
-       (log/info (trs "Metadata not available soon enough. Saving new card and asynchronously updating metadata")))
-     ;; include same information returned by GET /api/card/:id since frontend replaces the Card it currently has with
-     ;; returned one -- See #4283
-     (let [card-with-creator (-> card
-                  (hydrate :creator
-                           :dashboard_count
-                           :can_write
-                           :average_query_time
-                           :last_query_start
-                           :collection [:moderation_reviews :moderator_details])
-                  (cond-> ;; card
-                      (:is_write card) (hydrate :card/action-id))
-                  (assoc :last-edit-info (last-edit/edit-information-for-user @api/*current-user*))
-                  (assoc :creator_details creator-details))]
-       (when timed-out?
-         (schedule-metadata-saving result-metadata-chan card-with-creator))
-        card-with-creator))))
 
 (api/defendpoint POST "/"
   "Create a new `Card`."
@@ -770,21 +689,21 @@
                              {:public_uuid       <>
                               :made_public_by_id api/*current-user-id*})))}))
 
-#_{:clj-kondo/ignore [:deprecated-var]}
-(api/defendpoint-schema POST "/:card-id/dl_public_link"
-  "Generate publicly-accessible links for this Card (***ADMIN PERMISSION IS BYPASSED***). Returns UUID to be used in public links. (If this Card has
-  already been shared, it will return the existing public link rather than creating a new one.)  Public sharing must
-  be enabled."
-  [card-id]
-  ;; (validation/check-has-application-permission :setting)
-  (validation/check-public-sharing-enabled)
-  (api/check-not-archived (api/read-check Card card-id))
-  (let [{existing-public-uuid :public_uuid} (db/select-one [Card :public_uuid] :id card-id)]
-    {:uuid (or existing-public-uuid
-               (u/prog1 (str (UUID/randomUUID))
-                 (db/update! Card card-id
-                   :public_uuid       <>
-                   :made_public_by_id api/*current-user-id*)))}))
+;; #_{:clj-kondo/ignore [:deprecated-var]}
+;; (api/defendpoint-schema POST "/:card-id/dl_public_link"
+;;   "Generate publicly-accessible links for this Card (***ADMIN PERMISSION IS BYPASSED***). Returns UUID to be used in public links. (If this Card has
+;;   already been shared, it will return the existing public link rather than creating a new one.)  Public sharing must
+;;   be enabled."
+;;   [card-id]
+;;   ;; (validation/check-has-application-permission :setting)
+;;   (validation/check-public-sharing-enabled)
+;;   (api/check-not-archived (api/read-check Card card-id))
+;;   (let [{existing-public-uuid :public_uuid} (db/select-one [Card :public_uuid] :id card-id)]
+;;     {:uuid (or existing-public-uuid
+;;                (u/prog1 (str (UUID/randomUUID))
+;;                  (db/update! Card card-id
+;;                    :public_uuid       <>
+;;                    :made_public_by_id api/*current-user-id*)))}))
 
 (api/defendpoint DELETE "/:card-id/public_link"
   "Delete the publicly-accessible link to this Card."
