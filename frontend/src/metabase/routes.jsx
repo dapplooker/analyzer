@@ -96,13 +96,13 @@ export const getRoutes = store => {
         <Route path="dashboard/:uuid(/:tabSlug)" component={PublicDashboard} />
       </Route>
 
-      <Route
+      {/* <Route
         path="/dapplooker"
         component={() => {
           window.location.href = "https://dapplooker.com/dashboard";
           return null;
         }}
-      />
+      /> */}
 
       {/* ==================================================================== */}
 
@@ -119,7 +119,7 @@ export const getRoutes = store => {
           }
         }}
       >
-        {/* AUTH to be uncommented from line 195 to 204 during local testing on analytics.dlooker.com*/}
+        {/* AUTH to be uncommented from line 123 to 132 during local testing on analytics.dlooker.com*/}
         <Route path="/auth">
           <IndexRedirect to="/auth/login" />
           <Route component={IsNotAuthenticated}>
@@ -131,8 +131,8 @@ export const getRoutes = store => {
           <Route path="reset_password/:token" component={ResetPassword} />
         </Route>
 
-        {/* AUTH comment from line 208 to 235 during local testing  */}
-        <Route path="/auth">
+        {/* AUTH comment from line 135 to 161 during local testing  */}
+        {/* <Route path="/auth">
           <IndexRedirect to="/auth/login" />
           <Route component={IsNotAuthenticated}>
             <Route
@@ -158,7 +158,7 @@ export const getRoutes = store => {
               return null;
             }}
           />
-        </Route>
+        </Route> */}
         {/* ===================================================================== */}
 
         {/* MAIN */}

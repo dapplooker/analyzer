@@ -76,7 +76,7 @@ const config = (module.exports = {
     // publicPath: "app/dist/",
     publicPath: devMode
       ? "app/dist/"
-      : "https://d2yxqfr8upg55w.cloudfront.net/analyzer/dist/",
+      : "https://d2yxqfr8upg55w.cloudfront.net/analyzer-dev/dist/",
     hashFunction: "sha256",
   },
 

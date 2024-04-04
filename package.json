@@ -117,6 +117,7 @@
     "sql-formatter": "^15.1.2",
     "tether": "^1.2.0",
     "tippy.js": "^6.3.5",
+    "ts-node": "^10.9.2",
     "ttag": "1.7.21",
     "underscore": "~1.13.3",
     "yup": "^0.32.11",
