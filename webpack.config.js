@@ -13,6 +13,7 @@ const ReactRefreshPlugin = require("@pmmmwh/react-refresh-webpack-plugin");
 
 const fs = require("fs");
 const path = require("path");
+const os = require("os");
 
 const ASSETS_PATH = __dirname + "/resources/frontend_client/app/assets";
 const FONTS_PATH = __dirname + "/resources/frontend_client/app/fonts";
@@ -73,7 +74,9 @@ const config = (module.exports = {
     // filename: "[name].bundle.js?[chunkhash]",
     filename: "[name].bundle.[contenthash].js",
     // publicPath: "app/dist/",
-    publicPath: devMode ? "app/dist/" : "https://d2yxqfr8upg55w.cloudfront.net/analyzer/dist/",
+    publicPath: devMode
+      ? "app/dist/"
+      : "https://d2yxqfr8upg55w.cloudfront.net/analyzer/dist/",
     hashFunction: "sha256",
   },
 
@@ -112,7 +115,7 @@ const config = (module.exports = {
             loader: MiniCssExtractPlugin.loader,
             options: {
               publicPath: "./",
-              emit:true,
+              emit: true,
             },
           },
           { loader: "css-loader", options: CSS_CONFIG },
@@ -277,7 +280,7 @@ if (WEBPACK_BUNDLE === "hot") {
   config.target = "web";
   // suffixing with ".hot" allows us to run both `yarn run build-hot` and `yarn run test` or `yarn run test-watch` simultaneously
   config.output.filename = "[name].hot.bundle.[contenthash].js";
-  
+
   // point the publicPath (inlined in index.html by HtmlWebpackPlugin) to the hot-reloading server
   config.output.publicPath = webpackHost + "/" + config.output.publicPath;
 

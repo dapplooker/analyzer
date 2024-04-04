@@ -103,7 +103,7 @@ export const getRoutes = store => {
           return null;
         }}
       />
-     
+
       {/* ==================================================================== */}
 
       {/* APP */}
@@ -138,13 +138,12 @@ export const getRoutes = store => {
             <Route
               path="login"
               component={() => {
-                window.location.href =
-                  `https://dapplooker.com/user/login?source=dlooker&returnTo=${returnTo}`;
+                window.location.href = `https://dapplooker.com/user/login?source=dlooker&returnTo=${returnTo}`;
                 return null;
               }}
             />
           </Route>
-          <Route path="logout" component={LogoutApp} />
+          <Route path="logout" component={Logout} />
           <Route
             path="forgot_password"
             component={() => {
@@ -160,7 +159,7 @@ export const getRoutes = store => {
             }}
           />
         </Route>
-    {/* ===================================================================== */}
+        {/* ===================================================================== */}
 
         {/* MAIN */}
         <Route component={IsAuthenticated}>
