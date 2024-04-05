@@ -48,10 +48,6 @@ export const HeaderContainer = styled.div`
   margin-top: 0.5rem;
 `;
 
-export const HeaderLink = styled(Link)`
-  color: ${color("brand")};
-`;
-
 export const CrossIconContainer = styled.div`
   width: 100%;
   display: flex;

@@ -5,7 +5,6 @@ import CollectionBreadcrumbs from "../../containers/CollectionBreadcrumbs";
 import QuestionLineage from "../../containers/QuestionLineage";
 import NewItemButton from "../NewItemButton";
 import { ProfileLink } from "../ProfileLink";
-import DappLookerHeaderLinks from "./DappLookerHeaderLinks";
 
 import {
   AppBarLeftContainer,
@@ -16,6 +15,7 @@ import {
 } from "./AppBarLarge.styled";
 import { AppBarLogo } from "./AppBarLogo";
 import { AppBarToggle } from "./AppBarToggle";
+import DappLookerHeaderLinks from "./DappLookerHeaderLinks";
 
 export interface AppBarLargeProps {
   collectionId?: CollectionId;
