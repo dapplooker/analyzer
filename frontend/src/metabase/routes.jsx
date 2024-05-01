@@ -13,9 +13,9 @@ import MetabaseSettings from "metabase/lib/settings";
 import App from "metabase/App.tsx";
 
 // auth containers
-// import ForgotPasswordApp from "metabase/auth/containers/ForgotPasswordApp";
-// import LoginApp from "metabase/auth/containers/LoginApp";
-// import ResetPasswordApp from "metabase/auth/containers/ResetPasswordApp";
+import ForgotPasswordApp from "metabase/auth/containers/ForgotPasswordApp";
+import LoginApp from "metabase/auth/containers/LoginApp";
+import ResetPasswordApp from "metabase/auth/containers/ResetPasswordApp";
 import LogoutApp from "metabase/auth/containers/LogoutApp";
 
 /* Dashboards */
