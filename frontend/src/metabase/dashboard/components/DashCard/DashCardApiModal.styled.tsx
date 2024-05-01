@@ -34,3 +34,12 @@ export const Description = styled.p<DescriptionProps>`
   line-height: 1.5;
   ${({ enableMouseEvents }) => enableMouseEvents && "pointer-events: initial"};
 `;
+
+interface DescriptionLinkProps {
+  isNightMode: boolean;
+}
+export const DescriptionLink = styled.a<DescriptionLinkProps>`
+  margin: 0 4px;
+  text-decoration: underline;
+  color: ${({ isNightMode }) => (isNightMode ? "#009cea" : "orange")};
+`;

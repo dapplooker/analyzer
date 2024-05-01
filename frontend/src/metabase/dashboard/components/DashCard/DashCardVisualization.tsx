@@ -222,20 +222,16 @@ function DashCardVisualization({
           isResultDirty: false,
         }));
 
-    const handleModalOpen = async () => {
+    const handleToggleModal = async () => {
       try {
         if (!chartPublicUuid) {
-          const public_uuid = await getChartUuid(dashcard.card.id);
-          setChartPublicUuid(public_uuid);
+          const publicUuid = await getChartUuid(dashcard.card.id);
+          setChartPublicUuid(publicUuid);
         }
-        setModalOpen(true);
+        setModalOpen(!isModalOpen);
       } catch (error) {
         console.error("Error fetching chart API data:", error);
       }
-    };
-
-    const handleModalClose = () => {
-      setModalOpen(false);
     };
 
     if (!shouldShowDownloadWidget) {
@@ -247,7 +243,7 @@ function DashCardVisualization({
         <CardApiWidget
           small
           color={color("filter")}
-          onClick={handleModalOpen}
+          onClick={handleToggleModal}
           active={isModalOpen}
           isNightMode={isNightMode}
         >
@@ -258,11 +254,12 @@ function DashCardVisualization({
           <DashCardApiModal
             isNightMode={isNightMode}
             isModalOpen={isModalOpen}
-            handleModalClose={handleModalClose}
+            handleToggleModal={handleToggleModal}
             chartPublicUuid={chartPublicUuid}
           />
         )}
         <CardDownloadWidget
+          bordered={false}
           className={SAVING_CHART_IMAGE_HIDDEN_CLASS}
           classNameClose="hover-child hover-child--smooth"
           card={dashcard.card}

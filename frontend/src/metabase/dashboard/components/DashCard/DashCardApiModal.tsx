@@ -4,8 +4,10 @@ import CopyWidget from "metabase/components/CopyWidget";
 import * as Urls from "metabase/lib/urls";
 import Modal from "metabase/components/Modal";
 import Icon from "metabase/components/Icon";
+
 import {
   Description,
+  DescriptionLink,
   PublicLinkHeader,
   CardApiContainer,
 } from "./DashCardApiModal.styled";
@@ -14,12 +16,12 @@ interface DashCardApiModalProps {
   chartPublicUuid: string;
   isModalOpen: boolean;
   isNightMode: boolean;
-  handleModalClose: () => void;
+  handleToggleModal: () => void;
 }
 
 export default function DashCardApiModal({
   isModalOpen,
-  handleModalClose,
+  handleToggleModal,
   chartPublicUuid,
   isNightMode,
 }: DashCardApiModalProps) {
@@ -30,7 +32,7 @@ export default function DashCardApiModal({
   return (
     <Modal
       isOpen={isModalOpen}
-      onClose={handleModalClose}
+      onClose={handleToggleModal}
       className="small m2"
       isNightMode
     >
@@ -41,7 +43,7 @@ export default function DashCardApiModal({
             style={{ right: 0, top: 0 }}
             name="close"
             size={24}
-            onClick={handleModalClose}
+            onClick={handleToggleModal}
           />
           <PublicLinkHeader>{t`JSON-API Endpoint`}</PublicLinkHeader>
           <Description isNightMode={isNightMode}>
@@ -56,31 +58,23 @@ export default function DashCardApiModal({
           </div>
           <Description isNightMode={isNightMode}>
             {t`Need help? Get your`}
-            <a
+            <DescriptionLink
               href="https://github.com/dapplooker/dapplooker-sdk"
               target="_blank"
               rel="noreferrer"
-              style={{
-                margin: "0 4px",
-                textDecoration: "underline",
-                color: `${isNightMode ? "#009cea" : "orange"}`,
-              }}
+              isNightMode={isNightMode}
             >
               {t`API Key`}
-            </a>
+            </DescriptionLink>
             {t`or Check API`}
-            <a
+            <DescriptionLink
               href="https://github.com/dapplooker/dapplooker-sdk"
               target="_blank"
               rel="noreferrer"
-              style={{
-                margin: "0 4px",
-                textDecoration: "underline",
-                color: `${isNightMode ? "#009cea" : "orange"}`,
-              }}
+              isNightMode={isNightMode}
             >
               {t`Documentation`}
-            </a>
+            </DescriptionLink>
           </Description>
         </div>
       </CardApiContainer>

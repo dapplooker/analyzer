@@ -1,15 +1,11 @@
 import React, { ReactNode, useEffect } from "react";
 import { t } from "ttag";
 import cx from "classnames";
-// import Icon from "metabase/components/Icon";
 import CopyWidget from "metabase/components/CopyWidget";
 
 import { Description, PublicLinkHeader } from "./SharingPane.styled";
 
-import {
-  // IconContainer,
-  APIResponseDescription,
-} from "./DappLookerChartAPIPane.styled";
+import { APIResponseDescription } from "./DappLookerChartAPIPane.styled";
 
 type Resource = {
   dashboard?: number;
