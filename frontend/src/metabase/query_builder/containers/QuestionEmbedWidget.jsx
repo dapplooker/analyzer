@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React, { Component } from "react";
 import PropTypes from "prop-types";
 import { connect } from "react-redux";
@@ -12,10 +13,10 @@ import * as Urls from "metabase/lib/urls";
 import MetabaseSettings from "metabase/lib/settings";
 import * as MetabaseAnalytics from "metabase/lib/analytics";
 import { getMetadata } from "metabase/selectors/metadata";
+import { color } from "metabase/lib/colors";
 import { getCardUiParameters } from "metabase-lib/parameters/utils/cards";
 
 import { HeaderButton } from "../components/view/ViewHeader.styled";
-import { color } from "metabase/lib/colors";
 
 import {
   createPublicLink,
@@ -34,9 +35,14 @@ const QuestionEmbedWidgetPropTypes = {
   updateEnableEmbedding: PropTypes.func,
   updateEmbeddingParams: PropTypes.func,
   metadata: PropTypes.object,
+  isChartAPI: PropTypes.bool,
 };
 
 const QuestionEmbedWidgetTriggerPropTypes = {
+  onClick: PropTypes.func,
+};
+
+const QuestionAPIWidgetTriggerPropTypes = {
   onClick: PropTypes.func,
 };
 
@@ -73,7 +79,7 @@ class QuestionEmbedWidget extends Component {
         resource={card}
         resourceType="question"
         resourceParameters={getCardUiParameters(card, metadata)}
-        onGetChartApi={()=> getChartAPI(card)}
+        onGetChartApi={() => getChartAPI(card)}
         onCreatePublicLink={() => createPublicLink(card)}
         onDisablePublicLink={() => deletePublicLink(card)}
         onUpdateEnableEmbedding={enableEmbedding =>
@@ -85,7 +91,7 @@ class QuestionEmbedWidget extends Component {
         getPublicUrl={({ public_uuid }, extension) =>
           Urls.publicQuestion(public_uuid, extension)
         }
-        getChartApiEndPoint = {({ public_uuid }, extension) =>
+        getChartApiEndPoint={({ public_uuid }, extension) =>
           Urls.chartApiEndPoint(public_uuid, extension)
         }
         extensions={Urls.exportFormats}
@@ -109,10 +115,7 @@ class QuestionEmbedWidget extends Component {
     //   (isPublicLinksEnabled && (isAdmin || question.publicUUID())) ||
     //   (isEmbeddingEnabled && isAdmin)
     // );
-    return (
-      (isPublicLinksEnabled && isAdmin) ||
-      (isEmbeddingEnabled && isAdmin)
-    );
+    return (isPublicLinksEnabled && isAdmin) || (isEmbeddingEnabled && isAdmin);
   }
 }
 
@@ -164,3 +167,4 @@ export function QuestionAPIWidgetTrigger({ onClick }) {
 
 QuestionEmbedWidgetTrigger.propTypes = QuestionEmbedWidgetTriggerPropTypes;
 QuestionEmbedWidget.propTypes = QuestionEmbedWidgetPropTypes;
+QuestionAPIWidgetTrigger.propTypes = QuestionAPIWidgetTriggerPropTypes;

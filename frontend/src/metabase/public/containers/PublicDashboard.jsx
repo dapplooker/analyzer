@@ -5,12 +5,12 @@ import { push } from "react-router-redux";
 import cx from "classnames";
 
 import _ from "underscore";
-import { isWithinIframe } from "metabase/lib/dom";
+// import { isWithinIframe } from "metabase/lib/dom";
 
 import LoadingAndErrorWrapper from "metabase/components/LoadingAndErrorWrapper";
 import DashboardGrid from "metabase/dashboard/components/DashboardGrid";
 import DashboardControls from "metabase/dashboard/hoc/DashboardControls";
-import { getDashboardActions } from "metabase/dashboard/components/DashboardActions";
+// import { getDashboardActions } from "metabase/dashboard/components/DashboardActions";
 import title from "metabase/hoc/Title";
 
 import { fetchDatabaseMetadata } from "metabase/redux/metadata";
@@ -118,7 +118,7 @@ class PublicDashboard extends Component {
       (dashboard &&
         dashboard?.creator_details?.login_attributes?.isPaidSubscription) ||
       false;
-    
+
     return (
       <EmbedFrame
         name={dashboard && dashboard.name}

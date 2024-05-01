@@ -24,6 +24,6 @@ export const updateEmbeddingParams = createAction(
 );
 
 export const GET_CHART_API = "metabase/card/GET_CHART_API";
-export const getChartAPI = createAction(GET_CHART_API, ({ id }) => 
-  CardApi.getChartAPI({ id }),
+export const getChartAPI = createAction(GET_CHART_API, ({ id }) =>
+  CardApi.getChartApi({ id }),
 );

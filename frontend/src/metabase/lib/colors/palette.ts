@@ -51,6 +51,8 @@ export const colors = {
   "dapplooker-color-bg-light": "#f3f8fd",
   "dapplooker-color-bg-dark": "#03000c",
   "dapplooker-color-bg-card-dark": "#182034",
+  "dapplooker-modal-border": "#2a00a7",
+  "dapplooker-text-color": "#3a4359",
 };
 /* eslint-enable no-color-literals */
 
