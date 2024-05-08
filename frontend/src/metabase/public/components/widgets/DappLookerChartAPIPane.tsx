@@ -49,7 +49,7 @@ export default function DappLookerChartAPIPane({
           <br />
           {t`Need help? Get your`}
           <a
-            href="https://github.com/dapplooker/dapplooker-sdk"
+            href="https://dapplooker.com/user/api"
             target="_blank"
             rel="noreferrer"
             style={{

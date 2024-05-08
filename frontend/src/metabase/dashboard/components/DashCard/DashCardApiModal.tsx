@@ -59,7 +59,7 @@ export default function DashCardApiModal({
           <Description isNightMode={isNightMode}>
             {t`Need help? Get your`}
             <DescriptionLink
-              href="https://github.com/dapplooker/dapplooker-sdk"
+              href="https://dapplooker.com/user/api"
               target="_blank"
               rel="noreferrer"
               isNightMode={isNightMode}
