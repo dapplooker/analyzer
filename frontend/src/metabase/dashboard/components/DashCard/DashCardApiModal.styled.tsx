@@ -6,7 +6,7 @@ interface CardApiContainerProps {
 }
 
 export const CardApiContainer = styled.div<CardApiContainerProps>`
-  max-width: 550px;
+  width: 600px;
   background-color: ${({ isNightMode }) =>
     isNightMode ? color("dapplooker-color-bg-dark") : "white"};
   border: 1px solid
@@ -14,6 +14,9 @@ export const CardApiContainer = styled.div<CardApiContainerProps>`
       isNightMode ? color("dapplooker-modal-border") : "white"};
   border-radius: 0.5rem;
   position: relative;
+  @media (max-width: 640px) {
+    width: auto;
+  }
 `;
 
 export const PublicLinkHeader = styled.h2`

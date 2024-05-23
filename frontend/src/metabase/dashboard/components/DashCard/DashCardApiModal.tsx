@@ -4,6 +4,7 @@ import CopyWidget from "metabase/components/CopyWidget";
 import * as Urls from "metabase/lib/urls";
 import Modal from "metabase/components/Modal";
 import Icon from "metabase/components/Icon";
+import { getImageApiEndPoint } from "metabase/lib/urls";
 
 import {
   Description,
@@ -49,11 +50,23 @@ export default function DashCardApiModal({
           <Description isNightMode={isNightMode}>
             {t`Copy the API endpoint to get JSON data.`}
           </Description>
-          <div>
+          <div className="mb2">
             <CopyWidget
               style={{ marginBottom: "0.5rem" }}
               readOnly={true}
               value={getCardApiEndPoint(chartPublicUuid, "json")}
+            />
+          </div>
+
+          <PublicLinkHeader>{t`Image-API Endpoint`}</PublicLinkHeader>
+          <Description isNightMode={isNightMode}>
+            {t`Copy the API endpoint to render chart as image.`}
+          </Description>
+          <div>
+            <CopyWidget
+              style={{ marginBottom: "0.5rem" }}
+              readOnly={true}
+              value={getImageApiEndPoint(chartPublicUuid, "1")}
             />
           </div>
           <Description isNightMode={isNightMode}>

@@ -2,6 +2,7 @@ import React, { ReactNode, useEffect } from "react";
 import { t } from "ttag";
 import cx from "classnames";
 import CopyWidget from "metabase/components/CopyWidget";
+import { getImageApiEndPoint } from "metabase/lib/urls";
 
 import { Description, PublicLinkHeader } from "./SharingPane.styled";
 
@@ -10,7 +11,7 @@ import { APIResponseDescription } from "./DappLookerChartAPIPane.styled";
 type Resource = {
   dashboard?: number;
   question?: number;
-  public_uuid?: string;
+  public_uuid: string;
 };
 
 type Extension = string | null;
@@ -88,6 +89,11 @@ export default function DappLookerChartAPIPane({
             {t`Results in JSON format`}
           </APIResponseDescription>
           <CopyWidget value={getChartApiEndPoint(resource, "json")} />
+
+          <APIResponseDescription>
+            {t`Results in PNG format`}
+          </APIResponseDescription>
+          <CopyWidget value={getImageApiEndPoint(resource.public_uuid, "1")} />
 
           <APIResponseDescription>
             {t`Results in CSV format`}
