@@ -126,9 +126,40 @@ export function publicQuestion(
 }
 
 export function chartApiEndPoint(uuid: string, type: string | null = null) {
+  const searchParams = new URLSearchParams(window.location.search);
+  const paramsObject: any = {
+    api_key: "<API-KEY>",
+    output_format: type,
+  };
+  searchParams.forEach((value, key) => {
+    paramsObject[key] = value;
+  });
+
   const siteUrl = "https://api.dapplooker.com/chart";
-  const searchQuery = `?api_key=<API-KEY>&output_format=${type}`;
-  return `${siteUrl}/${uuid}` + searchQuery;
+  const queryString = Object.keys(paramsObject)
+    .map(key => `${key}=${paramsObject[key]}`)
+    .join("&");
+
+  return `${siteUrl}/${uuid}?${queryString}`;
+}
+
+export function getImageApiEndPoint(uuid: string, type: string) {
+  const searchParams = new URLSearchParams(window.location.search);
+  const paramsObject: any = {
+    api_key: "<API-KEY>",
+    type,
+  };
+  searchParams.forEach((value, key) => {
+    paramsObject[key] = value;
+  });
+
+  const siteUrl = `https://api.dapplooker.com/image`;
+
+  const queryString = Object.keys(paramsObject)
+    .map(key => `${key}=${paramsObject[key]}`)
+    .join("&");
+
+  return `${siteUrl}/${uuid}?${queryString}`;
 }
 
 export function embedCard(token: string, type: string | null = null) {

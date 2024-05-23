@@ -1,18 +1,17 @@
-import React, { useCallback } from "react";
+/* eslint-disable react-hooks/exhaustive-deps */
+import React, { useCallback, useState } from "react";
 import cx from "classnames";
 import { t } from "ttag";
 import { connect } from "react-redux";
 import type { LocationDescriptor } from "history";
-
 import { IconProps } from "metabase/components/Icon";
-
+import { color } from "metabase/lib/colors";
 import Visualization from "metabase/visualizations/components/Visualization";
 import WithVizSettingsData from "metabase/dashboard/hoc/WithVizSettingsData";
 import { getVisualizationRaw } from "metabase/visualizations";
 
 import QueryDownloadWidget from "metabase/query_builder/components/QueryDownloadWidget";
 import { SAVING_CHART_IMAGE_HIDDEN_CLASS } from "metabase/visualizations/lib/save-chart-image";
-
 import {
   getVirtualCardType,
   isVirtualDashCard,
@@ -32,6 +31,7 @@ import type {
 import type { Series } from "metabase-types/types/Visualization";
 import type { Dispatch } from "metabase-types/store";
 
+import { CardApi } from "metabase/services";
 import type Mode from "metabase-lib/Mode";
 import type Metadata from "metabase-lib/metadata/Metadata";
 
@@ -42,8 +42,11 @@ import {
   VirtualDashCardOverlayRoot,
   VirtualDashCardOverlayText,
 } from "./DashCard.styled";
-import { CardDownloadWidget } from "./DashCardVisualization.styled";
-
+import {
+  CardDownloadWidget,
+  CardApiWidget,
+} from "./DashCardVisualization.styled";
+import DashCardApiModal from "./DashCardApiModal";
 interface DashCardVisualizationProps {
   dashboard: Dashboard;
   dashcard: DashboardOrderedCard;
@@ -181,6 +184,32 @@ function DashCardVisualization({
     series,
   ]);
 
+  const [isModalOpen, setModalOpen] = useState(false);
+
+  const [chartPublicUuid, setChartPublicUuid] = useState("");
+
+  const getChartUuid = async (chartId: number) => {
+    try {
+      const response = await CardApi.getChartApi({ id: chartId });
+      if (!response || !response.uuid) {
+        throw new Error("Failed to retrieve chart UUID.");
+      }
+      return response.uuid;
+    } catch (error) {
+      if (error instanceof Error) {
+        console.error(
+          `Error fetching chart UUID for chartId ${chartId}: ${error.message}`,
+        );
+      } else {
+        console.error(
+          `Unknown error occurred fetching chart UUID for chartId ${chartId}:`,
+          error,
+        );
+      }
+      throw error;
+    }
+  };
+
   const renderActionButtons = useCallback(() => {
     const mainSeries = series[0];
 
@@ -193,24 +222,57 @@ function DashCardVisualization({
           isResultDirty: false,
         }));
 
+    const handleToggleModal = async () => {
+      try {
+        if (!chartPublicUuid) {
+          const publicUuid = await getChartUuid(dashcard.card.id);
+          setChartPublicUuid(publicUuid);
+        }
+        setModalOpen(!isModalOpen);
+      } catch (error) {
+        console.error("Error fetching chart API data:", error);
+      }
+    };
+
     if (!shouldShowDownloadWidget) {
       return null;
     }
 
     return (
-      <CardDownloadWidget
-        className={SAVING_CHART_IMAGE_HIDDEN_CLASS}
-        classNameClose="hover-child hover-child--smooth"
-        card={dashcard.card}
-        result={mainSeries}
-        params={parameterValuesBySlug}
-        dashcardId={dashcard.id}
-        dashboardId={dashboard.id}
-        token={isEmbed ? dashcard.dashboard_id : undefined}
-        icon="ellipsis"
-        iconSize={17}
-        hideWaterMark={hideWaterMark}
-      />
+      <div className="flex align-center">
+        <CardApiWidget
+          small
+          color={color("filter")}
+          onClick={handleToggleModal}
+          active={isModalOpen}
+          isNightMode={isNightMode}
+        >
+          {t`API`}
+        </CardApiWidget>
+
+        {isModalOpen && (
+          <DashCardApiModal
+            isNightMode={isNightMode}
+            isModalOpen={isModalOpen}
+            handleToggleModal={handleToggleModal}
+            chartPublicUuid={chartPublicUuid}
+          />
+        )}
+        <CardDownloadWidget
+          bordered={false}
+          className={SAVING_CHART_IMAGE_HIDDEN_CLASS}
+          classNameClose="hover-child hover-child--smooth"
+          card={dashcard.card}
+          result={mainSeries}
+          params={parameterValuesBySlug}
+          dashcardId={dashcard.id}
+          dashboardId={dashboard.id}
+          token={isEmbed ? dashcard.dashboard_id : undefined}
+          icon="ellipsis"
+          iconSize={17}
+          hideWaterMark={hideWaterMark}
+        />
+      </div>
     );
   }, [
     series,
@@ -220,6 +282,8 @@ function DashCardVisualization({
     dashcard,
     parameterValuesBySlug,
     dashboard,
+    hideWaterMark,
+    isModalOpen,
   ]);
 
   return (

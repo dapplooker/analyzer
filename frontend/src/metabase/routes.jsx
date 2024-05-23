@@ -15,8 +15,8 @@ import App from "metabase/App.tsx";
 // auth containers
 import ForgotPasswordApp from "metabase/auth/containers/ForgotPasswordApp";
 import LoginApp from "metabase/auth/containers/LoginApp";
-import LogoutApp from "metabase/auth/containers/LogoutApp";
 import ResetPasswordApp from "metabase/auth/containers/ResetPasswordApp";
+import LogoutApp from "metabase/auth/containers/LogoutApp";
 
 /* Dashboards */
 import DashboardApp from "metabase/dashboard/containers/DashboardApp";
@@ -190,51 +190,48 @@ export const getRoutes = store => (
         trackPageView(nextState.location.pathname);
       }}
     >
+      {/* AUTH to be uncommented from line 195 to 204 during local testing on analytics.dlooker.com*/}
+      {/* <Route path="/auth">
+        <IndexRedirect to="/auth/login" />
+        <Route component={IsNotAuthenticated}>
+          <Route path="login" title={t`Login`} component={LoginApp} />
+          <Route path="login/:provider" title={t`Login`} component={LoginApp} />
+        </Route>
+        <Route path="logout" component={LogoutApp} />
+        <Route path="forgot_password" component={ForgotPasswordApp} />
+        <Route path="reset_password/:token" component={ResetPasswordApp} />
+      </Route> */}
+      {/* ==================================================================== */}
 
-    {/* AUTH to be uncommented from line 195 to 204 during local testing on analytics.dlooker.com*/}
-    {/* <Route path="/auth">
-      <IndexRedirect to="/auth/login" />
-      <Route component={IsNotAuthenticated}>
-        <Route path="login" title={t`Login`} component={LoginApp} />
-        <Route path="login/:provider" title={t`Login`} component={LoginApp} />
-      </Route>
-      <Route path="logout" component={LogoutApp} />
-      <Route path="forgot_password" component={ForgotPasswordApp} />
-      <Route path="reset_password/:token" component={ResetPasswordApp} />
-    </Route> */}
-    {/* ==================================================================== */}
-
-    {/* AUTH comment from line 208 to 235 during local testing  */}
-    <Route path="/auth">
-      <IndexRedirect to="/auth/login" />
-      <Route component={IsNotAuthenticated}>
+      {/* AUTH comment from line 208 to 235 during local testing  */}
+      <Route path="/auth">
+        <IndexRedirect to="/auth/login" />
+        <Route component={IsNotAuthenticated}>
+          <Route
+            path="login"
+            component={() => {
+              window.location.href = `https://dapplooker.com/user/login?source=dlooker&returnTo=${returnTo}`;
+              return null;
+            }}
+          />
+        </Route>
+        <Route path="logout" component={LogoutApp} />
         <Route
-          path="login"
+          path="forgot_password"
           component={() => {
-            window.location.href =
-              `https://dapplooker.com/user/login?source=dlooker&returnTo=${returnTo}`;
+            window.location.href = `https://dapplooker.com/user/login?source=dlooker&returnTo=${returnTo}`;
+            return null;
+          }}
+        />
+        <Route
+          path="reset_password/:token"
+          component={() => {
+            window.location.href = `https://dapplooker.com/user/login?source=dlooker&returnTo=${returnTo}`;
             return null;
           }}
         />
       </Route>
-      <Route path="logout" component={LogoutApp} />
-      <Route
-        path="forgot_password"
-        component={() => {
-          window.location.href = `https://dapplooker.com/user/login?source=dlooker&returnTo=${returnTo}`;
-          return null;
-        }}
-      />
-      <Route
-        path="reset_password/:token"
-        component={() => {
-          window.location.href = `https://dapplooker.com/user/login?source=dlooker&returnTo=${returnTo}`;
-          return null;
-        }}
-      />
-    </Route>
-    {/* ===================================================================== */}
-
+      {/* ===================================================================== */}
 
       {/* MAIN */}
       <Route component={IsAuthenticated}>
@@ -389,60 +386,59 @@ export const getRoutes = store => (
           />
         </Route>
 
-      {/* PULSE */}
-      {/* NOTE: legacy route, not linked to in app */}
-      <Route path="/pulse" title={t`Reports`}>
-        
-        <IndexRedirect to="/search" query={{ type: "pulse" }} />
-        <Route path="create" component={PulseEditApp} />
-        <Route path=":pulseId">
-          <IndexRoute component={PulseEditApp} />
+        {/* PULSE */}
+        {/* NOTE: legacy route, not linked to in app */}
+        <Route path="/pulse" title={t`Reports`}>
+          <IndexRedirect to="/search" query={{ type: "pulse" }} />
+          <Route path="create" component={PulseEditApp} />
+          <Route path=":pulseId">
+            <IndexRoute component={PulseEditApp} />
+          </Route>
+
+          {/* ACCOUNT */}
+          {getAccountRoutes(store, IsAuthenticated)}
+
+          {/* ADMIN */}
+          {getAdminRoutes(store, CanAccessSettings, IsAdmin)}
         </Route>
-
-        {/* ACCOUNT */}
-        {getAccountRoutes(store, IsAuthenticated)}
-
-        {/* ADMIN */}
-        {getAdminRoutes(store, CanAccessSettings, IsAdmin)}
       </Route>
+
+      {/* INTERNAL */}
+      <Route
+        path="/_internal"
+        getChildRoutes={(partialNextState, callback) =>
+          require.ensure([], function (require) {
+            callback(null, [require("metabase/internal/routes").default]);
+          })
+        }
+      />
+
+      {/* DEPRECATED */}
+      {/* NOTE: these custom routes are needed because <Redirect> doesn't preserve the hash */}
+      <Route
+        path="/q"
+        onEnter={({ location }, replace) =>
+          replace({ pathname: "/question", hash: location.hash })
+        }
+      />
+      <Route
+        path="/card/:slug"
+        onEnter={({ location, params }, replace) =>
+          replace({
+            pathname: `/question/${params.slug}`,
+            hash: location.hash,
+          })
+        }
+      />
+      <Redirect from="/dash/:dashboardId" to="/dashboard/:dashboardId" />
+      <Redirect
+        from="/collections/permissions"
+        to="/admin/permissions/collections"
+      />
+
+      {/* MISC */}
+      <Route path="/unauthorized" component={Unauthorized} />
+      <Route path="/*" component={NotFoundFallbackPage} />
     </Route>
-
-    {/* INTERNAL */}
-    <Route
-      path="/_internal"
-      getChildRoutes={(partialNextState, callback) =>
-        require.ensure([], function (require) {
-          callback(null, [require("metabase/internal/routes").default]);
-        })
-      }
-    />
-
-    {/* DEPRECATED */}
-    {/* NOTE: these custom routes are needed because <Redirect> doesn't preserve the hash */}
-    <Route
-      path="/q"
-      onEnter={({ location }, replace) =>
-        replace({ pathname: "/question", hash: location.hash })
-      }
-    />
-    <Route
-      path="/card/:slug"
-      onEnter={({ location, params }, replace) =>
-        replace({
-          pathname: `/question/${params.slug}`,
-          hash: location.hash,
-        })
-      }
-    />
-    <Redirect from="/dash/:dashboardId" to="/dashboard/:dashboardId" />
-    <Redirect
-      from="/collections/permissions"
-      to="/admin/permissions/collections"
-    />
-
-    {/* MISC */}
-    <Route path="/unauthorized" component={Unauthorized} />
-    <Route path="/*" component={NotFoundFallbackPage} />
-    </Route>
-  </Route> 
+  </Route>
 );
