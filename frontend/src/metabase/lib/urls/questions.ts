@@ -127,28 +127,28 @@ export function publicQuestion(
 
 export function chartApiEndPoint(uuid: string, type: string | null = null) {
   const searchParams = new URLSearchParams(window.location.search);
-  const paramsObject: any = {
-    api_key: "<API-KEY>",
-    output_format: type,
-  };
+  const paramsObject: any = {};
   searchParams.forEach((value, key) => {
     paramsObject[key] = value;
   });
 
   const siteUrl = "https://api.dapplooker.com/chart";
+
   const queryString = Object.keys(paramsObject)
     .map(key => `${key}=${paramsObject[key]}`)
     .join("&");
 
-  return `${siteUrl}/${uuid}?${queryString}`;
+  const finalQueryString = queryString
+    ? `${queryString}&api_key=<API-KEY>&output_format=${type}`
+    : `api_key=<API-KEY>&output_format=${type}`;
+
+  return `${siteUrl}/${uuid}?${finalQueryString}`;
 }
 
 export function getImageApiEndPoint(uuid: string, type: string) {
   const searchParams = new URLSearchParams(window.location.search);
-  const paramsObject: any = {
-    api_key: "<API-KEY>",
-    type,
-  };
+  const paramsObject: any = {};
+
   searchParams.forEach((value, key) => {
     paramsObject[key] = value;
   });
@@ -159,7 +159,11 @@ export function getImageApiEndPoint(uuid: string, type: string) {
     .map(key => `${key}=${paramsObject[key]}`)
     .join("&");
 
-  return `${siteUrl}/${uuid}?${queryString}`;
+  const finalQueryString = queryString
+    ? `${queryString}&apiKey=<API-KEY>&type=${type}`
+    : `apiKey=<API-KEY>&type=${type}`;
+
+  return `${siteUrl}/${uuid}?${finalQueryString}`;
 }
 
 export function embedCard(token: string, type: string | null = null) {
