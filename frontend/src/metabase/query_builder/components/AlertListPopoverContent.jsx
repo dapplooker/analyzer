@@ -51,14 +51,15 @@ class AlertListPopoverContent extends Component {
   };
 
   render() {
-    const { questionAlerts, setMenuFreeze, user, closeMenu } = this.props;
+    const { questionAlerts = [], setMenuFreeze, user, closeMenu } = this.props;
     const { adding, hasJustUnsubscribedFromOwnAlert } = this.state;
 
     const isNonAdmin = !user.is_superuser;
     const [ownAlerts, othersAlerts] = _.partition(
       questionAlerts,
       this.isCreatedByCurrentUser,
-    );
+    ) || [[], []];
+
     // user's own alert should be shown first if it exists
     const sortedQuestionAlerts = [...ownAlerts, ...othersAlerts];
     const hasOwnAlerts = ownAlerts.length > 0;
