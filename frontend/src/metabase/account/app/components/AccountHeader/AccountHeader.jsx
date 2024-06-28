@@ -26,12 +26,13 @@ const AccountHeader = ({ user, path, onChangeLocation }) => {
 
   const tabs = useMemo(
     () => [
-      { name: t`Profile`, value: "/account/profile" },
-      ...(hasPasswordChange
-        ? [{ name: t`Password`, value: "/account/password" }]
-        : []),
-      { name: t`Login History`, value: "/account/login-history" },
-      { name: t`Notifications`, value: "/account/notifications" },
+      // { name: t`Profile`, value: "/account/profile" },
+      // ...(hasPasswordChange
+      //   ? [{ name: t`Password`, value: "/account/password" }]
+      //   : []),
+      // { name: t`Login History`, value: "/account/login-history" },
+      // { name: t`Notifications`, value: "/account/notifications" },
+      { name: t`Alerts`, value: "/account/notifications" },
     ],
     [hasPasswordChange],
   );

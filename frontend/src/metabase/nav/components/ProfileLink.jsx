@@ -9,6 +9,7 @@ import { color } from "metabase/lib/colors";
 import { UtilApi } from "metabase/services";
 
 import MetabaseSettings from "metabase/lib/settings";
+import * as Urls from "metabase/lib/urls";
 import Modal from "metabase/components/Modal";
 
 import LogoIcon from "metabase/components/LogoIcon";
@@ -27,9 +28,9 @@ function ProfileLink({ user, adminItems, onLogout }) {
   const [modalOpen, setModalOpen] = useState(null);
   const [bugReportDetails, setBugReportDetails] = useState(null);
 
-  const openModal = modalName => {
-    setModalOpen(modalName);
-  };
+  // const openModal = modalName => {
+  //   setModalOpen(modalName);
+  // };
 
   const closeModal = () => {
     setModalOpen(null);
@@ -38,10 +39,10 @@ function ProfileLink({ user, adminItems, onLogout }) {
   const generateOptionsForUser = () => {
     const { tag } = MetabaseSettings.get("version");
     const isAdmin = user.is_superuser;
-    const showAdminSettingsItem = adminItems?.length > 0;
-    const compactBugReportDetailsForUrl = encodeURIComponent(
-      JSON.stringify(bugReportDetails),
-    );
+    // const showAdminSettingsItem = adminItems?.length > 0;
+    // const compactBugReportDetailsForUrl = encodeURIComponent(
+    //   JSON.stringify(bugReportDetails),
+    // );
 
     return [
       // {
@@ -50,6 +51,12 @@ function ProfileLink({ user, adminItems, onLogout }) {
       //   link: Urls.accountSettings(),
       //   event: `Navbar;Profile Dropdown;Edit Profile`,
       // },
+      {
+        title: t`Alert settings`,
+        icon: null,
+        link: Urls.accountSettings(),
+        event: `Navbar;Profile Dropdown;Edit Profile`,
+      },
       isAdmin && {
         title: t`Admin settings`,
         icon: null,
@@ -59,39 +66,39 @@ function ProfileLink({ user, adminItems, onLogout }) {
       {
         title: t`My Profile`,
         icon: null,
-        link: 'https://dapplooker.com/user/profile',
+        link: "https://dapplooker.com/user/profile",
         externalLink: true,
         event: `Navbar;Profile Dropdown;About ${tag}`,
       },
       {
         title: t`My Plan`,
         icon: null,
-        link: 'https://dapplooker.com/pricing',
+        link: "https://dapplooker.com/pricing",
         externalLink: true,
         event: `Navbar;Profile Dropdown;About ${tag}`,
       },
       {
         title: t`API Keys`,
         icon: null,
-        link: 'https://dapplooker.com/user/api',
+        link: "https://dapplooker.com/user/api",
         externalLink: true,
         event: `Navbar;Profile Dropdown;About ${tag}`,
       },
       {
         title: t`Documentation`,
         icon: null,
-        link: 'https://docs.dapplooker.com/',
+        link: "https://docs.dapplooker.com/",
         externalLink: true,
         event: `Navbar;Profile Dropdown;About ${tag}`,
       },
       {
         title: t`FAQ`,
         icon: null,
-        link: 'https://dapplooker.com/pricing#faq',
+        link: "https://dapplooker.com/pricing#faq",
         externalLink: true,
         event: `Navbar;Profile Dropdown;About ${tag}`,
       },
-     
+
       // {
       //   title: t`Sign out`,
       //   icon: null,
