@@ -78,5 +78,8 @@ export default class QuestionAlertWidget extends React.Component {
   }
 }
 
-QuestionAlertWidget.shouldRender = ({ question, visualizationSettings }) =>
-  question.alertType(visualizationSettings) !== null;
+QuestionAlertWidget.shouldRender = ({
+  question,
+  visualizationSettings,
+  isAdmin,
+}) => isAdmin && question.alertType(visualizationSettings) !== null;

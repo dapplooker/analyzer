@@ -396,7 +396,7 @@ export const getRoutes = store => (
           </Route>
 
           {/* ACCOUNT */}
-          {getAccountRoutes(store, IsAuthenticated)}
+          {getAccountRoutes(store, IsAuthenticated, IsAdmin)}
 
           {/* ADMIN */}
           {getAdminRoutes(store, CanAccessSettings, IsAdmin)}

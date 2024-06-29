@@ -156,6 +156,7 @@ const ViewFooter = ({
           QuestionAlertWidget.shouldRender({
             question,
             visualizationSettings,
+            isAdmin,
           }) && (
             <QuestionAlertWidget
               key="alerts"

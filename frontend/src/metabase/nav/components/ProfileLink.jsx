@@ -51,7 +51,7 @@ function ProfileLink({ user, adminItems, onLogout }) {
       //   link: Urls.accountSettings(),
       //   event: `Navbar;Profile Dropdown;Edit Profile`,
       // },
-      {
+      isAdmin && {
         title: t`Alert settings`,
         icon: null,
         link: Urls.accountSettings(),
