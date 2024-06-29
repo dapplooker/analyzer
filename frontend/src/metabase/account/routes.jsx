@@ -8,11 +8,7 @@ import AccountApp from "./app/containers/AccountApp";
 // import LoginHistoryApp from "./login-history/containers/LoginHistoryApp";
 import getNotificationRoutes from "./notifications/routes";
 
-const getRoutes = (store, IsAuthenticated, isAdmin) => {
-  if (!isAdmin) {
-    return null;
-  }
-
+const getRoutes = (store, IsAuthenticated) => {
   return (
     <Route path="/account" component={IsAuthenticated}>
       <Route title={t`Account settings`} component={AccountApp}>
