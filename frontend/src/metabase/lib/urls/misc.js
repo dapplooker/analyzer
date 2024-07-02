@@ -5,8 +5,12 @@ import { pulse } from "./pulses";
 
 export const exportFormats = ["csv", "xlsx", "json"];
 
+// export function accountSettings() {
+//   return "/account/profile";
+// }
+
 export function accountSettings() {
-  return "/account/profile";
+  return "/account/notifications";
 }
 
 function prepareModel(item) {

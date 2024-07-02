@@ -9,6 +9,12 @@ const propTypes = {
 };
 
 const AccountLayout = ({ children, ...props }) => {
+  const isAdmin = props?.user.is_superuser;
+
+  if (!isAdmin) {
+    return null;
+  }
+
   return (
     <div>
       <AccountHeader {...props} />

@@ -17,7 +17,7 @@ import QuestionEmbedWidget, {
 import { getIconForVisualizationType } from "metabase/visualizations";
 import ViewButton from "./ViewButton";
 
-// import QuestionAlertWidget from "./QuestionAlertWidget";
+import QuestionAlertWidget from "./QuestionAlertWidget";
 // import QuestionTimelineWidget from "./QuestionTimelineWidget";
 
 import QuestionRowCount from "./QuestionRowCount";
@@ -153,23 +153,24 @@ const ViewFooter = ({
                 visualizationSettings={visualizationSettings}
               />
             ),
-          // QuestionAlertWidget.shouldRender({
-          //   question,
-          //   visualizationSettings,
-          // }) && (
-          //   <QuestionAlertWidget
-          //     key="alerts"
-          //     className="mx1 hide sm-show"
-          //     canManageSubscriptions={canManageSubscriptions}
-          //     question={question}
-          //     questionAlerts={questionAlerts}
-          //     onCreateAlert={() =>
-          //       question.isSaved()
-          //         ? onOpenModal("create-alert")
-          //         : onOpenModal("save-question-before-alert")
-          //     }
-          //   />
-          // ),
+          QuestionAlertWidget.shouldRender({
+            question,
+            visualizationSettings,
+            isAdmin,
+          }) && (
+            <QuestionAlertWidget
+              key="alerts"
+              className="mx1 hide sm-show"
+              canManageSubscriptions={canManageSubscriptions}
+              question={question}
+              questionAlerts={questionAlerts}
+              onCreateAlert={() =>
+                question.isSaved()
+                  ? onOpenModal("create-alert")
+                  : onOpenModal("save-question-before-alert")
+              }
+            />
+          ),
           QuestionEmbedWidget.shouldRender({ question, isAdmin }) && (
             <QuestionEmbedWidgetTrigger
               key="embeds"
