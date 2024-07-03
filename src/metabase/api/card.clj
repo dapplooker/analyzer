@@ -1035,7 +1035,7 @@ saved later when it is ready."
 (api/defendpoint-schema DELETE "/:card-id/public_link"
   "Delete the publicly-accessible link to this Card."
   [card-id]
-  (validation/check-has-application-permission :setting)
+  ;; (validation/check-has-application-permission :setting) //disable validation
   (validation/check-public-sharing-enabled)
   (api/check-exists? Card :id card-id, :public_uuid [:not= nil])
   (db/update! Card card-id

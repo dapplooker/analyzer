@@ -16,9 +16,11 @@ import { useToggle } from "metabase/hooks/use-toggle";
 import { MODAL_TYPES } from "metabase/query_builder/constants";
 import SavedQuestionHeaderButton from "metabase/query_builder/components/SavedQuestionHeaderButton/SavedQuestionHeaderButton";
 
-import { QuestionAPIWidgetTrigger } from "metabase/query_builder/containers/QuestionEmbedWidget";
+import {
+  QuestionEmbedWidgetTrigger,
+  QuestionAPIWidgetTrigger,
+} from "metabase/query_builder/containers/QuestionEmbedWidget";
 import RunButtonWithTooltip from "../RunButtonWithTooltip";
-
 import QuestionActions from "../QuestionActions";
 import QueryDownloadWidget from "../QueryDownloadWidget";
 import { HeadBreadcrumbs } from "./HeaderBreadcrumbs";
@@ -350,6 +352,8 @@ ViewTitleHeaderRightSide.propTypes = {
   isShowingQuestionInfoSidebar: PropTypes.bool,
   onModelPersistenceChange: PropTypes.bool,
   onQueryChange: PropTypes.func,
+  isAdmin: PropTypes.bool,
+  user: PropTypes.object,
 };
 
 function ViewTitleHeaderRightSide(props) {
@@ -384,6 +388,8 @@ function ViewTitleHeaderRightSide(props) {
     onOpenQuestionInfo,
     onModelPersistenceChange,
     onQueryChange,
+    isAdmin,
+    user,
   } = props;
   const isShowingNotebook = queryBuilderMode === "notebook";
   const query = question.query();
@@ -462,6 +468,17 @@ function ViewTitleHeaderRightSide(props) {
           card={question.card()}
           result={result}
           bordered={true}
+        />
+      )}
+
+      {isSaved && (isAdmin || user?.id === question._card?.creator_id) && (
+        <QuestionEmbedWidgetTrigger
+          key="embeds"
+          onClick={() =>
+            question.isSaved()
+              ? onOpenModal("embed")
+              : onOpenModal("save-question-before-embed")
+          }
         />
       )}
 

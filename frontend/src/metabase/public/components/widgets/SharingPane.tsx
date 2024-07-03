@@ -66,7 +66,8 @@ export default function SharingPane({
 
   return (
     <div className="pt2 ml-auto mr-auto" style={{ maxWidth: 600 }}>
-      {isAdmin && isPublicSharingEnabled && (
+      {/* {isAdmin && isPublicSharingEnabled && ( */}
+      {isPublicSharingEnabled && (
         <div className="px4 py3 mb4 bordered rounded flex align-center">
           <Header>{t`Enable sharing`}</Header>
           <div className="ml-auto">
@@ -89,6 +90,7 @@ export default function SharingPane({
               <Toggle
                 value={false}
                 onChange={() => {
+                  console.log("toggle");
                   MetabaseAnalytics.trackStructEvent(
                     "Sharing Modal",
                     "Public Link Enabled",
@@ -150,27 +152,29 @@ export default function SharingPane({
         <CopyWidget value={iframeSource} />
       </SharingOption>
 
-      {isAdmin && <SharingOption
-        className={cx({
-          disabled: shouldDisableEmbedding,
-          "cursor-pointer": !shouldDisableEmbedding,
-        })}
-        illustration={
-          <ResponsiveImage imageUrl="app/assets/img/secure_embed.png" />
-        }
-        onClick={() => {
-          if (!shouldDisableEmbedding) {
-            onChangeEmbedType("application");
+      {/* {isAdmin && (
+        <SharingOption
+          className={cx({
+            disabled: shouldDisableEmbedding,
+            "cursor-pointer": !shouldDisableEmbedding,
+          })}
+          illustration={
+            <ResponsiveImage imageUrl="app/assets/img/secure_embed.png" />
           }
-        }}
-      >
-        <EmbedWidgetHeader>{t`Embed in your application`}</EmbedWidgetHeader>
-        <Description>{t`Add this ${resourceType} to your application server code. You’ll be able to preview the way it looks and behaves before making it securely visible for your users.`}</Description>
-        {embeddingHelperText && (
-          <Description enableMouseEvents>{embeddingHelperText}</Description>
-        )}
-        <Button primary>{t`Set up`}</Button>
-      </SharingOption>}
+          onClick={() => {
+            if (!shouldDisableEmbedding) {
+              onChangeEmbedType("application");
+            }
+          }}
+        >
+          <EmbedWidgetHeader>{t`Embed in your application`}</EmbedWidgetHeader>
+          <Description>{t`Add this ${resourceType} to your application server code. You’ll be able to preview the way it looks and behaves before making it securely visible for your users.`}</Description>
+          {embeddingHelperText && (
+            <Description enableMouseEvents>{embeddingHelperText}</Description>
+          )}
+          <Button primary>{t`Set up`}</Button>
+        </SharingOption>
+      )} */}
     </div>
   );
 }

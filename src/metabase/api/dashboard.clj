@@ -638,7 +638,7 @@
   Dashboard has already been shared, it will return the existing public link rather than creating a new one.) Public
   sharing must be enabled."
   [dashboard-id]
-  (api/check-superuser)
+  ;; (api/check-superuser)
   (validation/check-public-sharing-enabled)
   (api/check-not-archived (api/read-check Dashboard dashboard-id))
   {:uuid (or (db/select-one-field :public_uuid Dashboard :id dashboard-id)
@@ -651,7 +651,7 @@
 (api/defendpoint-schema DELETE "/:dashboard-id/public_link"
   "Delete the publicly-accessible link to this Dashboard."
   [dashboard-id]
-  (validation/check-has-application-permission :setting)
+  ;; (validation/check-has-application-permission :setting)
   (validation/check-public-sharing-enabled)
   (api/check-exists? Dashboard :id dashboard-id, :public_uuid [:not= nil], :archived false)
   (db/update! Dashboard dashboard-id

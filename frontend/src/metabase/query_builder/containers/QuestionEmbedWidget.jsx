@@ -72,6 +72,7 @@ class QuestionEmbedWidget extends Component {
       metadata,
       ...props
     } = this.props;
+
     return (
       <EmbedModalContent
         {...props}
@@ -80,16 +81,20 @@ class QuestionEmbedWidget extends Component {
         resourceType="question"
         resourceParameters={getCardUiParameters(card, metadata)}
         onGetChartApi={() => getChartAPI(card)}
-        onCreatePublicLink={() => createPublicLink(card)}
-        onDisablePublicLink={() => deletePublicLink(card)}
+        onCreatePublicLink={() => getChartAPI(card)}
+        // onCreatePublicLink={() => createPublicLink(card)}
+        onDisablePublicLink={() => deletePublicLink(card)} //api call modified
         onUpdateEnableEmbedding={enableEmbedding =>
           updateEnableEmbedding(card, enableEmbedding)
         }
         onUpdateEmbeddingParams={embeddingParams =>
           updateEmbeddingParams(card, embeddingParams)
         }
+        // getPublicUrl={({ public_uuid }, extension) =>
+        //   Urls.publicQuestion(public_uuid, extension)
+        // }
         getPublicUrl={({ public_uuid }, extension) =>
-          Urls.publicQuestion(public_uuid, extension)
+          Urls.createPublicDiscoverUrl(public_uuid, extension)
         }
         getChartApiEndPoint={({ public_uuid }, extension) =>
           Urls.chartApiEndPoint(public_uuid, extension)
@@ -138,6 +143,7 @@ export function QuestionEmbedWidgetTrigger({ onClick }) {
         );
         onClick();
       }}
+      data-metabase-event="View Mode; Open Filter Modal"
     />
   );
 }

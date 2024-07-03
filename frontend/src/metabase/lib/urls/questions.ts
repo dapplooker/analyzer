@@ -111,6 +111,22 @@ export function newQuestion({
   }
 }
 
+export function getCurrentQuerySearchParams() {
+  const searchParams = new URLSearchParams(window.location.search);
+
+  const paramsObject: any = {};
+
+  searchParams.forEach((value, key) => {
+    paramsObject[key] = value;
+  });
+
+  const querySearchParams = Object.keys(paramsObject)
+    .map(key => `${key}=${paramsObject[key]}`)
+    .join("&");
+
+  return querySearchParams;
+}
+
 export function publicQuestion(
   uuid: string,
   type: string | null = null,
@@ -125,18 +141,38 @@ export function publicQuestion(
   );
 }
 
-export function chartApiEndPoint(uuid: string, type: string | null = null) {
-  const searchParams = new URLSearchParams(window.location.search);
-  const paramsObject: any = {};
-  searchParams.forEach((value, key) => {
-    paramsObject[key] = value;
-  });
+export function createPublicDiscoverUrl(
+  uuid: string,
+  type: string | null = null,
+  query?: string,
+) {
+  const siteUrl = "http://dlooker.com:8080/chart";
 
+  const endPath = window.location?.pathname.split("/").pop() || "";
+
+  const match = endPath.match(/^(\d+)-(.+)$/);
+
+  const formattedEndPath = match ? `${match[2]}-${match[1]}` : endPath;
+
+  const searchParams = getCurrentQuerySearchParams();
+
+  const searchQuery = searchParams
+    ? query
+      ? `?${searchParams}&${query}`
+      : `?${searchParams}`
+    : query
+    ? `?${query}`
+    : "";
+
+  return (
+    `${siteUrl}/${formattedEndPath}` + (type ? `.${type}` : "") + searchQuery
+  );
+}
+
+export function chartApiEndPoint(uuid: string, type: string | null = null) {
   const siteUrl = "https://api.dapplooker.com/chart";
 
-  const queryString = Object.keys(paramsObject)
-    .map(key => `${key}=${paramsObject[key]}`)
-    .join("&");
+  const queryString = getCurrentQuerySearchParams();
 
   const finalQueryString = queryString
     ? `${queryString}&api_key=<API-KEY>&output_format=${type}`
@@ -146,18 +182,9 @@ export function chartApiEndPoint(uuid: string, type: string | null = null) {
 }
 
 export function getImageApiEndPoint(uuid: string, type: string) {
-  const searchParams = new URLSearchParams(window.location.search);
-  const paramsObject: any = {};
-
-  searchParams.forEach((value, key) => {
-    paramsObject[key] = value;
-  });
-
   const siteUrl = `https://api.dapplooker.com/image`;
 
-  const queryString = Object.keys(paramsObject)
-    .map(key => `${key}=${paramsObject[key]}`)
-    .join("&");
+  const queryString = getCurrentQuerySearchParams();
 
   const finalQueryString = queryString
     ? `${queryString}&apiKey=<API-KEY>&type=${type}`

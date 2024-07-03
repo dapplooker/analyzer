@@ -31,6 +31,38 @@ export function publicDashboard(uuid: string) {
   return `${siteUrl}/public/dashboard/${uuid}`;
 }
 
+export function getCurrentQuerySearchParams() {
+  const searchParams = new URLSearchParams(window.location.search);
+
+  const paramsObject: any = {};
+
+  searchParams.forEach((value, key) => {
+    paramsObject[key] = value;
+  });
+
+  const querySearchParams = Object.keys(paramsObject)
+    .map(key => `${key}=${paramsObject[key]}`)
+    .join("&");
+
+  return querySearchParams;
+}
+
+export function getDashboardApiEndpoint(uuid: string) {
+  const siteUrl = "http://dlooker.com:8080/dashboard";
+
+  const endPath = window.location?.pathname.split("/").pop() || "";
+
+  const match = endPath.match(/^(\d+)-(.+)$/);
+
+  const formattedEndPath = match ? `${match[2]}-${match[1]}` : endPath;
+
+  const searchParams = getCurrentQuerySearchParams();
+
+  const searchQuery = searchParams ? `?${searchParams}` : "";
+
+  return `${siteUrl}/${formattedEndPath}` + searchQuery;
+}
+
 export function embedDashboard(token: string) {
   const siteUrl = MetabaseSettings.get("site-url");
   return `${siteUrl}/embed/dashboard/${token}`;
