@@ -31,7 +31,7 @@ export function publicDashboard(uuid: string) {
   return `${siteUrl}/public/dashboard/${uuid}`;
 }
 
-export function getCurrentQuerySearchParams() {
+export function getQuerySearchParams() {
   const searchParams = new URLSearchParams(window.location.search);
 
   const paramsObject: any = {};
@@ -48,7 +48,7 @@ export function getCurrentQuerySearchParams() {
 }
 
 export function getDashboardApiEndpoint(uuid: string) {
-  const siteUrl = "http://dlooker.com:8080/dashboard";
+  const siteUrl = "https://dapplooker.com";
 
   const endPath = window.location?.pathname.split("/").pop() || "";
 
@@ -56,7 +56,7 @@ export function getDashboardApiEndpoint(uuid: string) {
 
   const formattedEndPath = match ? `${match[2]}-${match[1]}` : endPath;
 
-  const searchParams = getCurrentQuerySearchParams();
+  const searchParams = getQuerySearchParams();
 
   const searchQuery = searchParams ? `?${searchParams}` : "";
 

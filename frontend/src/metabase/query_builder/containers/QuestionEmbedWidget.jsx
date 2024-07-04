@@ -81,9 +81,8 @@ class QuestionEmbedWidget extends Component {
         resourceType="question"
         resourceParameters={getCardUiParameters(card, metadata)}
         onGetChartApi={() => getChartAPI(card)}
-        onCreatePublicLink={() => getChartAPI(card)}
-        // onCreatePublicLink={() => createPublicLink(card)}
-        onDisablePublicLink={() => deletePublicLink(card)} //api call modified
+        onCreatePublicLink={() => createPublicLink(card)} //backend api call modified
+        onDisablePublicLink={() => deletePublicLink(card)} //backend api call modified
         onUpdateEnableEmbedding={enableEmbedding =>
           updateEnableEmbedding(card, enableEmbedding)
         }
