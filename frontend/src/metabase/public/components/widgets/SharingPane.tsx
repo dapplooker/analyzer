@@ -1,7 +1,7 @@
-import React, { ReactNode, useState } from "react";
-import { t, jt } from "ttag";
+import React, { ReactNode, useState, useEffect } from "react";
+import { t } from "ttag";
 import cx from "classnames";
-import Button from "metabase/core/components/Button";
+// import Button from "metabase/core/components/Button";
 import Icon from "metabase/components/Icon";
 import Toggle from "metabase/core/components/Toggle";
 import CopyWidget from "metabase/components/CopyWidget";
@@ -12,7 +12,7 @@ import { getPublicEmbedHTML } from "metabase/public/lib/code";
 import * as MetabaseAnalytics from "metabase/lib/analytics";
 import {
   Description,
-  EmbedWidgetHeader,
+  // EmbedWidgetHeader,
   Header,
   IconContainer,
   PublicEmbedHeader,
@@ -23,6 +23,7 @@ type Resource = {
   dashboard?: number;
   question?: number;
   public_uuid?: string;
+  id?: number;
 };
 
 type Extension = string | null;
@@ -54,15 +55,55 @@ export default function SharingPane({
 }: SharingPaneProps) {
   const [extensionState, setExtension] = useState<Extension>(null);
 
+  const [toggleState, setToggleState] = useState<{ off: boolean; on: boolean; }>(
+    {
+      off: false,
+      on: false,
+    });
+
   const publicLink = getPublicUrl(resource, extensionState);
   const iframeSource = getPublicEmbedHTML(getPublicUrl(resource));
 
-  const shouldDisableEmbedding = !isAdmin || !isApplicationEmbeddingEnabled;
+  useEffect(() => {
+    if (toggleState.off && resource.public_uuid) {
+      publishOrUnpublishChartDashboard("publish");
+      setToggleState(prev => ({ ...prev, off: false }));
+    }
+    if (toggleState.on && resource.public_uuid) {
+      publishOrUnpublishChartDashboard("unpublish");
+      setToggleState(prev => ({ ...prev, on: false }));
+    }
+  }, [resource.public_uuid, toggleState]);
+  
+  
+  const publishOrUnpublishChartDashboard = async (
+    action: "publish" | "unpublish",
+  ) => {
+    const body = {
+      entityType: resourceType === "dashboard" ? "dashboard" : "chart",
+      entityId: resource.id,
+    };
+    try {
+      await fetch(
+        `http://dlooker.com:8080/web/discover/${action}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+      );
+    }
+    catch (e) {
+      console.log("Error", e);
+    }
+  };
 
-  const embeddingHelperText = getEmbeddingHelperText({
-    isAdmin,
-    isApplicationEmbeddingEnabled,
-  });
+  // const shouldDisableEmbedding = !isAdmin || !isApplicationEmbeddingEnabled;
+
+  // const embeddingHelperText = getEmbeddingHelperText({
+  //   isAdmin,
+  //   isApplicationEmbeddingEnabled,
+  // });
 
   return (
     <div className="pt2 ml-auto mr-auto" style={{ maxWidth: 600 }}>
@@ -82,6 +123,7 @@ export default function SharingPane({
                     resourceType,
                   );
                   onDisablePublicLink();
+                  setToggleState(prev => ({ ...prev, on: true }));
                 }}
               >
                 <Toggle value={true} />
@@ -90,13 +132,13 @@ export default function SharingPane({
               <Toggle
                 value={false}
                 onChange={() => {
-                  console.log("toggle");
                   MetabaseAnalytics.trackStructEvent(
                     "Sharing Modal",
                     "Public Link Enabled",
                     resourceType,
                   );
                   onCreatePublicLink();
+                  setToggleState(prev => ({ ...prev, off: true }));
                 }}
               />
             )}
@@ -217,27 +259,27 @@ function getSrcSet(imageUrl: string) {
   return `${baseUrl}${extension} 1x, ${baseUrl}@2x${extension} 2x`;
 }
 
-function getEmbeddingHelperText({
-  isAdmin,
-  isApplicationEmbeddingEnabled,
-}: {
-  isAdmin: boolean;
-  isApplicationEmbeddingEnabled: boolean;
-}) {
-  if (!isAdmin) {
-    return t`Only Admins are able to embed questions. If you need access to this feature, reach out to them for permissions.`;
-  }
+// function getEmbeddingHelperText({
+//   isAdmin,
+//   isApplicationEmbeddingEnabled,
+// }: {
+//   isAdmin: boolean;
+//   isApplicationEmbeddingEnabled: boolean;
+// }) {
+//   if (!isAdmin) {
+//     return t`Only Admins are able to embed questions. If you need access to this feature, reach out to them for permissions.`;
+//   }
 
-  if (!isApplicationEmbeddingEnabled && isAdmin) {
-    return jt`In order to embed your question, you have to first ${(
-      <a
-        className="link"
-        href="/admin/settings/embedding-in-other-applications"
-      >
-        enable embedding in your Admin settings.
-      </a>
-    )}`;
-  }
+//   if (!isApplicationEmbeddingEnabled && isAdmin) {
+//     return jt`In order to embed your question, you have to first ${(
+//       <a
+//         className="link"
+//         href="/admin/settings/embedding-in-other-applications"
+//       >
+//         enable embedding in your Admin settings.
+//       </a>
+//     )}`;
+//   }
 
-  return null;
-}
+//   return null;
+// }

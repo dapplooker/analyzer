@@ -93,7 +93,7 @@ class QuestionEmbedWidget extends Component {
         //   Urls.publicQuestion(public_uuid, extension)
         // }
         getPublicUrl={({ public_uuid }, extension) =>
-          Urls.createPublicDiscoverUrl(public_uuid, extension)
+          Urls.createPublicDiscoverUrlForChart(public_uuid, extension)
         }
         getChartApiEndPoint={({ public_uuid }, extension) =>
           Urls.chartApiEndPoint(public_uuid, extension)
@@ -133,7 +133,7 @@ export function QuestionEmbedWidgetTrigger({ onClick }) {
     <Icon
       name="share"
       tooltip={t`Sharing`}
-      className="mx1 hide sm-show text-brand-hover cursor-pointer"
+      className="px1 py1 hide sm-show text-brand-hover cursor-pointer bg-medium-hover rounded-sm transition-background"
       onClick={() => {
         MetabaseAnalytics.trackStructEvent(
           "Sharing / Embedding",

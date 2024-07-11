@@ -47,8 +47,8 @@ export function getQuerySearchParams() {
   return querySearchParams;
 }
 
-export function getDashboardApiEndpoint(uuid: string) {
-  const siteUrl = "https://dapplooker.com";
+export function createPublicDiscoverUrlForDashboard(uuid: string) {
+  const siteUrl = "http://dlooker.com:8080/dashboard";
 
   const endPath = window.location?.pathname.split("/").pop() || "";
 

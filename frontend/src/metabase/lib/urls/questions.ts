@@ -141,12 +141,12 @@ export function publicQuestion(
   );
 }
 
-export function createPublicDiscoverUrl(
+export function createPublicDiscoverUrlForChart(
   uuid: string,
   type: string | null = null,
   query?: string,
 ) {
-  const siteUrl = "https://dapplooker.com";
+  const siteUrl = "http://dlooker.com:8080/chart";
 
   const endPath = window.location?.pathname.split("/").pop() || "";
 

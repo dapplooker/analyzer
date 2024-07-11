@@ -472,14 +472,14 @@ function ViewTitleHeaderRightSide(props) {
       )}
 
       {isSaved && (isAdmin || user?.id === question._card?.creator_id) && (
-        <QuestionEmbedWidgetTrigger
-          key="embeds"
-          onClick={() =>
-            question.isSaved()
-              ? onOpenModal("embed")
-              : onOpenModal("save-question-before-embed")
-          }
-        />
+          <QuestionEmbedWidgetTrigger
+            key="embeds"
+            onClick={() =>
+              question.isSaved()
+                ? onOpenModal("embed")
+                : onOpenModal("save-question-before-embed")
+            }
+          />
       )}
 
       {QuestionNotebookButton.shouldRender(props) && (
