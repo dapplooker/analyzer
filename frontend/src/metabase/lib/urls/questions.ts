@@ -146,7 +146,7 @@ export function createPublicDiscoverUrlForChart(
   type: string | null = null,
   query?: string,
 ) {
-  const siteUrl = "http://dlooker.com:8080/chart";
+  const siteUrl = "https://dapplooker.com/chart";
 
   const endPath = window.location?.pathname.split("/").pop() || "";
 

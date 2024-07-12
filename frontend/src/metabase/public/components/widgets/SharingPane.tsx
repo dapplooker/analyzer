@@ -84,14 +84,11 @@ export default function SharingPane({
       entityId: resource.id,
     };
     try {
-      await fetch(
-        `http://dlooker.com:8080/web/discover/${action}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        },
-      );
+      await fetch(`https://dapplooker.com/web/discover/${action}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
     }
     catch (e) {
       console.log("Error", e);
