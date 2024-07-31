@@ -22,7 +22,7 @@ import {
 type Resource = {
   dashboard?: number;
   question?: number;
-  public_uuid?: string;
+  public_uuid?: string | null;
   id?: number;
 };
 
@@ -35,6 +35,7 @@ interface SharingPaneProps {
   onDisablePublicLink: () => void;
   extensions: string[];
   getPublicUrl: (resource: Resource, extension?: Extension) => void;
+  getPublicEmbedUrl: (resource: Resource) => void;
   onChangeEmbedType: (embedType: string) => void;
   isAdmin: boolean;
   isPublicSharingEnabled: boolean;
@@ -48,6 +49,7 @@ export default function SharingPane({
   onDisablePublicLink,
   extensions = [],
   getPublicUrl,
+  getPublicEmbedUrl,
   onChangeEmbedType,
   isAdmin,
   isPublicSharingEnabled,
@@ -55,14 +57,16 @@ export default function SharingPane({
 }: SharingPaneProps) {
   const [extensionState, setExtension] = useState<Extension>(null);
 
-  const [toggleState, setToggleState] = useState<{ off: boolean; on: boolean; }>(
+  const [toggleState, setToggleState] = useState<{ off: boolean; on: boolean }>(
     {
       off: false,
       on: false,
-    });
+    },
+  );
 
   const publicLink = getPublicUrl(resource, extensionState);
-  const iframeSource = getPublicEmbedHTML(getPublicUrl(resource));
+  const iframeSource = getPublicEmbedHTML(getPublicEmbedUrl(resource));
+  console.log(resource);
 
   useEffect(() => {
     if (toggleState.off && resource.public_uuid) {
@@ -74,8 +78,7 @@ export default function SharingPane({
       setToggleState(prev => ({ ...prev, on: false }));
     }
   }, [resource.public_uuid, toggleState]);
-  
-  
+
   const publishOrUnpublishChartDashboard = async (
     action: "publish" | "unpublish",
   ) => {
@@ -89,8 +92,7 @@ export default function SharingPane({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-    }
-    catch (e) {
+    } catch (e) {
       console.log("Error", e);
     }
   };
@@ -156,7 +158,7 @@ export default function SharingPane({
         <PublicLinkHeader>{t`Public link`}</PublicLinkHeader>
         <Description className="mb1">{t`Share this ${resourceType} with people who don't have a DappLooker account using the URL below:`}</Description>
         <CopyWidget value={publicLink} />
-        {extensions && extensions.length > 0 && (
+        {/* {extensions && extensions.length > 0 && (
           <div className="mt1">
             {extensions.map(extension => (
               <span
@@ -175,7 +177,7 @@ export default function SharingPane({
               </span>
             ))}
           </div>
-        )}
+        )} */}
       </SharingOption>
 
       <SharingOption

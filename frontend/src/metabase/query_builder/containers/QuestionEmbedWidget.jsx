@@ -95,6 +95,9 @@ class QuestionEmbedWidget extends Component {
         getPublicUrl={({ public_uuid }, extension) =>
           Urls.createPublicDiscoverUrlForChart(public_uuid, extension)
         }
+        getPublicEmbedUrl={({ public_uuid }) =>
+          Urls.getPublicEmbedUrlForChart(public_uuid)
+        }
         getChartApiEndPoint={({ public_uuid }, extension) =>
           Urls.chartApiEndPoint(public_uuid, extension)
         }

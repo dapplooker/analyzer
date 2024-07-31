@@ -169,6 +169,14 @@ export function createPublicDiscoverUrlForChart(
   );
 }
 
+export function getPublicEmbedUrlForChart(uuid: string) {
+  const url = "https://analytics.dapplooker.com/public/question";
+
+  const searchParams = getCurrentQuerySearchParams();
+
+  return `${url}/${uuid}${searchParams && `?${searchParams}`}`;
+}
+
 export function chartApiEndPoint(uuid: string, type: string | null = null) {
   const siteUrl = "https://api.dapplooker.com/chart";
 

@@ -101,6 +101,9 @@ class DashboardSharingEmbeddingModal extends Component {
           getPublicUrl={({ public_uuid }) =>
             Urls.createPublicDiscoverUrlForDashboard(public_uuid)
           }
+          getPublicEmbedUrl={({ public_uuid }) =>
+            Urls.getPublicEmbedUrlForDashboard(public_uuid)
+          }
         />
       </ModalWithTrigger>
     );

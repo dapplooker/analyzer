@@ -63,6 +63,14 @@ export function createPublicDiscoverUrlForDashboard(uuid: string) {
   return `${siteUrl}/${formattedEndPath}` + searchQuery;
 }
 
+export function getPublicEmbedUrlForDashboard(uuid: string) {
+  const url = "https://analytics.dapplooker.com/public/dasboard";
+
+  const searchParams = getQuerySearchParams();
+
+  return `${url}/${uuid}${searchParams && `?${searchParams}`}`;
+}
+
 export function embedDashboard(token: string) {
   const siteUrl = MetabaseSettings.get("site-url");
   return `${siteUrl}/embed/dashboard/${token}`;
