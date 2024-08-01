@@ -56,19 +56,17 @@ export function createPublicDiscoverUrlForDashboard(uuid: string) {
 
   const formattedEndPath = match ? `${match[2]}-${match[1]}` : endPath;
 
-  const searchParams = getQuerySearchParams();
+  // const searchParams = getQuerySearchParams();
 
-  const searchQuery = searchParams ? `?${searchParams}` : "";
+  // const searchQuery = searchParams ? `?${searchParams}` : "";
 
-  return `${siteUrl}/${formattedEndPath}` + searchQuery;
+  return `${siteUrl}/${formattedEndPath}`;
 }
 
 export function getPublicEmbedUrlForDashboard(uuid: string) {
   const url = "https://analytics.dapplooker.com/public/dasboard";
 
-  const searchParams = getQuerySearchParams();
-
-  return `${url}/${uuid}${searchParams && `?${searchParams}`}`;
+  return `${url}/${uuid}`;
 }
 
 export function embedDashboard(token: string) {

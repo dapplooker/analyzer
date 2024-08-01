@@ -66,7 +66,6 @@ export default function SharingPane({
 
   const publicLink = getPublicUrl(resource, extensionState);
   const iframeSource = getPublicEmbedHTML(getPublicEmbedUrl(resource));
-  console.log(resource);
 
   useEffect(() => {
     if (toggleState.off && resource.public_uuid) {

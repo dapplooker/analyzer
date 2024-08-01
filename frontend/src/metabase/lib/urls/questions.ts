@@ -154,27 +154,23 @@ export function createPublicDiscoverUrlForChart(
 
   const formattedEndPath = match ? `${match[2]}-${match[1]}` : endPath;
 
-  const searchParams = getCurrentQuerySearchParams();
+  // const searchParams = getCurrentQuerySearchParams();
 
-  const searchQuery = searchParams
-    ? query
-      ? `?${searchParams}&${query}`
-      : `?${searchParams}`
-    : query
-    ? `?${query}`
-    : "";
+  // const searchQuery = searchParams
+  //   ? query
+  //     ? `?${searchParams}&${query}`
+  //     : `?${searchParams}`
+  //   : query
+  //   ? `?${query}`
+  //   : "";
 
-  return (
-    `${siteUrl}/${formattedEndPath}` + (type ? `.${type}` : "") + searchQuery
-  );
+  return `${siteUrl}/${formattedEndPath}` + (type ? `.${type}` : "");
 }
 
 export function getPublicEmbedUrlForChart(uuid: string) {
   const url = "https://analytics.dapplooker.com/public/question";
 
-  const searchParams = getCurrentQuerySearchParams();
-
-  return `${url}/${uuid}${searchParams && `?${searchParams}`}`;
+  return `${url}/${uuid}`;
 }
 
 export function chartApiEndPoint(uuid: string, type: string | null = null) {
