@@ -64,7 +64,7 @@ export function createPublicDiscoverUrlForDashboard(uuid: string) {
 }
 
 export function getPublicEmbedUrlForDashboard(uuid: string) {
-  const url = "https://analytics.dapplooker.com/public/dasboard";
+  const url = "https://analytics.dapplooker.com/public/dashboard";
 
   return `${url}/${uuid}`;
 }

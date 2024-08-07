@@ -5,7 +5,8 @@ import { connect } from "react-redux";
 
 import { t } from "ttag";
 
-import Icon from "metabase/components/Icon";
+import Tooltip from "metabase/core/components/Tooltip";
+import Button from "metabase/core/components/Button";
 
 import EmbedModalContent from "metabase/public/components/widgets/EmbedModalContent";
 
@@ -16,7 +17,10 @@ import { getMetadata } from "metabase/selectors/metadata";
 import { color } from "metabase/lib/colors";
 import { getCardUiParameters } from "metabase-lib/parameters/utils/cards";
 
-import { HeaderButton } from "../components/view/ViewHeader.styled";
+import {
+  HeaderButton,
+  ViewHeaderIconButtonContainer,
+} from "../components/view/ViewHeader.styled";
 
 import {
   createPublicLink,
@@ -133,20 +137,25 @@ export default connect(
 
 export function QuestionEmbedWidgetTrigger({ onClick }) {
   return (
-    <Icon
-      name="share"
-      tooltip={t`Sharing`}
-      className="px1 py1 hide sm-show text-brand-hover cursor-pointer bg-medium-hover rounded-sm transition-background"
-      onClick={() => {
-        MetabaseAnalytics.trackStructEvent(
-          "Sharing / Embedding",
-          "question",
-          "Sharing Link Clicked",
-        );
-        onClick();
-      }}
-      data-metabase-event="View Mode; Open Filter Modal"
-    />
+    <ViewHeaderIconButtonContainer>
+      <Tooltip tooltip={t`Sharing`}>
+        <Button
+          borderless
+          iconSize={16}
+          medium
+          className="text-dark text-brand-hover"
+          icon="share"
+          onClick={() => {
+            MetabaseAnalytics.trackStructEvent(
+              "Sharing / Embedding",
+              "question",
+              "Sharing Link Clicked",
+            );
+            onClick();
+          }}
+        />
+      </Tooltip>
+    </ViewHeaderIconButtonContainer>
   );
 }
 
