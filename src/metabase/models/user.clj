@@ -323,7 +323,8 @@
   [new-user :- NewUser, invitor :- Invitor, setup? :- schema/Bool]
   ;; create the new user
   (u/prog1 (insert-new-user! new-user)
-    (send-welcome-email! <> invitor setup?)))
+    ;; (send-welcome-email! <> invitor setup?)
+  ))
 
 (schema/defn create-new-google-auth-user!
   "Convenience for creating a new user via Google Auth. This account is considered active immediately; thus all active
@@ -331,8 +332,9 @@
   [new-user :- NewUser]
   (u/prog1 (insert-new-user! (assoc new-user :google_auth true))
     ;; send an email to everyone including the site admin if that's set
-    (classloader/require 'metabase.email.messages)
-    ((resolve 'metabase.email.messages/send-user-joined-admin-notification-email!) <>, :google-auth? true)))
+    ;; (classloader/require 'metabase.email.messages)
+    ;; ((resolve 'metabase.email.messages/send-user-joined-admin-notification-email!) <>, :google-auth? true)
+  ))
 
 (schema/defn create-new-ldap-auth-user!
   "Convenience for creating a new user via LDAP. This account is considered active immediately; thus all active admins

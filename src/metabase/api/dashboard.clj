@@ -632,32 +632,88 @@
 
 ;;; ----------------------------------------------- Sharing is Caring ------------------------------------------------
 
+;; #_{:clj-kondo/ignore [:deprecated-var]}
+;; (api/defendpoint-schema POST "/:dashboard-id/public_link"
+;;   "Generate publicly-accessible links for this Dashboard. Returns UUID to be used in public links. (If this
+;;   Dashboard has already been shared, it will return the existing public link rather than creating a new one.) Public
+;;   sharing must be enabled."
+;;   [dashboard-id]
+;;   (api/check-superuser)
+;;   (validation/check-public-sharing-enabled)
+;;   (api/check-not-archived (api/read-check Dashboard dashboard-id))
+;;   {:uuid (or (db/select-one-field :public_uuid Dashboard :id dashboard-id)
+;;              (u/prog1 (str (UUID/randomUUID))
+;;                (db/update! Dashboard dashboard-id
+;;                  :public_uuid       <>
+;;                  :made_public_by_id api/*current-user-id*)))})
+
+
 #_{:clj-kondo/ignore [:deprecated-var]}
 (api/defendpoint-schema POST "/:dashboard-id/public_link"
   "Generate publicly-accessible links for this Dashboard. Returns UUID to be used in public links. (If this
   Dashboard has already been shared, it will return the existing public link rather than creating a new one.) Public
   sharing must be enabled."
   [dashboard-id]
-  (api/check-superuser)
   (validation/check-public-sharing-enabled)
   (api/check-not-archived (api/read-check Dashboard dashboard-id))
-  {:uuid (or (db/select-one-field :public_uuid Dashboard :id dashboard-id)
-             (u/prog1 (str (UUID/randomUUID))
-               (db/update! Dashboard dashboard-id
-                 :public_uuid       <>
-                 :made_public_by_id api/*current-user-id*)))})
+  
+  ;; Fetch the dashboard details to get the creator ID
+  (let [dashboard (db/select-one 'Dashboard :id dashboard-id)
+        creator-id (:creator_id dashboard)]
+    
+    ;; Check if the current user ID matches the creator ID or if the user is a superuser
+    (api/check-403 (or (= api/*current-user-id* creator-id)
+                   (try
+                     (api/check-superuser)
+                     true
+                     (catch Exception _ false))))
+    
+    ;; Proceed if the current user is the creator or a superuser
+    {:uuid (or (db/select-one-field :public_uuid Dashboard :id dashboard-id)
+               (u/prog1 (str (UUID/randomUUID))
+                 (db/update! Dashboard dashboard-id
+                   :public_uuid       <>
+                   :made_public_by_id api/*current-user-id*)))}))
+
+;; #_{:clj-kondo/ignore [:deprecated-var]}
+;; (api/defendpoint-schema DELETE "/:dashboard-id/public_link"
+;;   "Delete the publicly-accessible link to this Dashboard."
+;;   [dashboard-id]
+;;   (validation/check-has-application-permission :setting)
+;;   (validation/check-public-sharing-enabled)
+;;   (api/check-exists? Dashboard :id dashboard-id, :public_uuid [:not= nil], :archived false)
+;;   (db/update! Dashboard dashboard-id
+;;     :public_uuid       nil
+;;     :made_public_by_id nil)
+;;   {:status 204, :body nil})
 
 #_{:clj-kondo/ignore [:deprecated-var]}
 (api/defendpoint-schema DELETE "/:dashboard-id/public_link"
   "Delete the publicly-accessible link to this Dashboard."
   [dashboard-id]
-  (validation/check-has-application-permission :setting)
   (validation/check-public-sharing-enabled)
+  
+  ;; Check if the dashboard exists, has a public UUID, and is not archived
   (api/check-exists? Dashboard :id dashboard-id, :public_uuid [:not= nil], :archived false)
-  (db/update! Dashboard dashboard-id
-    :public_uuid       nil
-    :made_public_by_id nil)
-  {:status 204, :body nil})
+  
+  ;; Fetch the dashboard details to get the creator ID
+  (let [dashboard (db/select-one 'Dashboard :id dashboard-id)
+        creator-id (:creator_id dashboard)]
+    
+    ;; Check if the current user is either the creator or has necessary permissions
+    (api/check-403 (or (= api/*current-user-id* creator-id)
+                      (try
+                        (validation/check-has-application-permission :setting)
+                        true
+                        (catch Exception _ false))))
+    
+    ;; Proceed if the current user is the creator or has necessary permissions
+    (db/update! Dashboard dashboard-id
+      :public_uuid       nil
+      :made_public_by_id nil)
+    {:status 204, :body nil}))
+
+
 
 #_{:clj-kondo/ignore [:deprecated-var]}
 (api/defendpoint-schema GET "/public"

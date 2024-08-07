@@ -85,8 +85,8 @@ class DashboardSharingEmbeddingModal extends Component {
           resource={dashboard}
           resourceParameters={parameters}
           resourceType="dashboard"
-          onCreatePublicLink={() => createPublicLink(dashboard)}
-          onDisablePublicLink={() => deletePublicLink(dashboard)}
+          onCreatePublicLink={() => createPublicLink(dashboard)} //backend api call modified
+          onDisablePublicLink={() => deletePublicLink(dashboard)} //backend api call modified
           onUpdateEnableEmbedding={enableEmbedding =>
             updateEnableEmbedding(dashboard, enableEmbedding)
           }
@@ -97,7 +97,13 @@ class DashboardSharingEmbeddingModal extends Component {
             this._modal && this._modal.close();
             additionalClickActions();
           }}
-          getPublicUrl={({ public_uuid }) => Urls.publicDashboard(public_uuid)}
+          // getPublicUrl={({ public_uuid }) => Urls.publicDashboard(public_uuid)}
+          getPublicUrl={({ public_uuid }) =>
+            Urls.createPublicDiscoverUrlForDashboard(public_uuid)
+          }
+          getPublicEmbedUrl={({ public_uuid }) =>
+            Urls.getPublicEmbedUrlForDashboard(public_uuid)
+          }
         />
       </ModalWithTrigger>
     );

@@ -49,7 +49,7 @@
 
 (def restful-api-endpoint-prod "https://dapplooker.com")
 
-(def restful-api-endpoint-localhost "http://localhost:4001")
+(def restful-api-endpoint-localhost "http://dlooker.com:8080")
 
 (defn- content-security-policy-header
   "`Content-Security-Policy` header. See https://content-security-policy.com for more details."

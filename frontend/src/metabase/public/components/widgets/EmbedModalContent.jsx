@@ -180,7 +180,7 @@ class EmbedModalContent extends Component {
                   )}
                   onChangeEmbedType={embedType => this.setState({ embedType })}
                 />
-              ) :
+              ) : (
                 <DappLookerChartAPIPane
                   {...this.props}
                   publicUrl={getUnsignedPreviewUrl(
@@ -197,7 +197,7 @@ class EmbedModalContent extends Component {
                   )}
                   onChangeEmbedType={embedType => this.setState({ embedType })}
                 />
-              }
+              )}
             </div>
           </div>
         ) : embedType === "application" ? (
@@ -272,11 +272,13 @@ function filterValidResourceParameters(embeddingParams, resourceParameters) {
   return _.pick(embeddingParams, validParameters);
 }
 
-export const EmbedTitle = ({ type, onClick,isChartAPI }) => (
+export const EmbedTitle = ({ type, onClick, isChartAPI }) => (
   <a className="flex align-center" onClick={onClick}>
-    {!isChartAPI
-      ? <span className="text-brand-hover">{t`Sharing`}</span>
-      : <span className="text-brand-hover">{t`Chart API`}</span>}
+    {!isChartAPI ? (
+      <span className="text-brand-hover">{t`Sharing`}</span>
+    ) : (
+      <span className="text-brand-hover">{t`Chart API`}</span>
+    )}
     {type && <Icon name="chevronright" className="mx1 text-medium" />}
     {type}
   </a>

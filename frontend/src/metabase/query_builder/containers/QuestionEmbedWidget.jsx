@@ -5,7 +5,8 @@ import { connect } from "react-redux";
 
 import { t } from "ttag";
 
-import Icon from "metabase/components/Icon";
+import Tooltip from "metabase/core/components/Tooltip";
+import Button from "metabase/core/components/Button";
 
 import EmbedModalContent from "metabase/public/components/widgets/EmbedModalContent";
 
@@ -16,7 +17,10 @@ import { getMetadata } from "metabase/selectors/metadata";
 import { color } from "metabase/lib/colors";
 import { getCardUiParameters } from "metabase-lib/parameters/utils/cards";
 
-import { HeaderButton } from "../components/view/ViewHeader.styled";
+import {
+  HeaderButton,
+  ViewHeaderIconButtonContainer,
+} from "../components/view/ViewHeader.styled";
 
 import {
   createPublicLink,
@@ -72,6 +76,7 @@ class QuestionEmbedWidget extends Component {
       metadata,
       ...props
     } = this.props;
+
     return (
       <EmbedModalContent
         {...props}
@@ -80,16 +85,22 @@ class QuestionEmbedWidget extends Component {
         resourceType="question"
         resourceParameters={getCardUiParameters(card, metadata)}
         onGetChartApi={() => getChartAPI(card)}
-        onCreatePublicLink={() => createPublicLink(card)}
-        onDisablePublicLink={() => deletePublicLink(card)}
+        onCreatePublicLink={() => createPublicLink(card)} //backend api call modified
+        onDisablePublicLink={() => deletePublicLink(card)} //backend api call modified
         onUpdateEnableEmbedding={enableEmbedding =>
           updateEnableEmbedding(card, enableEmbedding)
         }
         onUpdateEmbeddingParams={embeddingParams =>
           updateEmbeddingParams(card, embeddingParams)
         }
+        // getPublicUrl={({ public_uuid }, extension) =>
+        //   Urls.publicQuestion(public_uuid, extension)
+        // }
         getPublicUrl={({ public_uuid }, extension) =>
-          Urls.publicQuestion(public_uuid, extension)
+          Urls.createPublicDiscoverUrlForChart(public_uuid, extension)
+        }
+        getPublicEmbedUrl={({ public_uuid }) =>
+          Urls.getPublicEmbedUrlForChart(public_uuid)
         }
         getChartApiEndPoint={({ public_uuid }, extension) =>
           Urls.chartApiEndPoint(public_uuid, extension)
@@ -126,19 +137,25 @@ export default connect(
 
 export function QuestionEmbedWidgetTrigger({ onClick }) {
   return (
-    <Icon
-      name="share"
-      tooltip={t`Sharing`}
-      className="mx1 hide sm-show text-brand-hover cursor-pointer"
-      onClick={() => {
-        MetabaseAnalytics.trackStructEvent(
-          "Sharing / Embedding",
-          "question",
-          "Sharing Link Clicked",
-        );
-        onClick();
-      }}
-    />
+    <ViewHeaderIconButtonContainer>
+      <Tooltip tooltip={t`Sharing`}>
+        <Button
+          borderless
+          iconSize={16}
+          medium
+          className="text-dark text-brand-hover"
+          icon="share"
+          onClick={() => {
+            MetabaseAnalytics.trackStructEvent(
+              "Sharing / Embedding",
+              "question",
+              "Sharing Link Clicked",
+            );
+            onClick();
+          }}
+        />
+      </Tooltip>
+    </ViewHeaderIconButtonContainer>
   );
 }
 

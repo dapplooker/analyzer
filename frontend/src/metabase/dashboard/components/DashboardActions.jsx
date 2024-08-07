@@ -30,6 +30,7 @@ export const getDashboardActions = (
     onSharingClick,
     onFullscreenChange,
     hasNightModeToggle,
+    user,
   },
 ) => {
   const isPublicLinksEnabled = MetabaseSettings.get("enable-public-sharing");
@@ -48,7 +49,7 @@ export const getDashboardActions = (
   const canShareDashboard = hasCards;
   const canCreateSubscription = hasDataCards && canManageSubscriptions;
 
-  if (!isEditing && !isEmpty && !isPublic) {
+  if (!isEditing && !isEmpty) {
     // Getting notifications with static text-only cards doesn't make a lot of sense
     // if (canCreateSubscription && !isFullscreen) {
     //   buttons.push(
@@ -72,8 +73,11 @@ export const getDashboardActions = (
           enabled={
             !isEditing &&
             !isFullscreen &&
-            ((isPublicLinksEnabled && (isAdmin || dashboard.public_uuid)) ||
+            ((isPublicLinksEnabled && isAdmin) ||
+              (isPublicLinksEnabled && user?.id === dashboard?.creator_id) ||
               (isEmbeddingEnabled && isAdmin))
+            // ((isPublicLinksEnabled && (isAdmin || dashboard.public_uuid)) ||
+            //   (isEmbeddingEnabled && isAdmin))
           }
           isLinkEnabled={canShareDashboard}
           linkText={
