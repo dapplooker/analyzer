@@ -31,9 +31,8 @@ const NewBadgeImg = styled.img`
 `;
 
 const DappLookerHeaderLinks = (): JSX.Element => {
-  const DAPPLOOKER_MYCREATION_LINK =
-    "https://dapplooker.com/my-creation/dashboard";
-  const DAPPLOOKER_MYPROJECT_LINK = "https://dapplooker.com/user/dashboard";
+  const DAPPLOOKER_ControlCenter_LINK =
+    "https://dapplooker.com/control-center?type=my-projects";
   const ANALYZER_BROWSE_DATA_LINK = "https://analytics.dapplooker.com/browse/2";
 
   const MYCREATION_NEW_BADGE_EXPIRY_DATE = new Date("2023-11-12");
@@ -74,21 +73,13 @@ const DappLookerHeaderLinks = (): JSX.Element => {
         onMouseLeave={resetTextColor}
         style={anchorTagStyle}>Discover</a> */}
       <LinkElement
-        href={DAPPLOOKER_MYPROJECT_LINK}
-        onMouseEnter={changeTextColorOnHover}
-        onMouseLeave={resetTextColor}
-        style={anchorTagStyle}
-      >
-        My Dashboard
-      </LinkElement>
-      <LinkElement
-        href={DAPPLOOKER_MYCREATION_LINK}
+        href={DAPPLOOKER_ControlCenter_LINK}
         onMouseEnter={changeTextColorOnHover}
         onMouseLeave={resetTextColor}
         style={anchorTagStyle}
         isNew={isNewBadgeActive}
       >
-        My Creation
+        Control Center
         {isNewBadgeActive && (
           <NewBadgeImg
             style={newBadgeStyle}
