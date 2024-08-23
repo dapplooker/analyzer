@@ -29,6 +29,7 @@ import {
   addActionToDashboard,
   toggleSidebar,
 } from "metabase/dashboard/actions";
+import { getUser } from "metabase/selectors/user";
 
 import Header from "../components/DashboardHeader";
 import { SIDEBAR_NAME } from "../constants";
@@ -39,6 +40,7 @@ import {
 
 const mapStateToProps = (state, props) => {
   return {
+    user: getUser(state, props),
     isBookmarked: getIsBookmarked(state, props),
     isNavBarOpen: getIsNavbarOpen(state),
     isShowingDashboardInfoSidebar: getIsShowDashboardInfoSidebar(state),

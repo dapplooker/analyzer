@@ -1,7 +1,7 @@
-import React, { ReactNode, useState } from "react";
-import { t, jt } from "ttag";
+import React, { ReactNode, useState, useEffect } from "react";
+import { t } from "ttag";
 import cx from "classnames";
-import Button from "metabase/core/components/Button";
+// import Button from "metabase/core/components/Button";
 import Icon from "metabase/components/Icon";
 import Toggle from "metabase/core/components/Toggle";
 import CopyWidget from "metabase/components/CopyWidget";
@@ -12,7 +12,7 @@ import { getPublicEmbedHTML } from "metabase/public/lib/code";
 import * as MetabaseAnalytics from "metabase/lib/analytics";
 import {
   Description,
-  EmbedWidgetHeader,
+  // EmbedWidgetHeader,
   Header,
   IconContainer,
   PublicEmbedHeader,
@@ -22,7 +22,8 @@ import {
 type Resource = {
   dashboard?: number;
   question?: number;
-  public_uuid?: string;
+  public_uuid?: string | null;
+  id?: number;
 };
 
 type Extension = string | null;
@@ -34,6 +35,7 @@ interface SharingPaneProps {
   onDisablePublicLink: () => void;
   extensions: string[];
   getPublicUrl: (resource: Resource, extension?: Extension) => void;
+  getPublicEmbedUrl: (resource: Resource) => void;
   onChangeEmbedType: (embedType: string) => void;
   isAdmin: boolean;
   isPublicSharingEnabled: boolean;
@@ -47,6 +49,7 @@ export default function SharingPane({
   onDisablePublicLink,
   extensions = [],
   getPublicUrl,
+  getPublicEmbedUrl,
   onChangeEmbedType,
   isAdmin,
   isPublicSharingEnabled,
@@ -54,19 +57,56 @@ export default function SharingPane({
 }: SharingPaneProps) {
   const [extensionState, setExtension] = useState<Extension>(null);
 
+  const [toggleState, setToggleState] = useState<{ off: boolean; on: boolean }>(
+    {
+      off: false,
+      on: false,
+    },
+  );
+
   const publicLink = getPublicUrl(resource, extensionState);
-  const iframeSource = getPublicEmbedHTML(getPublicUrl(resource));
+  const iframeSource = getPublicEmbedHTML(getPublicEmbedUrl(resource));
 
-  const shouldDisableEmbedding = !isAdmin || !isApplicationEmbeddingEnabled;
+  useEffect(() => {
+    if (toggleState.off && resource.public_uuid) {
+      publishOrUnpublishChartDashboard("publish");
+      setToggleState(prev => ({ ...prev, off: false }));
+    }
+    if (toggleState.on && resource.public_uuid) {
+      publishOrUnpublishChartDashboard("unpublish");
+      setToggleState(prev => ({ ...prev, on: false }));
+    }
+  }, [resource.public_uuid, toggleState]);
 
-  const embeddingHelperText = getEmbeddingHelperText({
-    isAdmin,
-    isApplicationEmbeddingEnabled,
-  });
+  const publishOrUnpublishChartDashboard = async (
+    action: "publish" | "unpublish",
+  ) => {
+    const body = {
+      entityType: resourceType === "dashboard" ? "dashboard" : "chart",
+      entityId: resource.id,
+    };
+    try {
+      await fetch(`https://dapplooker.com/web/discover/${action}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch (e) {
+      console.log("Error", e);
+    }
+  };
+
+  // const shouldDisableEmbedding = !isAdmin || !isApplicationEmbeddingEnabled;
+
+  // const embeddingHelperText = getEmbeddingHelperText({
+  //   isAdmin,
+  //   isApplicationEmbeddingEnabled,
+  // });
 
   return (
     <div className="pt2 ml-auto mr-auto" style={{ maxWidth: 600 }}>
-      {isAdmin && isPublicSharingEnabled && (
+      {/* {isAdmin && isPublicSharingEnabled && ( */}
+      {isPublicSharingEnabled && (
         <div className="px4 py3 mb4 bordered rounded flex align-center">
           <Header>{t`Enable sharing`}</Header>
           <div className="ml-auto">
@@ -81,6 +121,7 @@ export default function SharingPane({
                     resourceType,
                   );
                   onDisablePublicLink();
+                  setToggleState(prev => ({ ...prev, on: true }));
                 }}
               >
                 <Toggle value={true} />
@@ -95,6 +136,7 @@ export default function SharingPane({
                     resourceType,
                   );
                   onCreatePublicLink();
+                  setToggleState(prev => ({ ...prev, off: true }));
                 }}
               />
             )}
@@ -115,7 +157,7 @@ export default function SharingPane({
         <PublicLinkHeader>{t`Public link`}</PublicLinkHeader>
         <Description className="mb1">{t`Share this ${resourceType} with people who don't have a DappLooker account using the URL below:`}</Description>
         <CopyWidget value={publicLink} />
-        {extensions && extensions.length > 0 && (
+        {/* {extensions && extensions.length > 0 && (
           <div className="mt1">
             {extensions.map(extension => (
               <span
@@ -134,7 +176,7 @@ export default function SharingPane({
               </span>
             ))}
           </div>
-        )}
+        )} */}
       </SharingOption>
 
       <SharingOption
@@ -150,27 +192,29 @@ export default function SharingPane({
         <CopyWidget value={iframeSource} />
       </SharingOption>
 
-      {isAdmin && <SharingOption
-        className={cx({
-          disabled: shouldDisableEmbedding,
-          "cursor-pointer": !shouldDisableEmbedding,
-        })}
-        illustration={
-          <ResponsiveImage imageUrl="app/assets/img/secure_embed.png" />
-        }
-        onClick={() => {
-          if (!shouldDisableEmbedding) {
-            onChangeEmbedType("application");
+      {/* {isAdmin && (
+        <SharingOption
+          className={cx({
+            disabled: shouldDisableEmbedding,
+            "cursor-pointer": !shouldDisableEmbedding,
+          })}
+          illustration={
+            <ResponsiveImage imageUrl="app/assets/img/secure_embed.png" />
           }
-        }}
-      >
-        <EmbedWidgetHeader>{t`Embed in your application`}</EmbedWidgetHeader>
-        <Description>{t`Add this ${resourceType} to your application server code. You’ll be able to preview the way it looks and behaves before making it securely visible for your users.`}</Description>
-        {embeddingHelperText && (
-          <Description enableMouseEvents>{embeddingHelperText}</Description>
-        )}
-        <Button primary>{t`Set up`}</Button>
-      </SharingOption>}
+          onClick={() => {
+            if (!shouldDisableEmbedding) {
+              onChangeEmbedType("application");
+            }
+          }}
+        >
+          <EmbedWidgetHeader>{t`Embed in your application`}</EmbedWidgetHeader>
+          <Description>{t`Add this ${resourceType} to your application server code. You’ll be able to preview the way it looks and behaves before making it securely visible for your users.`}</Description>
+          {embeddingHelperText && (
+            <Description enableMouseEvents>{embeddingHelperText}</Description>
+          )}
+          <Button primary>{t`Set up`}</Button>
+        </SharingOption>
+      )} */}
     </div>
   );
 }
@@ -213,27 +257,27 @@ function getSrcSet(imageUrl: string) {
   return `${baseUrl}${extension} 1x, ${baseUrl}@2x${extension} 2x`;
 }
 
-function getEmbeddingHelperText({
-  isAdmin,
-  isApplicationEmbeddingEnabled,
-}: {
-  isAdmin: boolean;
-  isApplicationEmbeddingEnabled: boolean;
-}) {
-  if (!isAdmin) {
-    return t`Only Admins are able to embed questions. If you need access to this feature, reach out to them for permissions.`;
-  }
+// function getEmbeddingHelperText({
+//   isAdmin,
+//   isApplicationEmbeddingEnabled,
+// }: {
+//   isAdmin: boolean;
+//   isApplicationEmbeddingEnabled: boolean;
+// }) {
+//   if (!isAdmin) {
+//     return t`Only Admins are able to embed questions. If you need access to this feature, reach out to them for permissions.`;
+//   }
 
-  if (!isApplicationEmbeddingEnabled && isAdmin) {
-    return jt`In order to embed your question, you have to first ${(
-      <a
-        className="link"
-        href="/admin/settings/embedding-in-other-applications"
-      >
-        enable embedding in your Admin settings.
-      </a>
-    )}`;
-  }
+//   if (!isApplicationEmbeddingEnabled && isAdmin) {
+//     return jt`In order to embed your question, you have to first ${(
+//       <a
+//         className="link"
+//         href="/admin/settings/embedding-in-other-applications"
+//       >
+//         enable embedding in your Admin settings.
+//       </a>
+//     )}`;
+//   }
 
-  return null;
-}
+//   return null;
+// }

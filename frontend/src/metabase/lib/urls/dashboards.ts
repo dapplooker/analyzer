@@ -31,6 +31,44 @@ export function publicDashboard(uuid: string) {
   return `${siteUrl}/public/dashboard/${uuid}`;
 }
 
+export function getQuerySearchParams() {
+  const searchParams = new URLSearchParams(window.location.search);
+
+  const paramsObject: any = {};
+
+  searchParams.forEach((value, key) => {
+    paramsObject[key] = value;
+  });
+
+  const querySearchParams = Object.keys(paramsObject)
+    .map(key => `${key}=${paramsObject[key]}`)
+    .join("&");
+
+  return querySearchParams;
+}
+
+export function createPublicDiscoverUrlForDashboard(uuid: string) {
+  const siteUrl = "https://dapplooker.com/dashboard";
+
+  const endPath = window.location?.pathname.split("/").pop() || "";
+
+  const match = endPath.match(/^(\d+)-(.+)$/);
+
+  const formattedEndPath = match ? `${match[2]}-${match[1]}` : endPath;
+
+  // const searchParams = getQuerySearchParams();
+
+  // const searchQuery = searchParams ? `?${searchParams}` : "";
+
+  return `${siteUrl}/${formattedEndPath}`;
+}
+
+export function getPublicEmbedUrlForDashboard(uuid: string) {
+  const url = "https://analytics.dapplooker.com/public/dashboard";
+
+  return `${url}/${uuid}`;
+}
+
 export function embedDashboard(token: string) {
   const siteUrl = MetabaseSettings.get("site-url");
   return `${siteUrl}/embed/dashboard/${token}`;

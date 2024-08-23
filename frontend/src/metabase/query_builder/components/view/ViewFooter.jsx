@@ -11,9 +11,9 @@ import Icon from "metabase/components/Icon";
 import ButtonBar from "metabase/components/ButtonBar";
 
 import QueryDownloadWidget from "metabase/query_builder/components/QueryDownloadWidget";
-import QuestionEmbedWidget, {
-  QuestionEmbedWidgetTrigger,
-} from "metabase/query_builder/containers/QuestionEmbedWidget";
+// import QuestionEmbedWidget, {
+//   QuestionEmbedWidgetTrigger,
+// } from "metabase/query_builder/containers/QuestionEmbedWidget";
 import { getIconForVisualizationType } from "metabase/visualizations";
 import ViewButton from "./ViewButton";
 
@@ -171,16 +171,16 @@ const ViewFooter = ({
               }
             />
           ),
-          QuestionEmbedWidget.shouldRender({ question, isAdmin }) && (
-            <QuestionEmbedWidgetTrigger
-              key="embeds"
-              onClick={() =>
-                question.isSaved()
-                  ? onOpenModal("embed")
-                  : onOpenModal("save-question-before-embed")
-              }
-            />
-          ),
+          // QuestionEmbedWidget.shouldRender({ question, isAdmin }) && (
+          //   <QuestionEmbedWidgetTrigger
+          //     key="embeds"
+          //     onClick={() =>
+          //       question.isSaved()
+          //         ? onOpenModal("embed")
+          //         : onOpenModal("save-question-before-embed")
+          //     }
+          //   />
+          // ),
           // QuestionTimelineWidget.shouldRender({ isTimeseries }) && (
           //   <QuestionTimelineWidget
           //     key="timelines"

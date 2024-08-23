@@ -998,21 +998,51 @@ saved later when it is ready."
 
 ;;; ----------------------------------------------- Sharing is Caring ------------------------------------------------
 
+;; #_{:clj-kondo/ignore [:deprecated-var]}
+;; (api/defendpoint-schema POST "/:card-id/public_link"
+;;   "Generate publicly-accessible links for this Card. Returns UUID to be used in public links. (If this Card has
+;;   already been shared, it will return the existing public link rather than creating a new one.)  Public sharing must
+;;   be enabled."
+;;   [card-id]
+;;   (validation/check-has-application-permission :setting)
+;;   (validation/check-public-sharing-enabled)
+;;   (api/check-not-archived (api/read-check Card card-id))
+;;   (let [{existing-public-uuid :public_uuid} (db/select-one [Card :public_uuid] :id card-id)]
+;;     {:uuid (or existing-public-uuid
+;;                (u/prog1 (str (UUID/randomUUID))
+;;                  (db/update! Card card-id
+;;                    :public_uuid       <>
+;;                    :made_public_by_id api/*current-user-id*)))}))
+
+
 #_{:clj-kondo/ignore [:deprecated-var]}
 (api/defendpoint-schema POST "/:card-id/public_link"
   "Generate publicly-accessible links for this Card. Returns UUID to be used in public links. (If this Card has
   already been shared, it will return the existing public link rather than creating a new one.)  Public sharing must
   be enabled."
   [card-id]
-  (validation/check-has-application-permission :setting)
   (validation/check-public-sharing-enabled)
   (api/check-not-archived (api/read-check Card card-id))
-  (let [{existing-public-uuid :public_uuid} (db/select-one [Card :public_uuid] :id card-id)]
-    {:uuid (or existing-public-uuid
-               (u/prog1 (str (UUID/randomUUID))
-                 (db/update! Card card-id
-                   :public_uuid       <>
-                   :made_public_by_id api/*current-user-id*)))}))
+  
+  ;; Fetch the card details to get the creator ID
+  (let [card (db/select-one 'Card :id card-id)
+        creator-id (:creator_id card)]
+    
+    ;; Check if the current user is either the creator or has necessary permissions
+    (api/check-403 (or (= api/*current-user-id* creator-id)
+                       (try
+                         (validation/check-has-application-permission :setting)
+                         true
+                         (catch Exception _ false))))
+    
+    ;; Proceed if the current user is the creator or has necessary permissions
+    (let [{existing-public-uuid :public_uuid} (db/select-one [Card :public_uuid] :id card-id)]
+      {:uuid (or existing-public-uuid
+                 (u/prog1 (str (UUID/randomUUID))
+                   (db/update! Card card-id
+                     :public_uuid       <>
+                     :made_public_by_id api/*current-user-id*)))})))
+
 
 #_{:clj-kondo/ignore [:deprecated-var]}
 (api/defendpoint-schema POST "/:card-id/dl_public_link"
@@ -1031,17 +1061,43 @@ saved later when it is ready."
                    :made_public_by_id api/*current-user-id*)))}))
 
 
+;; #_{:clj-kondo/ignore [:deprecated-var]}
+;; (api/defendpoint-schema DELETE "/:card-id/public_link"
+;;   "Delete the publicly-accessible link to this Card."
+;;   [card-id]
+;;   (validation/check-has-application-permission :setting)
+;;   (validation/check-public-sharing-enabled)
+;;   (api/check-exists? Card :id card-id, :public_uuid [:not= nil])
+;;   (db/update! Card card-id
+;;     :public_uuid       nil
+;;     :made_public_by_id nil)
+;;   {:status 204, :body nil})
+
+
 #_{:clj-kondo/ignore [:deprecated-var]}
 (api/defendpoint-schema DELETE "/:card-id/public_link"
   "Delete the publicly-accessible link to this Card."
   [card-id]
-  (validation/check-has-application-permission :setting)
   (validation/check-public-sharing-enabled)
   (api/check-exists? Card :id card-id, :public_uuid [:not= nil])
-  (db/update! Card card-id
-    :public_uuid       nil
-    :made_public_by_id nil)
-  {:status 204, :body nil})
+  
+  ;; Fetch the card details to get the creator ID
+  (let [card (db/select-one 'Card :id card-id)
+        creator-id (:creator_id card)]
+    
+    ;; Check if the current user is either the creator or has necessary permissions
+    (api/check-403 (or (= api/*current-user-id* creator-id)
+                       (try
+                         (validation/check-has-application-permission :setting)
+                         true
+                         (catch Exception _ false))))
+    
+    ;; Proceed to delete the public link if the user is authorized
+    (db/update! Card card-id
+      :public_uuid       nil
+      :made_public_by_id nil)
+    {:status 204, :body nil}))
+
 
 #_{:clj-kondo/ignore [:deprecated-var]}
 (api/defendpoint-schema GET "/public"
