@@ -58,7 +58,7 @@ type Props = {
   }) => void;
 };
 
-const BROWSE_URL = "/browse/2";
+const BROWSE_URL = "/browse";
 const OTHER_USERS_COLLECTIONS_URL = Urls.otherUsersPersonalCollections();
 const ARCHIVE_URL = "/archive";
 const ADD_YOUR_OWN_DATA_URL = "/admin/databases/create";
