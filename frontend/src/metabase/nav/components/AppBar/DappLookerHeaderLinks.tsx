@@ -33,7 +33,7 @@ const NewBadgeImg = styled.img`
 const DappLookerHeaderLinks = (): JSX.Element => {
   const DAPPLOOKER_ControlCenter_LINK =
     "https://dapplooker.com/control-center?type=my-projects";
-  const ANALYZER_BROWSE_DATA_LINK = "https://analytics.dapplooker.com/browse/2";
+  const ANALYZER_BROWSE_DATA_LINK = "https://analytics.dapplooker.com/browse";
 
   const MYCREATION_NEW_BADGE_EXPIRY_DATE = new Date("2023-11-12");
 
